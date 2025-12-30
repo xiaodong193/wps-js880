@@ -4386,22 +4386,6 @@ const asDate = (d) => {
 };
 
 /**
- * asNumber函数 - 将字符串转换为数字对象
- * @param {any} s - 要转换的字符串
- * @returns {Number} 数字
- * @example
- * asNumber("123")  // 123
- */
-const asNumber = (s) => {
-    if (typeof s === 'number') return s;
-    if (typeof s === 'string') {
-        const num = parseFloat(s);
-        return isNaN(num) ? 0 : num;
-    }
-    return Number(s) || 0;
-};
-
-/**
  * asRange函数 - 将对象转换为Range对象（可用$代替）
  * @param {any} rng - 要转换的对象
  * @returns {Range|null} Range对象
