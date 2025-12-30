@@ -4372,43 +4372,152 @@ function $toArray() {
 // ==================== 类型转换函数 (as系列) ====================
 
 /**
- * asDate函数 - 将日期字符串或JS日期对象转换为日期对象
- * @param {any} d - 要转换的日期
- * @returns {Date} 日期对象
- * @example
- * asDate("2023-9-21")  // Date对象
- */
-const asDate = (d) => {
-    if (d instanceof Date) return d;
-    if (typeof d === 'string') return new Date(d);
-    if (typeof d === 'number') return new Date(d);
-    return new Date();
-};
-
-/**
- * asRange函数 - 将对象转换为Range对象（可用$代替）
- * @param {any} rng - 要转换的对象
- * @returns {Range|null} Range对象
- * @example
- * asRange("A1")    // A1 Range
- * asRange(5, 2)    // 第5行第2列
- */
-const asRange = (rng) => {
-    if (!isWPS) return null;
-    if (typeof rng === 'string') return Range(rng);
-    if (typeof rng === 'number') return Cells(rng, 1);
-    if (rng && rng.Address) return rng;
-    return null;
-};
-
-/**
  * asString函数 - 将对象转换为字符串对象
  * @param {any} s - 要转换的对象
  * @returns {String} 字符串
  * @example
  * asString(123)  // "123"
  */
-const asString = (s) => String(s === null || s === undefined ? '' : s);
+function asString(s) {
+    return String(s === null || s === undefined ? '' : s);
+}
+
+/**
+ * asArray函数 - 将值转换为数组
+ * @param {any} a - 要转换的值
+ * @returns {Array} 数组
+ * @example
+ * asArray(123)           // [123]
+ * asArray("abc")         // ["abc"]
+ * asArray([1,2,3])       // [1,2,3]
+ * asArray("a,b,c")       // ["a","b","c"] (按逗号分割)
+ */
+function asArray(a) {
+    if (Array.isArray(a)) return a;
+    if (a === null || a === undefined) return [];
+    if (typeof a === 'string') {
+        // 尝试按逗号分割
+        if (a.indexOf(',') >= 0) {
+            return a.split(',').map(function(s) { return s.trim(); });
+        }
+        return [a];
+    }
+    return [a];
+}
+
+/**
+ * asNumber函数 - 将值转换为数字
+ * @param {any} a - 要转换的值
+ * @returns {Number} 数字，转换失败返回0
+ * @example
+ * asNumber("123")        // 123
+ * asNumber("12.34")      // 12.34
+ * asNumber("abc")        // 0
+ * asNumber(null)         // 0
+ */
+function asNumber(a) {
+    if (typeof a === 'number') return a;
+    if (typeof a === 'boolean') return a ? 1 : 0;
+    if (a === null || a === undefined || a === '') return 0;
+    var num = Number(a);
+    return isNaN(num) ? 0 : num;
+}
+
+/**
+ * asDate函数 - 将值转换为Date对象
+ * @param {any} a - 要转换的值
+ * @returns {Date} Date对象
+ * @example
+ * asDate("2023-9-1")     // Date对象
+ * asDate(45170)          // Date对象 (Excel日期序号)
+ * asDate("2023/09/01")   // Date对象
+ */
+function asDate(a) {
+    if (a instanceof Date) return a;
+    if (typeof a === 'number') {
+        // Excel日期序号转JS Date
+        return new Date((a - 25569) * 86400 * 1000);
+    }
+    if (typeof a === 'string') {
+        var date = new Date(a);
+        return isNaN(date.getTime()) ? new Date() : date;
+    }
+    return new Date();
+}
+
+/**
+ * asRange函数 - 将值转换为Range对象
+ * @param {any} a - 要转换的值（地址字符串、Range对象等）
+ * @returns {Range|null} Range对象
+ * @example
+ * asRange("A1")          // Range对象
+ * asRange(Range("A1"))   // Range对象
+ * asRange("A1:C10")      // Range对象
+ */
+function asRange(a) {
+    if (!isWPS) return null;
+    if (a && a.Address) return a; // 已经是Range对象
+    if (typeof a === 'string') {
+        try {
+            return Range(a);
+        } catch (e) {
+            return null;
+        }
+    }
+    return null;
+}
+
+/**
+ * asMap函数 - 将值转换为Map对象
+ * @param {any} a - 要转换的值（对象、Map、二维数组等）
+ * @returns {Map} Map对象
+ * @example
+ * asMap({a:1,b:2})       // Map(2) {"a"=>1,"b"=>2}
+ * asMap([['a',1],['b',2]])// Map(2) {"a"=>1,"b"=>2}
+ */
+function asMap(a) {
+    if (a instanceof Map) return a;
+    var map = new Map();
+    if (a === null || a === undefined) return map;
+    if (Array.isArray(a)) {
+        // 二维数组转Map: [['key','value'],...]
+        a.forEach(function(item) {
+            if (Array.isArray(item) && item.length >= 2) {
+                map.set(item[0], item[1]);
+            }
+        });
+    } else if (typeof a === 'object') {
+        // 对象转Map
+        for (var key in a) {
+            if (a.hasOwnProperty(key)) {
+                map.set(key, a[key]);
+            }
+        }
+    }
+    return map;
+}
+
+/**
+ * asObject函数 - 将值转换为普通对象
+ * @param {any} a - 要转换的值（Map、对象等）
+ * @returns {Object} 普通对象
+ * @example
+ * asObject(new Map([['a',1],['b',2]]))  // {a:1,b:2}
+ * asObject({a:1})                        // {a:1}
+ */
+function asObject(a) {
+    if (a instanceof Map) {
+        var obj = {};
+        a.forEach(function(value, key) {
+            obj[key] = value;
+        });
+        return obj;
+    }
+    if (typeof a === 'object' && a !== null) {
+        return a;
+    }
+    return {};
+}
 
 /**
  * asShape函数 - 将对象转换为Shape对象
@@ -4417,13 +4526,13 @@ const asString = (s) => String(s === null || s === undefined ? '' : s);
  * @example
  * asShape('矩形 2')  // Shape对象
  */
-const asShape = (shp) => {
+function asShape(shp) {
     if (!isWPS) return null;
     if (typeof shp === 'string') {
         // 遍历所有工作表的形状
-        for (let i = 1; i <= Sheets.Count; i++) {
-            const sht = Sheets(i);
-            for (let j = 1; j <= sht.Shapes.Count; j++) {
+        for (var i = 1; i <= Sheets.Count; i++) {
+            var sht = Sheets(i);
+            for (var j = 1; j <= sht.Shapes.Count; j++) {
                 if (sht.Shapes(j).Name === shp) return sht.Shapes(j);
                 if (sht.Shapes(j).Name.indexOf(shp) !== -1) return sht.Shapes(j);
             }
@@ -4432,7 +4541,7 @@ const asShape = (shp) => {
     }
     if (shp && shp.Name) return shp;
     return null;
-};
+}
 
 /**
  * asSheet函数 - 将对象转换为工作表对象
@@ -4503,156 +4612,6 @@ function asWorkbook(wbk) {
     }
     if (wbk && wbk.Name) return wbk;
     return null;
-}
-
-// ==================== 类型转换工具 ====================
-
-/**
- * asArray函数 - 将值转换为数组
- * @param {any} a - 要转换的值
- * @returns {Array} 数组
- * @example
- * asArray(123)           // [123]
- * asArray("abc")         // ["abc"]
- * asArray([1,2,3])       // [1,2,3]
- * asArray("a,b,c")       // ["a","b","c"] (按逗号分割)
- */
-function asArray(a) {
-    if (Array.isArray(a)) return a;
-    if (a === null || a === undefined) return [];
-    if (typeof a === 'string') {
-        // 尝试按逗号分割
-        if (a.indexOf(',') >= 0) {
-            return a.split(',').map(s => s.trim());
-        }
-        return [a];
-    }
-    return [a];
-}
-
-/**
- * asString函数 - 将值转换为字符串（别名，已存在const版本）
- * @param {any} a - 要转换的值
- * @returns {String} 字符串
- * @example
- * asString(123)          // "123"
- * asString(null)         // ""
- * asString(undefined)    // ""
- */
-const asStringFn = (a) => String(a === null || a === undefined ? '' : a);
-
-/**
- * asNumber函数 - 将值转换为数字
- * @param {any} a - 要转换的值
- * @returns {Number} 数字，转换失败返回0
- * @example
- * asNumber("123")        // 123
- * asNumber("12.34")      // 12.34
- * asNumber("abc")        // 0
- * asNumber(null)         // 0
- */
-function asNumber(a) {
-    if (typeof a === 'number') return a;
-    if (typeof a === 'boolean') return a ? 1 : 0;
-    if (a === null || a === undefined || a === '') return 0;
-    const num = Number(a);
-    return isNaN(num) ? 0 : num;
-}
-
-/**
- * asDate函数 - 将值转换为Date对象
- * @param {any} a - 要转换的值
- * @returns {Date} Date对象
- * @example
- * asDate("2023-9-1")     // Date对象
- * asDate(45170)          // Date对象 (Excel日期序号)
- * asDate("2023/09/01")   // Date对象
- */
-function asDate(a) {
-    if (a instanceof Date) return a;
-    if (typeof a === 'number') {
-        // Excel日期序号转JS Date
-        return new Date((a - 25569) * 86400 * 1000);
-    }
-    if (typeof a === 'string') {
-        const date = new Date(a);
-        return isNaN(date.getTime()) ? new Date() : date;
-    }
-    return new Date();
-}
-
-/**
- * asRange函数 - 将值转换为Range对象
- * @param {any} a - 要转换的值（地址字符串、Range对象等）
- * @returns {Range|null} Range对象
- * @example
- * asRange("A1")          // Range对象
- * asRange(Range("A1"))   // Range对象
- * asRange("A1:C10")      // Range对象
- */
-function asRange(a) {
-    if (!isWPS) return null;
-    if (a && a.Address) return a; // 已经是Range对象
-    if (typeof a === 'string') {
-        try {
-            return Range(a);
-        } catch (e) {
-            return null;
-        }
-    }
-    return null;
-}
-
-/**
- * asMap函数 - 将值转换为Map对象
- * @param {any} a - 要转换的值（对象、Map、二维数组等）
- * @returns {Map} Map对象
- * @example
- * asMap({a:1,b:2})       // Map(2) {"a"=>1,"b"=>2}
- * asMap([['a',1],['b',2]])// Map(2) {"a"=>1,"b"=>2}
- */
-function asMap(a) {
-    if (a instanceof Map) return a;
-    const map = new Map();
-    if (a === null || a === undefined) return map;
-    if (Array.isArray(a)) {
-        // 二维数组转Map: [['key','value'],...]
-        a.forEach(item => {
-            if (Array.isArray(item) && item.length >= 2) {
-                map.set(item[0], item[1]);
-            }
-        });
-    } else if (typeof a === 'object') {
-        // 对象转Map
-        for (let key in a) {
-            if (a.hasOwnProperty(key)) {
-                map.set(key, a[key]);
-            }
-        }
-    }
-    return map;
-}
-
-/**
- * asObject函数 - 将值转换为普通对象
- * @param {any} a - 要转换的值（Map、对象等）
- * @returns {Object} 普通对象
- * @example
- * asObject(new Map([['a',1],['b',2]]))  // {a:1,b:2}
- * asObject({a:1})                        // {a:1}
- */
-function asObject(a) {
-    if (a instanceof Map) {
-        const obj = {};
-        a.forEach((value, key) => {
-            obj[key] = value;
-        });
-        return obj;
-    }
-    if (typeof a === 'object' && a !== null) {
-        return a;
-    }
-    return {};
 }
 
 // ==================== As - 类型转换包装类 ====================
@@ -4746,7 +4705,7 @@ As.prototype.toNumber = function() {
  * As(null).toString().val()          // ""
  */
 As.prototype.toString = function() {
-    return this._new(asStringFn(this._value));
+    return this._new(asString(this._value));
 };
 
 /**
@@ -5322,6 +5281,53 @@ for (var key in proxy) {
     }
 }
 
+// ==================== 将构造函数类工厂添加到$对象 ====================
+
+/**
+ * $.Array2D - 二维数组工具类工厂
+ * @param {any} data - 输入数据
+ * @returns {Array2D} Array2D实例
+ * @example
+ * $.Array2D([[1,2],[3,4]]).z求和()  // 10
+ * $.Array2D([1,2,3]).z转置()        // [[1],[2],[3]]
+ */
+$.Array2D = function(data) {
+    return new Array2D(data);
+};
+
+/**
+ * $.RngUtils - Range工具类工厂
+ * @param {string|Range} initialRange - 初始Range
+ * @returns {RngUtils} RngUtils实例
+ * @example
+ * $.RngUtils("A1:B10").z安全数组()
+ */
+$.RngUtils = function(initialRange) {
+    return new RngUtils(initialRange);
+};
+
+/**
+ * $.ShtUtils - Sheet工具类工厂
+ * @param {Worksheet} initialSheet - 初始Sheet
+ * @returns {ShtUtils} ShtUtils实例
+ * @example
+ * $.ShtUtils().z当前工作表()
+ */
+$.ShtUtils = function(initialSheet) {
+    return new ShtUtils(initialSheet);
+};
+
+/**
+ * $.DateUtils - 日期工具类工厂
+ * @param {Date|string} initialDate - 初始日期
+ * @returns {DateUtils} DateUtils实例
+ * @example
+ * $.DateUtils().z格式化("yyyy-MM-dd")
+ */
+$.DateUtils = function(initialDate) {
+    return new DateUtils(initialDate);
+};
+
 // ==================== 全局变量导出 ====================
 
 // Node.js环境
@@ -5348,7 +5354,7 @@ if (isNodeJS) {
     module.exports.asRange = asRange;
     module.exports.asShape = asShape;
     module.exports.asSheet = asSheet;
-    module.exports.asString = asStringFn;
+    module.exports.asString = asString;
     module.exports.asWorkbook = asWorkbook;
     module.exports.cdate = cdate;
     module.exports.cstr = cstr;
@@ -5396,7 +5402,7 @@ if (isWPS || isBrowser) {
     this.asRange = asRange;
     this.asShape = asShape;
     this.asSheet = asSheet;
-    this.asString = asStringFn;
+    this.asString = asString;
     this.asWorkbook = asWorkbook;
     this.cdate = cdate;
     this.cstr = cstr;
