@@ -80,10 +80,22 @@ const AUTHOR = "郑广学JSA880框架";
  * @description 郑广学JSA880快速开发框架中的二维数组处理工具
  * @example
  * // 创建实例
- * const arr = new Array2D();
+ * const arr = new clsArray2D();
  * // 使用方法
  * const data = [[1, 2, 3], [4, 5, 6]];
- * console.log(Array2D.sum(data)); // 21
+ * console.log(arr.sum(data)); // 21
+ *
+ * // 方法列表：
+ * // 基础操作: version, val, isEmpty, count
+ * // 克隆填充: copy, fill, fillBlank, flat, reverse
+ * // 统计计算: sum, average, max, min, first, last
+ * // 矩阵操作: transpose, toMatrix, cell, setCell, join
+ * // 分块挑选: chunk, pick, pluck, skip, take
+ * // 查找筛选: findIndex, includes, filter, map, reduce, every, some
+ * // 行列操作: rowCount, colCount, getRow, getCol, firstRow, lastRow, firstCol, lastCol
+ * // 增删行列: addRow, addCol, deleteRow, deleteCol
+ * // 排序去重: sortRow, sortCol, distinct
+ * // 分组透视: groupBy, pivotBy
  */
 class clsArray2D {
 
@@ -3793,12 +3805,15 @@ class clsArray2D {
     }
 
     /**
-     * 返回结果（辅助函数）
-     * @param {Array} array2D - 二维数组
-     * @returns {Array} 数组本身
+     * 返回结果（辅助函数，支持链式调用）
+     * @param {Array} array2D - 二维数组（可选）
+     * @returns {Array|clsArray2D} 如果传入数组返回数组本身，否则返回 this.data
      */
-    res(array2D) {
-        return array2D;
+    res(array2D = null) {
+        if (array2D !== null) {
+            return array2D;
+        }
+        return this.data;
     }
 
     // ==================== 新增缺失函数 ====================
@@ -4019,11 +4034,55 @@ class clsArray2D {
     }
 
     /**
-     * 按规则升序排序 - 支持链式调用
+     * 按规则升序排序 - 支持链式调用或传入数组参数
+     * @param {Array} array2D - 要排序的数组（可选）
      * @param {Function|number} keySelector - 键选择器或列索引
-     * @returns {clsArray2D} 返回当前实例以支持链式调用
+     * @returns {Array|clsArray2D} 如果传入数组返回排序后的数组，否则返回实例
      */
-    sortBy(keySelector) {
+    sortBy(array2D, keySelector) {
+        // 判断第一个参数是数组还是keySelector
+        let sourceArray = null;
+        let actualKeySelector = keySelector;
+
+        if (Array.isArray(array2D)) {
+            sourceArray = array2D;
+            if (keySelector === undefined) {
+                actualKeySelector = null;
+            }
+        } else {
+            actualKeySelector = array2D;
+            sourceArray = null;
+        }
+
+        // 如果传入了数组参数，返回排序后的新数组
+        if (sourceArray !== null) {
+            if (this.isEmpty(sourceArray)) {
+                return [];
+            }
+
+            const result = this.copy(sourceArray);
+            result.sort((a, b) => {
+                let keyA, keyB;
+
+                if (typeof actualKeySelector === 'function') {
+                    keyA = actualKeySelector(a);
+                    keyB = actualKeySelector(b);
+                } else if (typeof actualKeySelector === 'number') {
+                    keyA = a[actualKeySelector];
+                    keyB = b[actualKeySelector];
+                } else {
+                    keyA = a;
+                    keyB = b;
+                }
+
+                if (keyA < keyB) return -1;
+                if (keyA > keyB) return 1;
+                return 0;
+            });
+            return result;
+        }
+
+        // 链式调用模式：使用实例的 data
         if (this.isEmpty(this.data)) {
             this.data = [];
             return this;
@@ -4034,12 +4093,12 @@ class clsArray2D {
         result.sort((a, b) => {
             let keyA, keyB;
 
-            if (typeof keySelector === 'function') {
-                keyA = keySelector(a);
-                keyB = keySelector(b);
-            } else if (typeof keySelector === 'number') {
-                keyA = a[keySelector];
-                keyB = b[keySelector];
+            if (typeof actualKeySelector === 'function') {
+                keyA = actualKeySelector(a);
+                keyB = actualKeySelector(b);
+            } else if (typeof actualKeySelector === 'number') {
+                keyA = a[actualKeySelector];
+                keyB = b[actualKeySelector];
             } else {
                 keyA = a;
                 keyB = b;
@@ -4055,43 +4114,115 @@ class clsArray2D {
     }
 
     /**
-     * 多列排序 - 按多列排序 - 支持链式调用
-     * @param {Array} colIndices - 列索引数组
-     * @param {Array} orders - 排序顺序数组 (true升序/false降序)
-     * @returns {clsArray2D} 返回当前实例以支持链式调用
+     * 多列排序 - 按指定列(可选表头行数, 可选升序或降序)进行排序
+     * @param {Array} arr - 二维数组
+     * @param {String} cols - 排序列 f1+ 加表示升序 f2- 减表示降序 也可使用 0+ 1- 模式（0索引）
+     * @param {Number} header - 表头行数, 默认为0
+     * @returns {Array} 排序后的结果二维数组
+     * @example
+     * // 示例1: 0索引模式 0+ 1-
+     * var arr = [[3, 'C'], [2, 'C'], [1, 'A'], [3, 'D'], [2, 'B']];
+     * var result = Array2D.sortByCols(arr, '0+,1-');
+     *
+     * // 示例2: f模式（1索引）
+     * var arr = [["ID","产品","国家"], [13,"Product1","中国"], [8,"Product2","中国"]];
+     * var result = Array2D.sortByCols(arr, "f2+,f6-", 1);
      */
-    sortByCols(colIndices, orders = []) {
-        if (this.isEmpty(this.data)) {
-            this.data = [];
-            return this;
+    sortByCols(arr, cols, header = 0) {
+        if (this.isEmpty(arr)) {
+            return [];
         }
 
-        const result = [...this.data];
+        // 解析排序列字符串
+        const sortConfigs = [];
+        const parts = cols.split(',').map(s => s.trim());
 
-        result.sort((a, b) => {
-            for (let i = 0; i < colIndices.length; i++) {
-                const colIndex = colIndices[i];
-                const ascending = orders[i] !== false;
+        for (const part of parts) {
+            // 匹配 f1+、f2- 或 0+、1- 模式
+            const match = part.match(/^([fF]?)(\d+)([+-])$/);
+            if (match) {
+                const hasF = match[1].toLowerCase() === 'f';
+                const colNum = parseInt(match[2]);
+                const order = match[3];
 
-                const valA = a[colIndex];
-                const valB = b[colIndex];
+                // f1 表示从1开始的列号，转换为0索引；0+ 模式已经是0索引
+                const colIndex = hasF ? colNum - 1 : colNum;
+                const ascending = order === '+';
 
-                if (valA < valB) return ascending ? -1 : 1;
-                if (valA > valB) return ascending ? 1 : -1;
+                sortConfigs.push({ colIndex, ascending });
+            }
+        }
+
+        // 分离表头和数据行
+        const headerRows = arr.slice(0, header);
+        const dataRows = arr.slice(header);
+
+        // 对数据行进行排序
+        const sortedData = [...dataRows].sort((a, b) => {
+            for (const config of sortConfigs) {
+                const valA = a[config.colIndex];
+                const valB = b[config.colIndex];
+
+                if (valA < valB) return config.ascending ? -1 : 1;
+                if (valA > valB) return config.ascending ? 1 : -1;
             }
             return 0;
         });
 
-        this.data = result;
-        return this;
+        // 合并表头和排序后的数据
+        return headerRows.concat(sortedData);
     }
 
     /**
-     * 按规则降序排序 - 支持链式调用
+     * 按规则降序排序 - 支持链式调用或传入数组参数
+     * @param {Array} array2D - 要排序的数组（可选）
      * @param {Function|number} keySelector - 键选择器或列索引
-     * @returns {clsArray2D} 返回当前实例以支持链式调用
+     * @returns {Array|clsArray2D} 如果传入数组返回排序后的数组，否则返回实例
      */
-    sortByDesc(keySelector) {
+    sortByDesc(array2D, keySelector) {
+        // 判断第一个参数是数组还是keySelector
+        let sourceArray = null;
+        let actualKeySelector = keySelector;
+
+        if (Array.isArray(array2D)) {
+            sourceArray = array2D;
+            if (keySelector === undefined) {
+                actualKeySelector = null;
+            }
+        } else {
+            actualKeySelector = array2D;
+            sourceArray = null;
+        }
+
+        // 如果传入了数组参数，返回排序后的新数组
+        if (sourceArray !== null) {
+            if (this.isEmpty(sourceArray)) {
+                return [];
+            }
+
+            const result = this.copy(sourceArray);
+            result.sort((a, b) => {
+                let keyA, keyB;
+
+                if (typeof actualKeySelector === 'function') {
+                    keyA = actualKeySelector(a);
+                    keyB = actualKeySelector(b);
+                } else if (typeof actualKeySelector === 'number') {
+                    keyA = a[actualKeySelector];
+                    keyB = b[actualKeySelector];
+                } else {
+                    keyA = a;
+                    keyB = b;
+                }
+
+                if (keyA > keyB) return -1;
+                if (keyA < keyB) return 1;
+                return 0;
+            });
+            return result;
+        }
+
+        // 链式调用模式：使用实例的 data
         if (this.isEmpty(this.data)) {
             this.data = [];
             return this;
@@ -4102,12 +4233,12 @@ class clsArray2D {
         result.sort((a, b) => {
             let keyA, keyB;
 
-            if (typeof keySelector === 'function') {
-                keyA = keySelector(a);
-                keyB = keySelector(b);
-            } else if (typeof keySelector === 'number') {
-                keyA = a[keySelector];
-                keyB = b[keySelector];
+            if (typeof actualKeySelector === 'function') {
+                keyA = actualKeySelector(a);
+                keyB = actualKeySelector(b);
+            } else if (typeof actualKeySelector === 'number') {
+                keyA = a[actualKeySelector];
+                keyB = b[actualKeySelector];
             } else {
                 keyA = a;
                 keyB = b;
@@ -4123,12 +4254,47 @@ class clsArray2D {
     }
 
     /**
-     * 自定义排序 - 按指定列表的顺序排序 - 支持链式调用
-     * @param {number} colIndex - 列索引
-     * @param {Array} orderList - 排序列表
-     * @returns {clsArray2D} 返回当前实例以支持链式调用
+     * 自定义排序 - 按指定列表的顺序排序 - 支持链式调用或传入数组参数
+     * @param {number|string} colIndex - 列索引（支持数字0索引或 "f3" 格式1索引）
+     * @param {Array|string} orderList - 排序列表（数组或逗号分隔的字符串）
+     * @param {Array} array2D - 要排序的数组（可选）
+     * @returns {Array|clsArray2D} 如果传入数组返回排序后的数组，否则返回实例
      */
-    sortByList(colIndex, orderList) {
+    sortByList(colIndex, orderList, array2D = null) {
+        // 处理列索引：支持 f3 格式（从1开始的列号）或数字索引
+        let actualColIndex = colIndex;
+        if (typeof colIndex === 'string' && colIndex.toLowerCase().startsWith('f')) {
+            actualColIndex = parseInt(colIndex.substring(1)) - 1;
+        }
+
+        // 处理排序列表：支持逗号分隔的字符串或数组
+        let actualOrderList = orderList;
+        if (typeof orderList === 'string') {
+            actualOrderList = orderList.split(',').map(s => s.trim());
+        }
+
+        // 如果传入了数组参数，返回排序后的新数组
+        if (array2D !== null && Array.isArray(array2D)) {
+            if (this.isEmpty(array2D)) {
+                return [];
+            }
+
+            const result = this.copy(array2D);
+            result.sort((a, b) => {
+                const valA = a[actualColIndex];
+                const valB = b[actualColIndex];
+                const indexA = actualOrderList.indexOf(valA);
+                const indexB = actualOrderList.indexOf(valB);
+
+                const posA = indexA === -1 ? 999 : indexA;
+                const posB = indexB === -1 ? 999 : indexB;
+
+                return posA - posB;
+            });
+            return result;
+        }
+
+        // 链式调用模式：使用实例的 data
         if (this.isEmpty(this.data)) {
             this.data = [];
             return this;
@@ -4137,8 +4303,10 @@ class clsArray2D {
         const result = [...this.data];
 
         result.sort((a, b) => {
-            const indexA = orderList.indexOf(a[colIndex]);
-            const indexB = orderList.indexOf(b[colIndex]);
+            const valA = a[actualColIndex];
+            const valB = b[actualColIndex];
+            const indexA = actualOrderList.indexOf(valA);
+            const indexB = actualOrderList.indexOf(valB);
 
             const posA = indexA === -1 ? 999 : indexA;
             const posB = indexB === -1 ? 999 : indexB;
@@ -4640,7 +4808,7 @@ class clsArray2D {
     // 数组操作函数
     z克隆 = (arr) => this.copy(arr);
     z批量填充 = (arr, val, start, end) => this.fill(arr, val, start, end);
-    z补齐空位 = (arr, defVal) => this.fillBlank(arr, defVal);
+    z补齐空位 = (arr, direction) => this.fillBlank(arr, direction);
     z降维 = (arr, depth) => this.flat(arr, depth);
     z反转 = (arr) => this.reverse(arr);
 
@@ -4765,9 +4933,9 @@ class clsArray2D {
 
     // 排序扩展函数
     z按规则升序 = (arr, keySelector) => this.sortBy(arr, keySelector);
-    z多列排序 = (arr, colIndices, orders) => this.sortByCols(arr, colIndices, orders);
+    z多列排序 = (arr, cols, header) => this.sortByCols(arr, cols, header);
     z按规则降序 = (arr, keySelector) => this.sortByDesc(arr, keySelector);
-    z自定义排序 = (arr, colIndex, orderList) => this.sortByList(arr, colIndex, orderList);
+    z自定义排序 = (arr, colIndex, orderList) => this.sortByList(colIndex, orderList, arr);
     z降序排序 = (arr) => this.sortDesc(arr);
 
     // 数据取用函数
@@ -4995,24 +5163,102 @@ class clsArray2D {
      */
 
     /**
-     * 检测并标记空值
+     * 补齐空位 - 按方向位置的值补齐空白
      * @param {Array} array2D - 二维数组
-     * @param {string} fillValue - 填充值
-     * @returns {Array} 填充后的数组
+     * @param {string} direction - 方向: "u"(上), "d"(下), "l"(左), "r"(右)
+     * @returns {Array} 补齐后的数组（注意原数组也一起改动）
+     * @example
+     * // 向上补齐
+     * var arr = [[4,5,6,7],[1,2,"",""],[7,8,9,8]];
+     * var brr = arr.fillBlank(arr, "u"); // 按上补齐结果
+     * // 结果: [[4,5,6,7],[1,2,6,7],[7,8,9,8]]
      */
-    fillBlank(array2D, fillValue = '') {
+    fillBlank(array2D, direction = 'd') {
         if (this.isEmpty(array2D)) {
             return [];
         }
 
-        return array2D.map(row => {
-            if (!Array.isArray(row)) {
-                return row;
-            }
-            return row.map(cell =>
-                cell === null || cell === undefined || cell === '' ? fillValue : cell
-            );
-        });
+        const isEmptyValue = (val) => {
+            return val === null || val === undefined || val === '';
+        };
+
+        const rows = array2D.length;
+        if (rows === 0) return [];
+
+        const cols = Array.isArray(array2D[0]) ? array2D[0].length : 0;
+
+        // 根据方向进行填充
+        switch (direction.toLowerCase()) {
+            case 'u': // 向上填充 - 用上方非空值填充空位
+                for (let j = 0; j < cols; j++) {
+                    let lastValue = null;
+                    for (let i = 0; i < rows; i++) {
+                        if (Array.isArray(array2D[i]) && j < array2D[i].length) {
+                            if (!isEmptyValue(array2D[i][j])) {
+                                lastValue = array2D[i][j];
+                            } else if (lastValue !== null) {
+                                array2D[i][j] = lastValue;
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case 'd': // 向下填充 - 用下方非空值填充空位（默认）
+                for (let j = 0; j < cols; j++) {
+                    let lastValue = null;
+                    for (let i = rows - 1; i >= 0; i--) {
+                        if (Array.isArray(array2D[i]) && j < array2D[i].length) {
+                            if (!isEmptyValue(array2D[i][j])) {
+                                lastValue = array2D[i][j];
+                            } else if (lastValue !== null) {
+                                array2D[i][j] = lastValue;
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case 'l': // 向左填充 - 用左侧非空值填充空位
+                for (let i = 0; i < rows; i++) {
+                    if (Array.isArray(array2D[i])) {
+                        // 先找到第一个非空值作为起始填充值
+                        let lastValue = null;
+                        for (let j = 0; j < array2D[i].length; j++) {
+                            if (!isEmptyValue(array2D[i][j])) {
+                                lastValue = array2D[i][j];
+                            } else if (lastValue !== null) {
+                                // 只有当左边已经有非空值时才填充
+                                array2D[i][j] = lastValue;
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case 'r': // 向右填充 - 用右侧非空值填充空位
+                for (let i = 0; i < rows; i++) {
+                    if (Array.isArray(array2D[i])) {
+                        // 从右到左遍历，先找到第一个非空值作为起始填充值
+                        let lastValue = null;
+                        for (let j = array2D[i].length - 1; j >= 0; j--) {
+                            if (!isEmptyValue(array2D[i][j])) {
+                                lastValue = array2D[i][j];
+                            } else if (lastValue !== null) {
+                                // 只有当右边已经有非空值时才填充
+                                array2D[i][j] = lastValue;
+                            }
+                        }
+                    }
+                }
+                break;
+
+            default:
+                // 默认向下填充
+                return this.fillBlank(array2D, 'd');
+        }
+
+        return array2D;
     }
 
     /**
@@ -5415,22 +5661,160 @@ class clsArray2D {
     z添加累加列 = (array2D, sourceCol, targetCol, skipHeader) => this.addCumulativeCol(array2D, sourceCol, targetCol, skipHeader);
 }
 
+// ==================== WPS JSA 智能补全支持 ====================
+// 将原型方法挂载到构造函数上，使 WPS JSA 能够识别并提供智能补全
+// 这样输入 "Array2D." 或 "clsArray2D." 时可以看到所有方法
+
+// 英文方法
+clsArray2D.version = clsArray2D.prototype.version;
+clsArray2D.val = clsArray2D.prototype.val;
+clsArray2D.isEmpty = clsArray2D.prototype.isEmpty;
+clsArray2D.count = clsArray2D.prototype.count;
+clsArray2D.copy = clsArray2D.prototype.copy;
+clsArray2D.fill = clsArray2D.prototype.fill;
+clsArray2D.fillBlank = clsArray2D.prototype.fillBlank;
+clsArray2D.flat = clsArray2D.prototype.flat;
+clsArray2D.reverse = clsArray2D.prototype.reverse;
+clsArray2D.sum = clsArray2D.prototype.sum;
+clsArray2D.average = clsArray2D.prototype.average;
+clsArray2D.max = clsArray2D.prototype.max;
+clsArray2D.min = clsArray2D.prototype.min;
+clsArray2D.first = clsArray2D.prototype.first;
+clsArray2D.last = clsArray2D.prototype.last;
+clsArray2D.transpose = clsArray2D.prototype.transpose;
+clsArray2D.toMatrix = clsArray2D.prototype.toMatrix;
+clsArray2D.cell = clsArray2D.prototype.cell;
+clsArray2D.setCell = clsArray2D.prototype.setCell;
+clsArray2D.join = clsArray2D.prototype.join;
+clsArray2D.chunk = clsArray2D.prototype.chunk;
+clsArray2D.pick = clsArray2D.prototype.pick;
+clsArray2D.pluck = clsArray2D.prototype.pluck;
+clsArray2D.skip = clsArray2D.prototype.skip;
+clsArray2D.take = clsArray2D.prototype.take;
+clsArray2D.findIndex = clsArray2D.prototype.findIndex;
+clsArray2D.includes = clsArray2D.prototype.includes;
+clsArray2D.filter = clsArray2D.prototype.filter;
+clsArray2D.map = clsArray2D.prototype.map;
+clsArray2D.reduce = clsArray2D.prototype.reduce;
+clsArray2D.every = clsArray2D.prototype.every;
+clsArray2D.some = clsArray2D.prototype.some;
+clsArray2D.rowCount = clsArray2D.prototype.rowCount;
+clsArray2D.colCount = clsArray2D.prototype.colCount;
+clsArray2D.getRow = clsArray2D.prototype.getRow;
+clsArray2D.getCol = clsArray2D.prototype.getCol;
+clsArray2D.firstRow = clsArray2D.prototype.firstRow;
+clsArray2D.lastRow = clsArray2D.prototype.lastRow;
+clsArray2D.firstCol = clsArray2D.prototype.firstCol;
+clsArray2D.lastCol = clsArray2D.prototype.lastCol;
+clsArray2D.addRow = clsArray2D.prototype.addRow;
+clsArray2D.addCol = clsArray2D.prototype.addCol;
+clsArray2D.deleteRow = clsArray2D.prototype.deleteRow;
+clsArray2D.deleteCol = clsArray2D.prototype.deleteCol;
+clsArray2D.sortRow = clsArray2D.prototype.sortRow;
+clsArray2D.sortCol = clsArray2D.prototype.sortCol;
+clsArray2D.distinct = clsArray2D.prototype.distinct;
+clsArray2D.groupBy = clsArray2D.prototype.groupBy;
+clsArray2D.pivotBy = clsArray2D.prototype.pivotBy;
+clsArray2D.cumulativeSum = clsArray2D.prototype.cumulativeSum;
+clsArray2D.cumulativeSumBy = clsArray2D.prototype.cumulativeSumBy;
+clsArray2D.addCumulativeCol = clsArray2D.prototype.addCumulativeCol;
+
+// 中文方法
+clsArray2D.z求和 = clsArray2D.prototype.z求和;
+clsArray2D.z平均值 = clsArray2D.prototype.z平均值;
+clsArray2D.z最大值 = clsArray2D.prototype.z最大值;
+clsArray2D.z最小值 = clsArray2D.prototype.z最小值;
+clsArray2D.z转置 = clsArray2D.prototype.z转置;
+clsArray2D.z合并 = clsArray2D.prototype.z合并;
+clsArray2D.z克隆 = clsArray2D.prototype.z克隆;
+clsArray2D.z行数 = clsArray2D.prototype.z行数;
+clsArray2D.z列数 = clsArray2D.prototype.z列数;
+clsArray2D.z获取行 = clsArray2D.prototype.z获取行;
+clsArray2D.z获取列 = clsArray2D.prototype.z获取列;
+clsArray2D.z第一行 = clsArray2D.prototype.z第一行;
+clsArray2D.z最后一行 = clsArray2D.prototype.z最后一行;
+clsArray2D.z第一列 = clsArray2D.prototype.z第一列;
+clsArray2D.z最后一列 = clsArray2D.prototype.z最后一列;
+clsArray2D.z添加行 = clsArray2D.prototype.z添加行;
+clsArray2D.z添加列 = clsArray2D.prototype.z添加列;
+clsArray2D.z删除行 = clsArray2D.prototype.z删除行;
+clsArray2D.z删除列 = clsArray2D.prototype.z删除列;
+clsArray2D.z填充 = clsArray2D.prototype.z填充;
+clsArray2D.z补齐空位 = clsArray2D.prototype.z补齐空位;
+clsArray2D.z扁平化 = clsArray2D.prototype.z扁平化;
+clsArray2D.z反转 = clsArray2D.prototype.z反转;
+clsArray2D.z排序 = clsArray2D.prototype.z排序;
+clsArray2D.z列排序 = clsArray2D.prototype.z列排序;
+clsArray2D.z去重 = clsArray2D.prototype.z去重;
+clsArray2D.z分组 = clsArray2D.prototype.z分组;
+clsArray2D.z透视 = clsArray2D.prototype.z透视;
+clsArray2D.z列累加 = clsArray2D.prototype.z列累加;
+clsArray2D.z分组列累加 = clsArray2D.prototype.z分组列累加;
+clsArray2D.z添加累加列 = clsArray2D.prototype.z添加累加列;
+
 /**
- * 创建Array2D全局实例 - 可直接使用 Array2D.方法名() 调用
+ * 创建Array2D数组对象 - 继承自Array，添加二维数组操作方法
+ *
+ * @description
+ * Array2D 是一个数组对象，继承了Array的所有特性，并添加了二维数组操作方法
+ * 这样可以获得最佳的 WPS JSA 智能补全支持
+ *
  * @example
+ * // 方式1: 作为工具对象使用（传入参数）
  * Array2D.sum([[1,2,3],[4,5,6]]); // 21
+ *
+ * // 方式2: 作为数组对象使用
+ * var arr = Array2D.create([[1,2,3],[4,5,6]]);
+ * arr.sum();  // 21
+ * arr.transpose();  // [[1,4],[2,5],[3,6]]
  */
-const Array2D = new clsArray2D();
+const Array2D = [];
+
+// 添加属性
+Array2D.MODULE_NAME = "Array2D";
+Array2D.VERSION = "1.0.0";
+Array2D.AUTHOR = "郑广学JSA880框架";
+
+// 将 clsArray2D 的所有原型方法复制到 Array2D 数组对象上
+// 这样 Array2D 既是数组，又有所有操作方法，WPS JSA 能提供智能补全
+Object.getOwnPropertyNames(clsArray2D.prototype).forEach(function(methodName) {
+    if (typeof clsArray2D.prototype[methodName] === 'function') {
+        Array2D[methodName] = clsArray2D.prototype[methodName];
+    }
+});
+
+/**
+ * 创建一个带数据的 Array2D 实例
+ * @param {Array<any>} data - 初始数据
+ * @returns {Array} 带有方法的数组对象
+ * @example
+ * var arr = Array2D.create([[1,2,3],[4,5,6]]);
+ * arr.sum();  // 21
+ */
+Array2D.create = function(data) {
+    var result = Array.isArray(data) ? data.slice() : [];
+    // 将所有方法复制到新数组上
+    Object.getOwnPropertyNames(clsArray2D.prototype).forEach(function(methodName) {
+        if (typeof clsArray2D.prototype[methodName] === 'function') {
+            result[methodName] = clsArray2D.prototype[methodName];
+        }
+    });
+    return result;
+};
 
 /**
  * 导出Array2D类 - 支持WPS JSA环境
+ * 同时导出构造函数和单例实例，支持智能补全
  */
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { Array2D };
+    module.exports = { Array2D, clsArray2D };
 }
-// WPS JSA环境：导出为全局变量
+// WPS JSA环境：导出为全局变量（同时导出构造函数和单例）
 if (typeof window !== 'undefined' || typeof Application !== 'undefined') {
+    // 导出单例实例（推荐使用）
     this.Array2D = Array2D;
+    // 导出构造函数（用于创建新实例，支持智能补全）
+    this.clsArray2D = clsArray2D;
 }
 
 /**
@@ -5591,19 +5975,72 @@ class clsRngUtils {
     // ==================== 辅助函数 ====================
 
     /**
+     * 安全获取Range对象的地址
+     * @private
+     * @param {Range} rng - Range对象
+     * @returns {string|null} 地址字符串，如果获取失败返回null
+     */
+    _getAddress(rng) {
+        if (!rng || !rng.Address) {
+            return null;
+        }
+        try {
+            // WPS JSA中Address可能是属性也可能是方法
+            return typeof rng.Address === 'function' ? rng.Address() : rng.Address;
+        } catch (e) {
+            console.warn(`_getAddress: 获取地址时出错 - ${e.message}`);
+            return null;
+        }
+    }
+
+    /**
      * 将参数转换为Range对象
      * @private
      * @param {Range|string} rng - Range对象或地址字符串
-     * @returns {Range} Range对象
+     * @returns {Range|null} Range对象，如果转换失败返回null
      */
     _toRange(rng) {
-        if (typeof rng === 'string') {
-            return Range(rng);
+        if (!rng) {
+            return null;
         }
+
+        if (typeof rng === 'string') {
+            try {
+                console.log(`[_toRange调试] 尝试创建 Range("${rng}"), 当前活动工作表=${Application.ActiveSheet ? Application.ActiveSheet.Name : 'N/A'}`);
+                const result = Range(rng);
+                console.log(`[_toRange调试] Range 创建成功`);
+                return result;
+            } catch (e) {
+                console.warn(`_toRange: 无法将地址字符串转换为Range - ${rng}, 错误: ${e.message}`);
+                return null;
+            }
+        }
+
         // 处理 clsChainableRange 对象
         if (rng && typeof rng.unwrap === 'function') {
             return rng.unwrap();
         }
+
+        // 如果是Range对象，检查它是否属于当前活动工作表
+        // 如果不属于当前工作表，使用其地址在当前工作表重新创建Range
+        if (rng && rng.Address !== undefined) {
+            try {
+                const addr = this._getAddress(rng);
+                if (!addr) {
+                    return rng; // 无法获取地址，返回原range
+                }
+                // 尝试获取range所属工作表
+                if (rng.Worksheet && rng.Worksheet.Name === Application.ActiveSheet.Name) {
+                    return rng; // 同一个工作表，直接返回
+                }
+                // 不同工作表或无法获取Worksheet，使用当前活动工作表重新创建
+                console.log(`[_toRange调试] Range来自不同工作表，使用地址 ${addr} 在当前工作表重新创建`);
+                return Application.ActiveSheet.Range(addr);
+            } catch (e) {
+                console.warn(`_toRange: 重新创建Range时出错 - ${e.message}，使用原Range`);
+            }
+        }
+
         return rng;
     }
 
@@ -5664,25 +6101,31 @@ class clsRngUtils {
 
     /**
      * 获取安全区域（与UsedRange的交集，支持链式调用）
-     * @returns {clsRngUtils} 返回当前实例以支持链式调用
+     * @param {Range|string} rng - 要获取安全区域的区域（可选，不传则使用 this.range）
+     * @returns {Range} 返回安全区域的 Range 对象
      * @example
      * const rng = new clsRngUtils("A:A");
      * rng.z安全区域();
      * console.log(rng.rng().Address()); // $A$1:$A$13
      */
-    z安全区域() {
-        const range = this._toRange(this.range);
-        const usedRange = Application.ActiveSheet.UsedRange;
-        this.range = Application.Intersect(range, usedRange);
-        return this;
+    z安全区域(rng) {
+        const range = this._toRange(rng);
+        const usedRange = range.Worksheet.UsedRange;
+        try {
+            return Application.Intersect(range, usedRange);
+        } catch (e) {
+            // 如果交集失败（如不同工作表），返回 null
+            return null;
+        }
     }
 
     /**
      * 获取安全区域（英文别名，支持链式调用）
-     * @returns {clsRngUtils} 返回当前实例以支持链式调用
+     * @param {Range|string} rng - 要获取安全区域的区域（可选，不传则使用 this.range）
+     * @returns {Range} 返回安全区域的 Range 对象
      */
-    safeRange() {
-        return this.z安全区域();
+    safeRange(rng) {
+        return this.z安全区域(rng);
     }
 
     /**
@@ -5695,20 +6138,86 @@ class clsRngUtils {
      * console.log(safeArray); // 二维数组
      */
     z安全数组(rng) {
+        const rngAddr = (typeof rng === 'object' && rng && rng.Address) ? this._getAddress(rng) : (typeof rng === 'string' ? rng : 'unknown');
+        console.log(`[z安全数组调试] 开始执行，rng=${rngAddr}`);
+        console.log(`[z安全数组调试] 当前活动工作表=${Application.ActiveSheet ? Application.ActiveSheet.Name : 'N/A'}`);
         const range = this._toRange(rng);
-        const arr = range.Value2;
+        const rangeAddr = range ? this._getAddress(range) : 'null';
+        console.log(`[z安全数组调试] _toRange 返回，range=${rangeAddr}, 所属工作表=${range && range.Worksheet ? range.Worksheet.Name : 'N/A'}`);
+
+        // 空值检查 - 修复第5699行的 null.Value2 错误
+        if (!range) {
+            console.warn(`z安全数组: 无效的区域 - ${rng}`);
+            return [];
+        }
+
+        // 尝试与UsedRange取交集，获取安全区域
+        let safeRange = range;
+        try {
+            // 使用range所属工作表的UsedRange，而不是ActiveSheet的UsedRange
+            const sheet = range.Worksheet || Application.ActiveSheet;
+            const usedRange = sheet.UsedRange;
+            console.log(`[z安全数组调试] UsedRange工作表=${sheet.Name}, UsedRange=${usedRange ? this._getAddress(usedRange) : 'null'}`);
+            const intersection = Application.Intersect(range, usedRange);
+            console.log(`[z安全数组调试] Intersection=${intersection ? this._getAddress(intersection) : 'null'}`);
+            if (intersection) {
+                safeRange = intersection;
+            } else {
+                // 如果交集为null，直接使用原range
+                console.log(`[z安全数组调试] Intersection为null，使用原range`);
+                safeRange = range;
+            }
+        } catch (e) {
+            // 如果获取交集失败，继续使用原range
+            console.warn(`z安全数组: 获取安全区域时出错 - ${e.message}，使用原range`);
+            safeRange = range;
+        }
+
+        // 获取Value2并检查是否为null
+        let arr;
+        try {
+            console.log(`[z安全数组调试] 准备获取 safeRange.Value2, safeRange.Worksheet.Name=${safeRange.Worksheet ? safeRange.Worksheet.Name : 'N/A'}`);
+            console.log(`[z安全数组调试] Application.ActiveSheet.Name=${Application.ActiveSheet.Name}`);
+            arr = safeRange.Value2;
+            console.log(`[z安全数组调试] safeRange.Value2 返回，arr=${arr === null ? 'null' : (arr === undefined ? 'undefined' : '有效')}, 类型=${typeof arr}, 是否数组=${Array.isArray(arr)}`);
+        } catch (e) {
+            console.warn(`z安全数组: 获取Value2时出错 - ${e.message}`);
+            return [];
+        }
+
+        // 如果Value2返回null（空区域或无数据区域）
+        if (arr === null || arr === undefined) {
+            console.log(`[z安全数组调试] arr是null或undefined，返回空数组`);
+            return [];
+        }
 
         // 如果是单个单元格
         if (!Array.isArray(arr)) {
+            console.log(`[z安全数组调试] arr是单个值，返回 [[${arr}]]`);
             return [[arr]];
         }
 
-        // 如果是二维数组但只有一行
-        if (arr.length === 1 || (arr.length === 1 && !Array.isArray(arr[0]))) {
+        console.log(`[z安全数组调试] arr.length=${arr.length}, arr[0]是否数组=${Array.isArray(arr[0])}`);
+        // 检查 arr 是否已经是一维数组（需要包装成二维）
+        if (arr.length > 0 && !Array.isArray(arr[0])) {
+            // arr 是一维数组，包装成二维
+            console.log(`[z安全数组调试] arr是一维数组，返回 [arr]`);
             return [arr];
         }
 
+        // arr 已经是二维数组，直接返回
+        console.log(`[z安全数组调试] arr已经是二维数组，直接返回，arr.length=${arr.length}, arr[0].length=${arr[0] ? arr[0].length : 'N/A'}`);
         return arr;
+    }
+
+    /**
+     * 将区域转换为安全数组（静态方法版本）
+     * @param {Range|string} rng - 要转换为安全数组的区域
+     * @returns {Array} 结果二维数组
+     */
+    static safeArrayStatic(rng) {
+        const instance = new clsRngUtils();
+        return instance.z安全数组(rng);
     }
 
     /**
@@ -5781,21 +6290,36 @@ class clsRngUtils {
 
     /**
      * 获取指定区域从第一行到最后一行的单元格区域（支持链式调用）
-     * @param {string} col - 如果第一参数rng没有列号(整行), 则使用本参数指定列 "A","B","C"..... 默认为"A", 另有'-c','-u'参数
+     * @param {string|Range} rngOrCol - 区域地址/Range对象 或 列参数
+     * @param {string} col - 列参数，默认为"A"
      * @returns {clsRngUtils} 返回当前实例以支持链式调用
      * @example
+     * // 实例方法
      * const rng = new clsRngUtils("A1:A1000");
      * rng.z最大行区域();
      * console.log(rng.rng().Address()); // $A$1:$A$13
+     * // 静态风格
+     * RngUtils.z最大行区域("A1:J1", "A");
      */
-    z最大行区域(col = "A") {
-        const range = this._toRange(this.range);
+    z最大行区域(rngOrCol, col = "A") {
+        // 判断是哪种调用方式
+        // 如果第一个参数看起来像列参数（单个字母或特殊参数），则是实例方法
+        let range, actualCol;
+        if (typeof rngOrCol === 'string' && /^[A-Za-z]$|^-c$|^-u$/.test(rngOrCol)) {
+            // 实例方法: z最大行区域(col)
+            actualCol = rngOrCol;
+            range = this._toRange(this.range);
+        } else {
+            // 静态风格: z最大行区域(rng, col)
+            range = this._toRange(rngOrCol);
+            actualCol = col;
+        }
 
         // 处理特殊参数
-        if (col === "-c") {
+        if (actualCol === "-c") {
             // 连续区域(CurrentRegion)
             this.range = range.CurrentRegion;
-        } else if (col === "-u") {
+        } else if (actualCol === "-u") {
             // 使用区域(UsedRange)
             const usedRange = range.Worksheet.UsedRange;
             const startRow = range.Row;
@@ -5805,34 +6329,56 @@ class clsRngUtils {
                 range.Worksheet.Cells(startRow, colIndex),
                 range.Worksheet.Cells(endRow, colIndex)
             );
-        } else if (range.Address && range.Address().toString().match(/^\d+:\d+$/)) {
-            // 处理整行的情况
-            const endRow = this.z最大行(range.Worksheet.Columns(col));
-            const rows = range.Address().toString().split(":");
-            const startRow = parseInt(rows[0]);
-            this.range = range.Worksheet.Rows(startRow + ":" + endRow);
         } else {
-            // 默认情况 - 保持原区域的列范围，扩展行到最后一行
-            const safeRng = this.z安全区域(range);
-            const startRow = range.Row;
-            const endRow = safeRng.Row + safeRng.Rows.Count - 1;
-            const startCol = range.Column;
-            const endCol = range.Column + range.Columns.Count - 1;
-            this.range = range.Worksheet.Range(
-                range.Worksheet.Cells(startRow, startCol),
-                range.Worksheet.Cells(endRow, endCol)
-            );
+            // 获取range地址
+            const addr = this._getAddress(range);
+            if (addr && addr.match(/^\d+:\d+$/)) {
+                // 处理整行的情况
+                const endRow = this.z最大行(range.Worksheet.Columns(actualCol));
+                const rows = addr.split(":");
+                const startRow = parseInt(rows[0]);
+                this.range = range.Worksheet.Rows(startRow + ":" + endRow);
+            } else {
+                // 默认情况 - 保持原区域的列范围，扩展行到最后一行
+                // 需要找出范围内所有列的最大使用行数
+                const sheet = range.Worksheet;
+                const startRow = range.Row;
+                const startCol = range.Column;
+                const endCol = range.Column + range.Columns.Count - 1;
+
+                // 遍历每一列，找出最大使用行数
+                let maxEndRow = startRow;
+                for (let c = startCol; c <= endCol; c++) {
+                    const colRange = sheet.Columns(c);
+                    const endRow = this.z最大行(colRange);
+                    if (endRow > maxEndRow) {
+                        maxEndRow = endRow;
+                    }
+                }
+
+                this.range = sheet.Range(
+                    sheet.Cells(startRow, startCol),
+                    sheet.Cells(maxEndRow, endCol)
+                );
+            }
         }
         return this;
     }
 
     /**
      * 获取指定区域从第一行到最后一行的单元格区域（英文别名，支持链式调用）
-     * @param {string} col - 列参数
+     * @param {string|Range} rngOrCol - 区域地址/Range对象 或 列参数
+     * @param {string} col - 列参数，默认为"A"
      * @returns {clsRngUtils} 返回当前实例以支持链式调用
+     * @example
+     * // 实例方法
+     * const rng = new clsRngUtils("A1:A1000");
+     * rng.maxRange();
+     * // 静态风格
+     * RngUtils.maxRange("A1:J1");
      */
-    maxRange(col = "A") {
-        return this.z最大行区域(col);
+    maxRange(rngOrCol, col = "A") {
+        return this.z最大行区域(rngOrCol, col);
     }
 
     /**
@@ -6949,13 +7495,76 @@ class clsRngUtils {
      * rng.z多列排序('f3+,f4-', 1); // 第3列升序，第4列降序，1行表头
      * const rng2 = new clsRngUtils("A18:D24");
      * rng2.z多列排序('2+,4-', 1, "上海,北京,南京,海南,西藏"); // 带自定义序列
+     * // 静态风格（推荐）
+     * RngUtils.z多列排序("A1:J15", "3+", 1, "中国,美国,德国,英国");
      */
-    z多列排序(sortParams, headerRows = 1, customOrder = "") {
-        const range = this._toRange(this.range);
+    z多列排序(rngOrSortParams, sortParams, headerRows = 1, customOrder = "") {
+        // 判断是哪种调用方式
+        // 3参数模式: z多列排序(sortParams, headerRows, customOrder)
+        // 4参数模式: z多列排序(rng, sortParams, headerRows, customOrder)
+        // 判断逻辑：
+        // 1. 如果第一个参数是排序参数格式 AND 第二个参数是数字（表头行数）-> 3参数模式
+        // 2. 如果第二个参数是字符串（排序参数） -> 4参数模式
+
+        let isThreeParamMode = false;
+        if (typeof rngOrSortParams === 'string') {
+            // 第一个参数是字符串，检查是否是排序参数格式
+            const isFirstParamSortPattern = /^f?\d+[+-]?(,\s*f?\d+[+-]?)*$/.test(rngOrSortParams);
+            // 第二个参数是数字（表头行数）
+            const isSecondParamNumber = typeof sortParams === 'number';
+            isThreeParamMode = isFirstParamSortPattern && isSecondParamNumber;
+        }
+
+        let range, actualSortParams, actualHeaderRows, actualCustomOrder;
+
+        if (isThreeParamMode) {
+            // 3参数模式: z多列排序(sortParams, headerRows, customOrder)
+            actualSortParams = rngOrSortParams;
+            actualHeaderRows = sortParams;
+            actualCustomOrder = headerRows;
+            range = this._toRange(this.range);
+        } else {
+            // 4参数模式: z多列排序(rng, sortParams, headerRows, customOrder)
+            actualSortParams = sortParams;
+            actualHeaderRows = headerRows;
+            actualCustomOrder = customOrder;
+            range = this._toRange(rngOrSortParams);
+        }
+
+        // 调试日志
+        console.log(`[z多列排序调试] isThreeParamMode=${isThreeParamMode}`);
+        console.log(`[z多列排序调试] actualSortParams=${actualSortParams}`);
+        console.log(`[z多列排序调试] actualHeaderRows=${actualHeaderRows}`);
+        console.log(`[z多列排序调试] range=${range ? (range.Address ? range.Address() : 'valid') : 'null'}`);
+
+        // 验证Range有效性
+        if (!range) {
+            console.warn(`z多列排序: 无效的区域`);
+            return this;
+        }
+        console.log(`[z多列排序调试] Range有效，继续执行`);
+        console.log(`[z多列排序调试] this.range=${this.range ? (this.range.Address ? this.range.Address() : 'set') : 'null'}`);
+        console.log(`[z多列排序调试] 准备调用 z安全数组`);
+
         const arr = this.z安全数组(range);
+        console.log(`[z多列排序调试] z安全数组 返回，arr=${arr ? '有效' : 'null'}, length=${arr ? arr.length : 'N/A'}`);
+
+        // 验证数组是否有数据
+        if (!arr || arr.length === 0) {
+            console.warn(`z多列排序: 区域没有数据 - ${range.Address ? range.Address() : ''}`);
+            return this;
+        }
+        console.log(`[z多列排序调试] 数组有效，行数=${arr.length}, 列数=${arr[0] ? arr[0].length : 0}`);
+
+        // 验证表头行数
+        if (actualHeaderRows >= arr.length) {
+            console.warn(`z多列排序: 表头行数(${actualHeaderRows})大于或等于总行数(${arr.length})`);
+            return this;
+        }
+        console.log(`[z多列排序调试] 表头行数验证通过`);
 
         // 解析排序参数
-        const params = sortParams.split(',').map(p => p.trim().toLowerCase());
+        const params = actualSortParams.split(',').map(p => p.trim().toLowerCase());
         const sortFields = [];
 
         for (const param of params) {
@@ -6967,15 +7576,30 @@ class clsRngUtils {
             }
         }
 
+        // 验证排序字段
+        if (sortFields.length === 0) {
+            console.warn(`z多列排序: 没有有效的排序参数 - ${actualSortParams}`);
+            return this;
+        }
+        console.log(`[z多列排序调试] 排序字段解析完成，字段数=${sortFields.length}`);
+
         // 自定义排序顺序
         let customOrderArray = [];
-        if (customOrder) {
-            customOrderArray = customOrder.split(',').map(s => s.trim());
+        if (actualCustomOrder) {
+            customOrderArray = actualCustomOrder.split(',').map(s => s.trim());
         }
+        console.log(`[z多列排序调试] 自定义序列:`, customOrderArray);
 
         // 分离表头和数据
-        const header = arr.slice(0, headerRows);
-        const data = arr.slice(headerRows);
+        const header = arr.slice(0, actualHeaderRows);
+        const data = arr.slice(actualHeaderRows);
+
+        // 验证数据行是否存在
+        if (data.length === 0) {
+            console.warn(`z多列排序: 没有数据行可以排序`);
+            return this;
+        }
+        console.log(`[z多列排序调试] 开始排序，数据行数=${data.length}`);
 
         // 排序数据
         data.sort((a, b) => {
@@ -7020,20 +7644,54 @@ class clsRngUtils {
         // 合并表头和排序后的数据
         const result = [...header, ...data];
 
+        console.log(`[z多列排序调试] 排序完成，准备写回数据`);
+        console.log(`[z多列排序调试] result前3行:`, JSON.stringify(result.slice(0, 3)));
+        console.log(`[z多列排序调试] result总行数:`, result.length);
+
         // 写回单元格
-        range.Value2 = result;
+        try {
+            range.Value2 = result;
+            console.log(`[z多列排序调试] 数据已成功写回单元格`);
+        } catch (e) {
+            console.warn(`z多列排序: 写回数据时出错 - ${e.message}`);
+        }
+
         return this;
     }
 
     /**
      * 单元格多列排序函数（英文别名，支持链式调用）
-     * @param {string} sortParams - 排序参数
+     * 支持两种调用方式：
+     * 1. 实例方法: rng.rngSortCols(sortParams, headerRows, customOrder)
+     * 2. 静态风格: RngUtils.rngSortCols(rng, sortParams, headerRows, customOrder)
+     * @param {string|Range} rngOrSortParams - 区域地址/Range对象 或 排序参数
+     * @param {string} sortParams - 排序参数（当第一个参数是rng时）
      * @param {number} headerRows - 表头的行数
      * @param {string} customOrder - 自定义序列
      * @returns {clsRngUtils} 返回当前实例以支持链式调用
+     * @example
+     * // 方式1: 实例方法
+     * const rng = new clsRngUtils("A1:J15");
+     * rng.rngSortCols("3+", 1, "中国,美国,德国,英国");
+     * // 方式2: 静态风格（推荐）
+     * RngUtils.rngSortCols("A1:J15", "3+", 1, "中国,美国,德国,英国");
      */
-    rngSortCols(sortParams, headerRows = 1, customOrder = "") {
-        return this.z多列排序(sortParams, headerRows, customOrder);
+    rngSortCols(rngOrSortParams, sortParams, headerRows = 1, customOrder = "") {
+        // 判断是哪种调用方式
+        // 如果sortParams是undefined或不是string类型，说明是3参数模式（实例方法）
+        if (typeof sortParams !== 'string') {
+            // 3参数模式: rngSortCols(sortParams, headerRows, customOrder)
+            return this.z多列排序(rngOrSortParams, sortParams, headerRows);
+        }
+        // 4参数模式: rngSortCols(rng, sortParams, headerRows, customOrder)
+        // 直接在当前实例上处理（不创建临时实例，避免参数传递问题）
+        // 临时设置当前range
+        const originalRange = this.range;
+        this.range = rngOrSortParams;
+        const result = this.z多列排序(sortParams, headerRows, customOrder);
+        // 恢复原始range
+        this.range = originalRange;
+        return result;
     }
 
     /**
@@ -7093,6 +7751,7 @@ class clsRngUtils {
 
 /**
  * 创建RngUtils全局实例 - 可直接使用 RngUtils.方法名() 调用
+ * @type {clsRngUtils}
  * @example
  * RngUtils.z多列排序("A1:J15", "3+,6+,4+", 1);
  */
@@ -7100,13 +7759,18 @@ const RngUtils = new clsRngUtils();
 
 /**
  * 导出RngUtils - 支持WPS JSA环境
+ * 同时导出构造函数和单例实例，支持智能补全
  */
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { RngUtils };
+    module.exports.RngUtils = RngUtils;
+    module.exports.clsRngUtils = clsRngUtils;
 }
-// WPS JSA环境：导出为全局变量
+// WPS JSA环境：导出为全局变量（同时导出构造函数和单例）
 if (typeof window !== 'undefined' || typeof Application !== 'undefined') {
+    // 导出单例实例（推荐使用）
     this.RngUtils = RngUtils;
+    // 导出构造函数（用于创建新实例，支持智能补全）
+    this.clsRngUtils = clsRngUtils;
 }
 
 /**
@@ -7136,33 +7800,6 @@ class clsGlobal {
     f1(fxname) {
         Console.log(`打开帮助: ${fxname}`);
         // 在实际WPS环境中，这里会打开对应的帮助文档
-    }
-
-    /**
-     * Range和Cell的快捷方式
-     * @param {any} x - 单元格地址('A1')、单个数字(1)、两个数字(1,1)或单元格对象
-     * @returns {Range} 单元格对象
-     * @example
-     * var range = $("a5");
-     * console.log(range.Address()); // $A$5
-     * var range2 = $(5,1);  // 第5行, 第1列
-     * console.log(range2.Address()); // $A$5
-     */
-    $(x) {
-        if (typeof x === 'string') {
-            return Range(x);
-        } else if (typeof x === 'number') {
-            // 这里需要处理 $(1,1) 的情况
-            // 但由于JavaScript不支持函数重载，需要使用arguments
-            if (arguments.length === 2) {
-                return Cells(arguments[0], arguments[1]);
-            }
-            return Cells(x, 1);
-        } else if (x && x.Address) {
-            // 已经是Range对象
-            return x;
-        }
-        throw new Error("无效的参数类型");
     }
 
     /**
@@ -7548,6 +8185,26 @@ class clsGlobal {
      * // 输出: [[1,2],[3,4],[5,6]]
      */
     logjson(x, wrapopt = true) {
+        // 检查是否为二维数组
+        if (Array.isArray(x) && x.length > 0 && Array.isArray(x[0])) {
+            // 二维数组格式化为多行 JSON
+            const lines = this.formatArray2DAsJSON(x);
+            for (let i = 0; i < lines.length; i++) {
+                Console.log(lines[i]);
+            }
+            return;
+        }
+
+        // 一维数组输出为紧凑单行格式
+        if (Array.isArray(x)) {
+            const str = '[' + x.map(item => {
+                if (item === null || item === undefined) return '';
+                return String(item);
+            }).join(',') + ']';
+            Console.log(str);
+            return;
+        }
+
         if (wrapopt) {
             // 包装JSON对象，处理日期等特殊对象
             const seen = new WeakSet();
@@ -7567,6 +8224,155 @@ class clsGlobal {
         } else {
             Console.log(JSON.stringify(x));
         }
+    }
+
+    /**
+     * 将二维数组格式化为对齐的表格字符串数组
+     * @param {Array} arr - 二维数组
+     * @returns {Array} 格式化的表格字符串数组
+     */
+    formatArray2DAsJSON(arr) {
+        if (!arr || arr.length === 0) return ['[]'];
+
+        // 计算字符串的显示宽度（基于 Menlo 等宽字体）
+        // 规则：
+        // - ASCII 字符（U+0000 - U+007F）= 1
+        // - 非ASCII 字符（包括中文等宽字符）= 2
+        const getDisplayWidth = (str) => {
+            let width = 0;
+            for (let i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                if (code < 128) {
+                    // ASCII 字符宽度为 1
+                    width += 1;
+                } else {
+                    // 非ASCII 字符（包括中文）宽度为 2
+                    width += 2;
+                }
+            }
+            return width;
+        };
+
+        // 先将每行转换为字符串，以便计算显示宽度
+        const stringRows = [];
+        const colCount = arr[0].length;
+
+        for (let row = 0; row < arr.length; row++) {
+            const stringCells = [];
+            for (let col = 0; col < colCount; col++) {
+                const cellValue = col < arr[row].length ? arr[row][col] : '';
+                const cellStr = cellValue === null || cellValue === undefined ? '' : String(cellValue);
+                stringCells.push(cellStr);
+            }
+            stringRows.push(stringCells);
+        }
+
+        // 计算每列内容的最大显示宽度（不包括引号和逗号）
+        const contentWidths = [];
+        for (let col = 0; col < colCount; col++) {
+            let maxWidth = 0;
+            for (let row = 0; row < arr.length; row++) {
+                maxWidth = Math.max(maxWidth, getDisplayWidth(stringRows[row][col]));
+            }
+            contentWidths.push(maxWidth);
+        }
+
+        const lines = [];
+
+        // 构建所有行，确保对齐
+        for (let row = 0; row < arr.length; row++) {
+            const rowParts = [];
+            for (let col = 0; col < colCount; col++) {
+                const cellStr = stringRows[row][col];
+                const displayWidth = getDisplayWidth(cellStr);
+
+                // 计算需要填充的宽度
+                const paddingNeeded = contentWidths[col] - displayWidth;
+
+                // 使用普通空格填充（每个空格占1个显示宽度）
+                const paddingStr = ' '.repeat(paddingNeeded > 0 ? paddingNeeded : 0);
+
+                // 构建单元格：前面填充 + "内容"
+                let cell = '"' + paddingStr + cellStr + '"';
+
+                rowParts.push(cell);
+            }
+
+            // 用逗号连接各列（逗号后无空格）
+            const rowStr = '[' + rowParts.join(',') + ']';
+            lines.push(rowStr);
+        }
+
+        // 添加前导空格和行尾逗号
+        for (let i = 0; i < lines.length; i++) {
+            if (i < lines.length - 1) {
+                lines[i] = ' ' + lines[i] + ',';
+            } else {
+                lines[i] = ' ' + lines[i];
+            }
+        }
+
+        lines.push(']');
+        lines.unshift('[');
+        return lines;
+    }
+
+    /**
+     * 将一维数组格式化为对齐的字符串数组
+     * @param {Array} arr - 一维数组
+     * @returns {Array} 格式化的字符串数组
+     */
+    formatArray1DAsJSON(arr) {
+        if (!arr || arr.length === 0) return ['[]'];
+
+        // 计算字符串的显示宽度（基于 Menlo 等宽字体）
+        const getDisplayWidth = (str) => {
+            let width = 0;
+            for (let i = 0; i < str.length; i++) {
+                const code = str.charCodeAt(i);
+                if (code < 128) {
+                    width += 1;
+                } else {
+                    width += 2;
+                }
+            }
+            return width;
+        };
+
+        // 将所有元素转换为字符串
+        const stringItems = arr.map(item => {
+            return item === null || item === undefined ? '' : String(item);
+        });
+
+        // 计算最大显示宽度
+        let maxWidth = 0;
+        for (let i = 0; i < stringItems.length; i++) {
+            maxWidth = Math.max(maxWidth, getDisplayWidth(stringItems[i]));
+        }
+
+        const lines = [];
+        lines.push('[');
+
+        // 构建所有行，确保对齐
+        for (let i = 0; i < stringItems.length; i++) {
+            const itemStr = stringItems[i];
+            const displayWidth = getDisplayWidth(itemStr);
+            const paddingNeeded = maxWidth - displayWidth;
+            const paddingStr = ' '.repeat(paddingNeeded > 0 ? paddingNeeded : 0);
+
+            // 右对齐：前面填充空格
+            let item = '"' + paddingStr + itemStr + '"';
+
+            // 添加逗号（除了最后一个）
+            if (i < stringItems.length - 1) {
+                lines.push(' ' + item + ',');
+            } else {
+                lines.push(' ' + item);
+            }
+        }
+
+        lines.push(']');
+        return lines;
     }
 
     /**
@@ -8075,51 +8881,16 @@ class clsChainableRange {
 }
 
 /**
- * 全局 $ 函数 - Range和Cell的快捷方式（支持链式调用）
- * @param {any} x - 单元格地址('A1')、单个数字(1)、两个数字(1,1)或单元格对象
- * @returns {clsChainableRange} 支持链式调用的单元格对象
- * @example
- * // 基本使用
- * var range = $("a5");
- * console.log(range.Address()); // $A$5
- * var range2 = $(5,1);  // 第5行, 第1列
- * console.log(range2.Address()); // $A$5
- *
- * // 链式调用
- * $("A1").Value("你好").Font.Color(255).Interior.Color(16777215);
- * $("A1:C10").ClearFormats().Value("数据");
- * $("D1").Value(100).setNumberFormat("0.00").setHorizontalAlignment(-4108); // xlCenter
- */
-function $(x) {
-    let range;
-    if (typeof x === 'string') {
-        range = Range(x);
-    } else if (typeof x === 'number') {
-        // 处理 $(1,1) 的情况
-        if (arguments.length === 2) {
-            range = Cells(arguments[0], arguments[1]);
-        } else {
-            range = Cells(x, 1);
-        }
-    } else if (x && x.Address) {
-        // 已经是Range对象
-        range = x;
-    } else {
-        throw new Error("无效的参数类型");
-    }
-    // 返回支持链式调用的包装对象
-    return new clsChainableRange(range);
-}
-
-/**
  * 全局 $fx 变量 - WorksheetFunction对象的简写
  */
-const $fx = Application.WorksheetFunction;
+let $fx;
+let _GlobalInstance;
 
-/**
- * 创建Global实例（用于内部方法调用）
- */
-const _GlobalInstance = new clsGlobal();
+// 仅在 WPS JSA 环境中初始化
+if (typeof Application !== 'undefined') {
+    $fx = Application.WorksheetFunction;
+    _GlobalInstance = new clsGlobal();
+}
 
 /**
  * 导出Global类 - 支持WPS JSA环境
@@ -8134,35 +8905,374 @@ if (typeof window !== 'undefined' || typeof Application !== 'undefined') {
 }
 
 // 全局函数（独立函数，方便直接调用）
-function asArray(o) { return _GlobalInstance.asArray(o); }
-function asDate(d) { return _GlobalInstance.asDate(d); }
-function asNumber(s) { return _GlobalInstance.asNumber(s); }
-function asRange(rng) { return _GlobalInstance.asRange(rng); }
-function asShape(shp) { return _GlobalInstance.asShape(shp); }
-function asSheet(sht) { return _GlobalInstance.asSheet(sht); }
-function asString(s) { return _GlobalInstance.asString(s); }
-function asWorkbook(wbk) { return _GlobalInstance.asWorkbook(wbk); }
-function cdate(v) { return _GlobalInstance.cdate(v); }
-function cstr(v) { return _GlobalInstance.cstr(v); }
-function isArray(v) { return _GlobalInstance.isArray(v); }
-function isArray2D(v) { return _GlobalInstance.isArray2D(v); }
-function isBoolean(v) { return _GlobalInstance.isBoolean(v); }
-function isCollection(obj) { return _GlobalInstance.isCollection(obj); }
-function isDate(v) { return _GlobalInstance.isDate(v); }
-function isEmpty(value) { return _GlobalInstance.isEmpty(value); }
-function isNumberic(v) { return _GlobalInstance.isNumberic(v); }
-function isRange(v) { return _GlobalInstance.isRange(v); }
-function isRegex(v) { return _GlobalInstance.isRegex(v); }
-function isSameClass(x, y) { return _GlobalInstance.isSameClass(x, y); }
-function isSheet(v) { return _GlobalInstance.isSheet(v); }
-function isString(v) { return _GlobalInstance.isString(v); }
-function isWorkbook(v) { return _GlobalInstance.isWorkbook(v); }
-function log(...args) { return _GlobalInstance.log(...args); }
-function logjson(x, wrapopt) { return _GlobalInstance.logjson(x, wrapopt); }
-function typeName(x) { return _GlobalInstance.typeName(x); }
-function ubound(arr, dimension) { return _GlobalInstance.ubound(arr, dimension); }
-function val(s) { return _GlobalInstance.val(s); }
-function round(number, decimals) { return _GlobalInstance.round(number, decimals); }
+
+/**
+ * $(x) -> {Range}
+ * Range和Cell的快捷方式
+ * @param {any} x - 单元格地址('A1')、单个数字(1)、两个数字(1,1)或单元格对象
+ * @returns {Range} 单元格对象
+ * @example
+ * var range = $("a5");
+ * console.log(range.Address()); // $A$5
+ * var range2 = $(5,1);  // 第5行, 第1列 相当于 Cells(5,1)
+ * console.log(range2.Address()); // $A$5
+ */
+function $(x) {
+    // 处理多参数情况 $(row, col)
+    if (arguments.length === 2 && typeof arguments[0] === 'number' && typeof arguments[1] === 'number') {
+        return Cells(arguments[0], arguments[1]);
+    }
+
+    if (typeof x === 'string') {
+        return Range(x);
+    } else if (typeof x === 'number') {
+        return Cells(x, 1);
+    } else if (x && x.Address) {
+        // 已经是Range对象
+        return x;
+    }
+    throw new Error("无效的参数类型");
+}
+
+// 为 $ 对象添加 RngUtils、ShtUtils、DateUtils 快捷方法
+// $.maxRange('A1') 相当于 RngUtils.maxRange('A1')
+// 注：这些方法需要在 RngUtils、ShtUtils、DateUtils 类定义后添加
+
+// ==================== 全局辅助函数 ====================
+/**
+ * 全局辅助函数 - 这些函数可以直接调用，无需实例化
+ * 在 WPS JSA 环境中委托给 _GlobalInstance，在普通 JS 环境中使用降级实现
+ */
+
+// 类型转换函数
+function asArray(o) {
+    return _GlobalInstance ? _GlobalInstance.asArray(o) : (Array.isArray(o) ? o : [o]);
+}
+function asDate(d) {
+    return _GlobalInstance ? _GlobalInstance.asDate(d) : (d instanceof Date ? d : new Date(d));
+}
+function asNumber(s) {
+    return _GlobalInstance ? _GlobalInstance.asNumber(s) : Number(s);
+}
+function asRange(rng) {
+    if (_GlobalInstance) return _GlobalInstance.asRange(rng);
+    if (typeof rng === 'string' && typeof Range !== 'undefined') return Range(rng);
+    return rng;
+}
+function asShape(shp) { return _GlobalInstance ? _GlobalInstance.asShape(shp) : shp; }
+function asSheet(sht) { return _GlobalInstance ? _GlobalInstance.asSheet(sht) : sht; }
+function asString(s) { return _GlobalInstance ? _GlobalInstance.asString(s) : String(s); }
+function asWorkbook(wbk) { return _GlobalInstance ? _GlobalInstance.asWorkbook(wbk) : wbk; }
+function cdate(v) {
+    return _GlobalInstance ? _GlobalInstance.cdate(v) : (v instanceof Date ? v : new Date(v));
+}
+function cstr(v) { return _GlobalInstance ? _GlobalInstance.cstr(v) : String(v); }
+
+// 类型检查函数
+function isArray(v) { return _GlobalInstance ? _GlobalInstance.isArray(v) : Array.isArray(v); }
+function isArray2D(v) {
+    return _GlobalInstance ? _GlobalInstance.isArray2D(v) : (Array.isArray(v) && v.length > 0 && Array.isArray(v[0]));
+}
+function isBoolean(v) { return _GlobalInstance ? _GlobalInstance.isBoolean(v) : typeof v === 'boolean'; }
+function isCollection(obj) {
+    return _GlobalInstance ? _GlobalInstance.isCollection(obj) : (obj && typeof obj.Count === 'number');
+}
+function isDate(v) { return _GlobalInstance ? _GlobalInstance.isDate(v) : v instanceof Date; }
+function isEmpty(value) {
+    return _GlobalInstance ? _GlobalInstance.isEmpty(value) : (value === null || value === undefined || value === '');
+}
+function isNumberic(v) { return _GlobalInstance ? _GlobalInstance.isNumberic(v) : typeof v === 'number' && !isNaN(v); }
+function isRange(v) { return _GlobalInstance ? _GlobalInstance.isRange(v) : (v && typeof v.Address === 'function'); }
+function isRegex(v) { return _GlobalInstance ? _GlobalInstance.isRegex(v) : v instanceof RegExp; }
+function isSameClass(x, y) {
+    return _GlobalInstance ? _GlobalInstance.isSameClass(x, y) : Object.prototype.toString.call(x) === Object.prototype.toString.call(y);
+}
+function isSheet(v) { return _GlobalInstance ? _GlobalInstance.isSheet(v) : (v && typeof v.Name === 'string'); }
+function isString(v) { return _GlobalInstance ? _GlobalInstance.isString(v) : typeof v === 'string'; }
+function isWorkbook(v) { return _GlobalInstance ? _GlobalInstance.isWorkbook(v) : (v && typeof v.Name === 'string'); }
+
+// 日志输出函数
+function log(...args) {
+    if (_GlobalInstance) return _GlobalInstance.log(...args);
+    if (typeof Console !== 'undefined') args.forEach(a => Console.log(a));
+    else console.log(...args);
+}
+function logjson(x, wrapopt = true) {
+    // 全局实例模式
+    if (_GlobalInstance) return _GlobalInstance.logjson(x, wrapopt);
+
+    // 检查是否为二维数组
+    if (Array.isArray(x) && x.length > 0 && Array.isArray(x[0])) {
+        // 二维数组格式化为多行 JSON
+        const lines = formatArray2DAsJSON(x);
+        for (let i = 0; i < lines.length; i++) {
+            if (typeof Console !== 'undefined') Console.log(lines[i]);
+            else console.log(lines[i]);
+        }
+        return;
+    }
+
+    // 其他类型保持原有逻辑
+    const output = typeof x === 'object' ? JSON.stringify(x, null, wrapopt ? 2 : 0) : String(x);
+    if (typeof Console !== 'undefined') Console.log(output);
+    else console.log(output);
+}
+
+/**
+ * 将二维数组格式化为对齐的表格字符串数组
+ * @param {Array} arr - 二维数组
+ * @returns {Array} 格式化的表格字符串数组
+ */
+function formatArray2DAsJSON(arr) {
+    if (!arr || arr.length === 0) return ['[]'];
+
+    // 计算字符串的显示宽度
+    // 规则（基于等宽字体环境）：
+    // - 中文字符、全角字符 = 2
+    // - 大写字母 A-Z = 2
+    // - 小写字母 a-z = 1
+    // - 数字 1 = 1（窄数字）
+    // - 其他数字 0,2-9 = 2（宽数字）
+    // - 普通符号 = 1
+    const getDisplayWidth = (str) => {
+        let width = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            // 中文字符范围（包括中文标点）
+            if (char >= 0x4E00 && char <= 0x9FFF ||
+                char >= 0x3400 && char <= 0x4DBF ||
+                char >= 0x20000 && char <= 0x2A6DF ||
+                char >= 0x2A700 && char <= 0x2B73F ||
+                char >= 0x2B740 && char <= 0x2B81F ||
+                char >= 0x2B820 && char <= 0x2CEAF ||
+                char >= 0xF900 && char <= 0xFAFF ||
+                char >= 0x2F800 && char <= 0x2FA1F ||
+                // 全角字符
+                char >= 0xFF00 && char <= 0xFFEF) {
+                width += 2;
+            } else if (char >= 65 && char <= 90) {
+                // 大写字母 A-Z (ASCII 65-90) = 2
+                width += 2;
+            } else if (char === 49) {
+                // 数字 1 (ASCII 49) = 1
+                width += 1;
+            } else if (char >= 48 && char <= 57) {
+                // 其他数字 0,2-9 (ASCII 48,50-57) = 2
+                width += 2;
+            } else {
+                // 小写字母、其他符号 = 1
+                width += 1;
+            }
+        }
+        return width;
+    };
+
+    // 先将每行转换为字符串，以便计算显示宽度
+    const stringRows = [];
+    const colCount = arr[0].length;
+
+    for (let row = 0; row < arr.length; row++) {
+        const stringCells = [];
+        for (let col = 0; col < colCount; col++) {
+            const cellValue = col < arr[row].length ? arr[row][col] : '';
+            const cellStr = cellValue === null || cellValue === undefined ? '' : String(cellValue);
+            stringCells.push(cellStr);
+        }
+        stringRows.push(stringCells);
+    }
+
+    // 计算每列内容的最大显示宽度（不包括引号和逗号）
+    const contentWidths = [];
+    for (let col = 0; col < colCount; col++) {
+        let maxWidth = 0;
+        for (let row = 0; row < arr.length; row++) {
+            maxWidth = Math.max(maxWidth, getDisplayWidth(stringRows[row][col]));
+        }
+        contentWidths.push(maxWidth);
+    }
+
+    const lines = [];
+
+    // 构建所有行，确保对齐
+    for (let row = 0; row < arr.length; row++) {
+        const rowParts = [];
+        for (let col = 0; col < colCount; col++) {
+            const cellStr = stringRows[row][col];
+            const displayWidth = getDisplayWidth(cellStr);
+
+            // 计算需要填充的宽度
+            const paddingNeeded = contentWidths[col] - displayWidth;
+
+            // 使用普通空格填充（每个空格占1个显示宽度）
+            const paddingStr = ' '.repeat(paddingNeeded > 0 ? paddingNeeded : 0);
+
+            // 构建单元格：前面填充 + "内容"
+            let cell = '"' + paddingStr + cellStr + '"';
+
+            rowParts.push(cell);
+        }
+
+        // 用逗号连接各列（逗号后无空格）
+        const rowStr = '[' + rowParts.join(',') + ']';
+        lines.push(rowStr);
+    }
+
+    // 添加前导空格和行尾逗号
+    for (let i = 0; i < lines.length; i++) {
+        if (i < lines.length - 1) {
+            lines[i] = ' ' + lines[i] + ',';
+        } else {
+            lines[i] = ' ' + lines[i];
+        }
+    }
+
+    lines.push(']');
+    lines.unshift('[');
+    return lines;
+}
+
+// 工具函数
+function typeName(x) { return _GlobalInstance ? _GlobalInstance.typeName(x) : Object.prototype.toString.call(x); }
+function ubound(arr, dimension = 1) {
+    if (_GlobalInstance) return _GlobalInstance.ubound(arr, dimension);
+    if (!Array.isArray(arr)) return -1;
+    return dimension === 1 ? arr.length - 1 : (arr.length > 0 && Array.isArray(arr[0]) ? arr[0].length - 1 : -1);
+}
+function val(s) {
+    if (_GlobalInstance) return _GlobalInstance.val(s);
+    if (typeof s === 'boolean') return s ? 1 : 0;
+    if (typeof s === 'number') return s;
+    if (typeof s === 'string') {
+        const match = s.trim().match(/^[-+]?[0-9]*\.?[0-9]+/);
+        return match ? parseFloat(match[0]) : 0;
+    }
+    return 0;
+}
+function round(number, decimals = 2) {
+    const multiplier = Math.pow(10, decimals);
+    return Math.round(number * multiplier) / multiplier;
+}
+
+// 快捷函数
+function $toArray(...args) { return args; }
+function f1(fxname) {
+    if (_GlobalInstance) return _GlobalInstance.f1(fxname);
+    console.log(`打开帮助: ${fxname}`);
+}
+// $fx 已在前面定义为全局变量（仅在 WPS JSA 环境）
+
+// ==================== $ 函数对象快捷方法扩展 ====================
+/**
+ * 为 $ 函数对象添加 RngUtils、ShtUtils、DateUtils 的快捷方法
+ * 使用 $.maxRange('A1') 相当于 RngUtils.z最大区域('A1')
+ * 使用 $.shtByName('Sheet1') 相当于 ShtUtils.z按名称('Sheet1')
+ *
+ * 注意：这些方法需要在 RngUtils、ShtUtils、DateUtils 实例创建后才能使用
+ * 如果需要使用这些快捷方法，请确保在加载此文件后再调用
+ */
+
+// 快捷方法需要手动初始化（在 RngUtils、ShtUtils、DateUtils 创建之后）
+// 调用 initDollarShortcuts() 来初始化 $ 对象的快捷方法
+function initDollarShortcuts() {
+    if (typeof Application === 'undefined') {
+        console.warn('initDollarShortcuts: 非 WPS JSA 环境，跳过初始化');
+        return;
+    }
+
+    // RngUtils 快捷方法
+    if (typeof RngUtils !== 'undefined') {
+        // 中文方法快捷调用
+        $.z最大区域 = function(rng) { return RngUtils.z最大区域(rng); };
+        $.z当前区域 = function() { return RngUtils.z当前区域(); };
+        $.z向下填充 = function(n) { return RngUtils.z向下填充(n); };
+        $.z向右填充 = function(n) { return RngUtils.z向右填充(n); };
+        $.z合并单元格 = function() { return RngUtils.z合并单元格(); };
+        $.z取消合并 = function() { return RngUtils.z取消合并(); };
+        $.z加边框 = function(borderStyle = 1) { return RngUtils.z加边框(borderStyle); };
+        $.z去边框 = function() { return RngUtils.z去边框(); };
+        $.z自动列宽 = function() { return RngUtils.z自动列宽(); };
+        $.z自动行高 = function() { return RngUtils.z自动行高(); };
+        $.z插入行 = function(n = 1) { return RngUtils.z插入行(n); };
+        $.z插入列 = function(n = 1) { return RngUtils.z插入列(n); };
+        $.z删除行 = function(n = 1) { return RngUtils.z删除行(n); };
+        $.z删除列 = function(n = 1) { return RngUtils.z删除列(n); };
+        $.z清除内容 = function() { return RngUtils.z清除内容(); };
+        $.z清除格式 = function() { return RngUtils.z清除格式(); };
+        $.z设置背景色 = function(color) { return RngUtils.z设置背景色(color); };
+        $.z设置字体色 = function(color) { return RngUtils.z设置字体色(color); };
+
+        // 英文方法快捷调用
+        $.maxRange = function(rng, col) {
+            // 直接调用静态风格的 z最大行区域
+            const actualCol = (col !== undefined) ? col : "A";
+            const utils = new clsRngUtils();
+            utils.z最大行区域(rng, actualCol);
+            // z最大行区域 返回 this，我们需要从 utils 中获取 range
+            return new _RangeWrapper(utils.range, utils);
+        };
+        $.currentRegion = function() { return RngUtils.z当前区域(); };
+        $.fillDown = function(n) { return RngUtils.z向下填充(n); };
+        $.fillRight = function(n) { return RngUtils.z向右填充(n); };
+        $.merge = function() { return RngUtils.z合并单元格(); };
+        $.unmerge = function() { return RngUtils.z取消合并(); };
+        $.border = function(borderStyle = 1) { return RngUtils.z加边框(borderStyle); };
+        $.removeBorder = function() { return RngUtils.z去边框(); };
+        $.autoFitColumns = function() { return RngUtils.z自动列宽(); };
+        $.autoFitRows = function() { return RngUtils.z自动行高(); };
+        $.insertRows = function(n = 1) { return RngUtils.z插入行(n); };
+        $.insertColumns = function(n = 1) { return RngUtils.z插入列(n); };
+        $.deleteRows = function(n = 1) { return RngUtils.z删除行(n); };
+        $.deleteColumns = function(n = 1) { return RngUtils.z删除列(n); };
+        $.clearContents = function() { return RngUtils.z清除内容(); };
+        $.clearFormats = function() { return RngUtils.z清除格式(); };
+        $.backgroundColor = function(color) { return RngUtils.z设置背景色(color); };
+        $.fontColor = function(color) { return RngUtils.z设置字体色(color); };
+
+        console.log('RngUtils 快捷方法已添加到 $ 对象');
+    }
+
+    // ShtUtils 快捷方法
+    if (typeof ShtUtils !== 'undefined') {
+        // 中文方法快捷调用
+        $.z添加工作表 = function(name, position) { return ShtUtils.z添加工作表(name, position); };
+        $.z删除工作表 = function(sht) { return ShtUtils.z删除工作表(sht); };
+        $.z复制工作表 = function(sht, position) { return ShtUtils.z复制工作表(sht, position); };
+        $.z按名称 = function(name) { return ShtUtils.z按名称(name); };
+        $.z隐藏 = function() { return ShtUtils.z隐藏(); };
+        $.z显示 = function() { return ShtUtils.z显示(); };
+
+        // 英文方法快捷调用
+        $.addSheet = function(name, position) { return ShtUtils.z添加工作表(name, position); };
+        $.deleteSheet = function(sht) { return ShtUtils.z删除工作表(sht); };
+        $.copySheet = function(sht, position) { return ShtUtils.z复制工作表(sht, position); };
+        $.shtByName = function(name) { return ShtUtils.z按名称(name); };
+        $.hideSheet = function() { return ShtUtils.z隐藏(); };
+        $.showSheet = function() { return ShtUtils.z显示(); };
+
+        console.log('ShtUtils 快捷方法已添加到 $ 对象');
+    }
+
+    // DateUtils 快捷方法
+    if (typeof DateUtils !== 'undefined') {
+        // 中文方法快捷调用
+        $.z今天 = function() { return DateUtils.z今天(); };
+        $.z现在 = function() { return DateUtils.z现在(); };
+        $.z月初 = function() { return DateUtils.z月初(); };
+        $.z月末 = function() { return DateUtils.z月末(); };
+        $.z年月初 = function(year, month) { return DateUtils.z年月初(year, month); };
+        $.z年月末 = function(year, month) { return DateUtils.z年月末(year, month); };
+
+        // 英文方法快捷调用
+        $.today = function() { return DateUtils.z今天(); };
+        $.now = function() { return DateUtils.z现在(); };
+        $.monthStart = function() { return DateUtils.z月初(); };
+        $.monthEnd = function() { return DateUtils.z月末(); };
+        $.yearMonthStart = function(year, month) { return DateUtils.z年月初(year, month); };
+        $.yearMonthEnd = function(year, month) { return DateUtils.z年月末(year, month); };
+
+        console.log('DateUtils 快捷方法已添加到 $ 对象');
+    }
+}
 
 // 如果直接运行此文件，则执行示例
 if (typeof require !== 'undefined' && require.main === module) {
@@ -9505,10 +10615,27 @@ class clsJSA {
 
 /**
  * 创建JSA全局实例 - 可直接使用 JSA.方法名() 调用
+ * @type {clsJSA}
  * @example
  * JSA.z转置([[1,2,3],[4,5,6]]);
  */
 const JSA = new clsJSA();
+
+/**
+ * 导出JSA - 支持WPS JSA环境
+ * 同时导出构造函数和单例实例，支持智能补全
+ */
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports.JSA = JSA;
+    module.exports.clsJSA = clsJSA;
+}
+// WPS JSA环境：导出为全局变量（同时导出构造函数和单例）
+if (typeof window !== 'undefined' || typeof Application !== 'undefined') {
+    // 导出单例实例（推荐使用）
+    this.JSA = JSA;
+    // 导出构造函数（用于创建新实例，支持智能补全）
+    this.clsJSA = clsJSA;
+}
 
 /**
  * ShtUtils - 工作表函数工具库
@@ -10047,10 +11174,27 @@ class clsShtUtils {
 
 /**
  * 创建ShtUtils全局实例 - 可直接使用 ShtUtils.方法名() 调用
+ * @type {clsShtUtils}
  * @example
  * ShtUtils.z安全已使用区域("多表");
  */
 const ShtUtils = new clsShtUtils();
+
+/**
+ * 导出ShtUtils - 支持WPS JSA环境
+ * 同时导出构造函数和单例实例，支持智能补全
+ */
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports.ShtUtils = ShtUtils;
+    module.exports.clsShtUtils = clsShtUtils;
+}
+// WPS JSA环境：导出为全局变量（同时导出构造函数和单例）
+if (typeof window !== 'undefined' || typeof Application !== 'undefined') {
+    // 导出单例实例（推荐使用）
+    this.ShtUtils = ShtUtils;
+    // 导出构造函数（用于创建新实例，支持智能补全）
+    this.clsShtUtils = clsShtUtils;
+}
 
 /**
  * DateUtils - 日期常用函数库
@@ -11523,6 +12667,7 @@ class clsIO {
 
 /**
  * 创建IO全局实例 - 可直接使用 IO.方法名() 调用
+ * @type {clsIO}
  * @example
  * IO.z是否文件('/path/to/file.txt');
  */
@@ -11530,6 +12675,7 @@ const IO = new clsIO();
 
 /**
  * 创建DateUtils全局实例 - 可直接使用 DateUtils.方法名() 调用
+ * @type {clsDateUtils}
  * @example
  * DateUtils.z转表格日期(new Date());
  */
@@ -11537,15 +12683,33 @@ const DateUtils = new clsDateUtils();
 
 /**
  * 导出类 - 支持WPS JSA环境
+ * 同时导出构造函数和单例实例，支持智能补全
  */
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { JSA, ShtUtils, Array2D, DateUtils, IO };
+    module.exports = {
+        JSA, clsJSA,
+        ShtUtils, clsShtUtils,
+        Array2D, clsArray2D,
+        DateUtils, clsDateUtils,
+        IO, clsIO
+    };
 }
-// WPS JSA环境：导出为全局变量
+// WPS JSA环境：导出为全局变量（同时导出构造函数和单例）
 if (typeof window !== 'undefined' || typeof Application !== 'undefined') {
+    // 导出单例实例（推荐使用）
     this.JSA = JSA;
     this.ShtUtils = ShtUtils;
     this.Array2D = Array2D;
     this.DateUtils = DateUtils;
     this.IO = IO;
+
+    // 导出构造函数（用于创建新实例，支持智能补全）
+    this.clsJSA = clsJSA;
+    this.clsShtUtils = clsShtUtils;
+    this.clsArray2D = clsArray2D;
+    this.clsDateUtils = clsDateUtils;
+    this.clsIO = clsIO;
 }
+
+// 初始化 $ 对象的快捷方法
+initDollarShortcuts();
