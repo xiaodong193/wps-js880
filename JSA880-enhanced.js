@@ -4372,19 +4372,6 @@ function $toArray() {
 // ==================== 类型转换函数 (as系列) ====================
 
 /**
- * asArray函数 - 将对象包装为有类型提示的数组
- * @param {any} o - 要转换为数组的对象
- * @returns {Array} 数组
- * @example
- * asArray([1,2,3])  // [1,2,3]
- */
-const asArray = (o) => {
-    if (Array.isArray(o)) return o;
-    if (o === null || o === undefined) return [];
-    return [o];
-};
-
-/**
  * asDate函数 - 将日期字符串或JS日期对象转换为日期对象
  * @param {any} d - 要转换的日期
  * @returns {Date} 日期对象
