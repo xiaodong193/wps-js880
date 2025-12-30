@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "lastUpdated": 1766887276029,
+  "plugins": [
+    {
+      "filename": "prompt-engineer.md",
+      "type": "agent",
+      "metadata": {
+        "sourcePath": "agents/ai-specialists/prompt-engineer.md",
+        "filename": "prompt-engineer.md",
+        "name": "prompt-engineer",
+        "description": "Expert prompt optimization for LLMs and AI systems. Use PROACTIVELY when building AI features, improving agent performance, or crafting system prompts. Masters prompt patterns and techniques.",
+        "tools": [
+          "Read",
+          "Write",
+          "Edit"
+        ],
+        "category": "ai-specialists",
+        "type": "agent",
+        "size": 3147,
+        "contentHash": "6e5d842f3e796ace83e28df3c71e34d309f1fbb8a3b4f92b1c8d0c757de201b6",
+        "installedAt": 1766887276027,
+        "updatedAt": 1766887276027
+      }
+    }
+  ]
+}
