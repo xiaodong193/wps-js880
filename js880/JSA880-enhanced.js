@@ -4844,25 +4844,24 @@ function SheetChain(sht) {
 }
 
 /**
- * 获取原始Sheet对象
+ * Value - 获取原始Sheet对象
  * @returns {Worksheet|null} 工作表对象
  */
-SheetChain.prototype.value = function() {
+SheetChain.prototype.Value = function() {
     return this._sheet;
 };
-SheetChain.prototype.val = SheetChain.prototype.value;
 
 /**
- * 获取工作表名称
+ * Name - 获取工作表名称
  * @returns {String} 工作表名称
  */
 SheetChain.prototype.z名称 = function() {
     return this._sheet ? this._sheet.Name : '';
 };
-SheetChain.prototype.name = SheetChain.prototype.z名称;
+SheetChain.prototype.Name = SheetChain.prototype.z名称;
 
 /**
- * 激活工作表
+ * Activate - 激活工作表
  * @returns {SheetChain} 当前实例
  */
 SheetChain.prototype.z激活 = function() {
@@ -4872,7 +4871,7 @@ SheetChain.prototype.z激活 = function() {
 SheetChain.prototype.Activate = SheetChain.prototype.z激活;
 
 /**
- * 获取已使用区域
+ * UsedRange - 获取已使用区域
  * @returns {Range|null} 已使用区域
  */
 SheetChain.prototype.z已使用区域 = function() {
@@ -4883,10 +4882,10 @@ SheetChain.prototype.z已使用区域 = function() {
         return null;
     }
 };
-SheetChain.prototype.usedRange = SheetChain.prototype.z已使用区域;
+SheetChain.prototype.UsedRange = SheetChain.prototype.z已使用区域;
 
 /**
- * 获取安全已使用区域（处理空表情况）
+ * SafeUsedRange - 获取安全已使用区域（处理空表情况）
  * @returns {Range|null} 安全区域
  */
 SheetChain.prototype.z安全已使用区域 = function() {
@@ -4906,10 +4905,10 @@ SheetChain.prototype.z安全已使用区域 = function() {
 
     return this._sheet.Range(this._sheet.Cells(1, 1), this._sheet.Cells(lastRow, lastCol));
 };
-SheetChain.prototype.safeUsedRange = SheetChain.prototype.z安全已使用区域;
+SheetChain.prototype.SafeUsedRange = SheetChain.prototype.z安全已使用区域;
 
 /**
- * 获取Range对象
+ * Range - 获取Range对象
  * @param {String} address - 地址
  * @returns {Range|null} Range对象
  */
@@ -4921,10 +4920,10 @@ SheetChain.prototype.z区域 = function(address) {
         return null;
     }
 };
-SheetChain.prototype.range = SheetChain.prototype.z区域;
+SheetChain.prototype.Range = SheetChain.prototype.z区域;
 
 /**
- * 获取Cells对象
+ * Cells - 获取Cells对象
  * @param {Number} row - 行号
  * @param {Number} col - 列号
  * @returns {Range|null} Cell对象
@@ -4937,10 +4936,10 @@ SheetChain.prototype.z单元格 = function(row, col) {
         return null;
     }
 };
-SheetChain.prototype.cell = SheetChain.prototype.z单元格;
+SheetChain.prototype.Cells = SheetChain.prototype.z单元格;
 
 /**
- * 删除工作表
+ * Delete - 删除工作表
  * @returns {SheetChain} 当前实例
  */
 SheetChain.prototype.z删除 = function() {
@@ -4953,10 +4952,10 @@ SheetChain.prototype.z删除 = function() {
     }
     return this;
 };
-SheetChain.prototype.delete = SheetChain.prototype.z删除;
+SheetChain.prototype.Delete = SheetChain.prototype.z删除;
 
 /**
- * 复制工作表
+ * Copy - 复制工作表
  * @param {Worksheet} [before] - 在此工作表之前插入
  * @param {Worksheet} [after] - 在此工作表之后插入
  * @returns {SheetChain} 当前实例
@@ -4976,10 +4975,10 @@ SheetChain.prototype.z复制 = function(before, after) {
     }
     return this;
 };
-SheetChain.prototype.copy = SheetChain.prototype.z复制;
+SheetChain.prototype.Copy = SheetChain.prototype.z复制;
 
 /**
- * 保护工作表
+ * Protect - 保护工作表
  * @param {String} [password] - 密码
  * @returns {SheetChain} 当前实例
  */
@@ -4996,10 +4995,10 @@ SheetChain.prototype.z保护 = function(password) {
     }
     return this;
 };
-SheetChain.prototype.protect = SheetChain.prototype.z保护;
+SheetChain.prototype.Protect = SheetChain.prototype.z保护;
 
 /**
- * 取消保护工作表
+ * Unprotect - 取消保护工作表
  * @param {String} [password] - 密码
  * @returns {SheetChain} 当前实例
  */
@@ -5016,7 +5015,7 @@ SheetChain.prototype.z取消保护 = function(password) {
     }
     return this;
 };
-SheetChain.prototype.unprotect = SheetChain.prototype.z取消保护;
+SheetChain.prototype.Unprotect = SheetChain.prototype.z取消保护;
 
 /**
  * 隐藏工作表
@@ -5027,7 +5026,6 @@ SheetChain.prototype.z隐藏 = function() {
     this._sheet.Visible = false;
     return this;
 };
-SheetChain.prototype.hide = SheetChain.prototype.z隐藏;
 
 /**
  * 显示工作表
@@ -5038,19 +5036,18 @@ SheetChain.prototype.z显示 = function() {
     this._sheet.Visible = true;
     return this;
 };
-SheetChain.prototype.show = SheetChain.prototype.z显示;
 
 /**
- * 获取工作表索引
+ * Index - 获取工作表索引
  * @returns {Number} 工作表索引
  */
 SheetChain.prototype.z索引 = function() {
     return this._sheet ? this._sheet.Index : 0;
 };
-SheetChain.prototype.index = SheetChain.prototype.z索引;
+SheetChain.prototype.Index = SheetChain.prototype.z索引;
 
 /**
- * 设置工作表名称
+ * SetName - 设置工作表名称
  * @param {String} newName - 新名称
  * @returns {SheetChain} 当前实例
  */
@@ -5060,16 +5057,16 @@ SheetChain.prototype.z设置名称 = function(newName) {
     }
     return this;
 };
-SheetChain.prototype.setName = SheetChain.prototype.z设置名称;
+SheetChain.prototype.SetName = SheetChain.prototype.z设置名称;
 
 /**
- * 判断工作表是否存在
+ * Exists - 判断工作表是否存在
  * @returns {Boolean} 是否存在
  */
 SheetChain.prototype.z存在 = function() {
     return this._sheet !== null;
 };
-SheetChain.prototype.exists = SheetChain.prototype.z存在;
+SheetChain.prototype.Exists = SheetChain.prototype.z存在;
 
 // ==================== 类型转换函数 ====================
 
@@ -5538,133 +5535,133 @@ function RangeChain(rng, colIndex) {
 }
 
 /**
- * 获取原始Range对象
+ * Value - 获取原始Range对象
  * @returns {Range|null} Range对象
  */
-RangeChain.prototype.value = function() {
+RangeChain.prototype.Value = function() {
     return this._range;
 };
 
 /**
- * safeArray - 转换为安全数组
+ * SafeArray - 转换为安全数组
  * @returns {Array} 二维数组
  */
-RangeChain.prototype.safeArray = function() {
+RangeChain.prototype.z安全数组 = function() {
     return RngUtils.z安全数组(this._range);
 };
-RangeChain.prototype.z安全数组 = RangeChain.prototype.safeArray;
+RangeChain.prototype.SafeArray = RangeChain.prototype.z安全数组;
 
 /**
- * maxArray - 获取最大行数组
+ * MaxArray - 获取最大行数组
  * @param {number} [cols] - 列号
  * @returns {Array} 二维数组
  */
-RangeChain.prototype.maxArray = function(cols) {
+RangeChain.prototype.z最大行数组 = function(cols) {
     return RngUtils.z最大行数组(this._range, cols);
 };
-RangeChain.prototype.z最大行数组 = RangeChain.prototype.maxArray;
+RangeChain.prototype.MaxArray = RangeChain.prototype.z最大行数组;
 
 /**
- * visibleArray - 转换可见区域为数组
+ * VisibleArray - 转换可见区域为数组
  * @param {Worksheet} [tempSheet] - 临时工作表
  * @returns {Array} 数组
  */
-RangeChain.prototype.visibleArray = function(tempSheet) {
+RangeChain.prototype.z可见区数组 = function(tempSheet) {
     return RngUtils.z可见区数组(this._range, tempSheet);
 };
-RangeChain.prototype.z可见区数组 = RangeChain.prototype.visibleArray;
+RangeChain.prototype.VisibleArray = RangeChain.prototype.z可见区数组;
 
 /**
- * rowsCount - 获取行数
+ * RowsCount - 获取行数
  * @returns {number} 行数
  */
-RangeChain.prototype.rowsCount = function() {
+RangeChain.prototype.z行数 = function() {
     return this._range ? this._range.Rows.Count : 0;
 };
-RangeChain.prototype.z行数 = RangeChain.prototype.rowsCount;
+RangeChain.prototype.RowsCount = RangeChain.prototype.z行数;
 
 /**
- * colsCount - 获取列数
+ * ColsCount - 获取列数
  * @returns {number} 列数
  */
-RangeChain.prototype.colsCount = function() {
+RangeChain.prototype.z列数 = function() {
     return this._range ? this._range.Columns.Count : 0;
 };
-RangeChain.prototype.z列数 = RangeChain.prototype.colsCount;
+RangeChain.prototype.ColsCount = RangeChain.prototype.z列数;
 
 /**
- * address - 获取地址
+ * Address - 获取地址
  * @returns {string} 地址
  */
-RangeChain.prototype.address = function() {
+RangeChain.prototype.z地址 = function() {
     return this._range ? this._range.Address() : '';
 };
-RangeChain.prototype.z地址 = RangeChain.prototype.address;
+RangeChain.prototype.Address = RangeChain.prototype.z地址;
 
 /**
- * addBorders - 添加边框
+ * AddBorders - 添加边框
  * @param {number} [lineStyle=1] - 线条样式
  * @param {number} [weight=2] - 线条粗细
  * @returns {RangeChain} 当前实例
  */
-RangeChain.prototype.addBorders = function(lineStyle, weight) {
+RangeChain.prototype.z加边框 = function(lineStyle, weight) {
     if (this._range) {
         RngUtils.z加边框(this._range, lineStyle, weight);
     }
     return this;
 };
-RangeChain.prototype.z加边框 = RangeChain.prototype.addBorders;
+RangeChain.prototype.AddBorders = RangeChain.prototype.z加边框;
 
 /**
- * autoFitColumns - 自动列宽
+ * AutoFitColumns - 自动列宽
  * @returns {RangeChain} 当前实例
  */
-RangeChain.prototype.autoFitColumns = function() {
+RangeChain.prototype.z自动列宽 = function() {
     if (this._range) {
         this._range.Columns.AutoFit();
     }
     return this;
 };
-RangeChain.prototype.z自动列宽 = RangeChain.prototype.autoFitColumns;
+RangeChain.prototype.AutoFitColumns = RangeChain.prototype.z自动列宽;
 
 /**
- * autoFitRows - 自动行高
+ * AutoFitRows - 自动行高
  * @returns {RangeChain} 当前实例
  */
-RangeChain.prototype.autoFitRows = function() {
+RangeChain.prototype.z自动行高 = function() {
     if (this._range) {
         this._range.Rows.AutoFit();
     }
     return this;
 };
-RangeChain.prototype.z自动行高 = RangeChain.prototype.autoFitRows;
+RangeChain.prototype.AutoFitRows = RangeChain.prototype.z自动行高;
 
 /**
- * clearContents - 清除内容
+ * ClearContents - 清除内容
  * @returns {RangeChain} 当前实例
  */
-RangeChain.prototype.clearContents = function() {
+RangeChain.prototype.z清除内容 = function() {
     if (this._range) {
         this._range.ClearContents();
     }
     return this;
 };
-RangeChain.prototype.z清除内容 = RangeChain.prototype.clearContents;
+RangeChain.prototype.ClearContents = RangeChain.prototype.z清除内容;
 
 /**
- * clearFormats - 清除格式
+ * ClearFormats - 清除格式
  * @returns {RangeChain} 当前实例
  */
-RangeChain.prototype.clearFormats = function() {
+RangeChain.prototype.z清除格式 = function() {
     if (this._range) {
         this._range.ClearFormats();
     }
     return this;
 };
-RangeChain.prototype.z清除格式 = RangeChain.prototype.clearFormats;
+RangeChain.prototype.ClearFormats = RangeChain.prototype.z清除格式;
 
 /**
- * value2 - 获取/设置值（Value2属性，比Value更快）
+ * Value2 - 获取/设置值（Value2属性，比Value更快）
  * @param {any} [newValue] - 新值（可选）
  * @returns {RangeChain|any} 设置时返回this，否则返回当前值
  * @example
@@ -5679,11 +5676,21 @@ RangeChain.prototype.z值 = function(newValue) {
     }
     return this._range ? this._range.Value2 : undefined;
 };
-RangeChain.prototype.value2 = RangeChain.prototype.z值;
-RangeChain.prototype.val = RangeChain.prototype.z值;
+
+// 使用属性方式定义 Value2，支持 $(i,2).Value2 = rs 语法
+Object.defineProperty(RangeChain.prototype, 'Value2', {
+    get: function() {
+        return this._range ? this._range.Value2 : undefined;
+    },
+    set: function(newValue) {
+        if (this._range) this._range.Value2 = newValue;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * formula - 获取/设置公式
+ * Formula - 获取/设置公式
  * @param {string} [newFormula] - 新公式（可选）
  * @returns {RangeChain|string} 设置时返回this，否则返回公式
  */
@@ -5694,57 +5701,92 @@ RangeChain.prototype.z公式 = function(newFormula) {
     }
     return this._range ? this._range.Formula : '';
 };
-RangeChain.prototype.formula = RangeChain.prototype.z公式;
+
+// 使用属性方式定义 Formula
+Object.defineProperty(RangeChain.prototype, 'Formula', {
+    get: function() {
+        return this._range ? this._range.Formula : '';
+    },
+    set: function(newFormula) {
+        if (this._range) this._range.Formula = newFormula;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * text - 获取显示文本
+ * Text - 获取显示文本
  * @returns {string} 显示文本
  */
 RangeChain.prototype.z文本 = function() {
     return this._range ? this._range.Text : '';
 };
-RangeChain.prototype.text = RangeChain.prototype.z文本;
+
+// 使用属性方式定义 Text（只读）
+Object.defineProperty(RangeChain.prototype, 'Text', {
+    get: function() {
+        return this._range ? this._range.Text : '';
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * row - 获取行号
+ * Row - 获取行号
  * @returns {number} 行号
  */
 RangeChain.prototype.z行 = function() {
     return this._range ? this._range.Row : 0;
 };
-RangeChain.prototype.row = RangeChain.prototype.z行;
+
+// 使用属性方式定义 Row（只读）
+Object.defineProperty(RangeChain.prototype, 'Row', {
+    get: function() {
+        return this._range ? this._range.Row : 0;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * column - 获取列号
+ * Column - 获取列号
  * @returns {number} 列号
  */
 RangeChain.prototype.z列 = function() {
     return this._range ? this._range.Column : 0;
 };
-RangeChain.prototype.column = RangeChain.prototype.z列;
+
+// 使用属性方式定义 Column（只读）
+Object.defineProperty(RangeChain.prototype, 'Column', {
+    get: function() {
+        return this._range ? this._range.Column : 0;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * select - 选中区域
+ * Select - 选中区域
  * @returns {RangeChain} 当前实例
  */
 RangeChain.prototype.z选中 = function() {
     if (this._range) this._range.Select();
     return this;
 };
-RangeChain.prototype.select = RangeChain.prototype.z选中;
+RangeChain.prototype.Select = RangeChain.prototype.z选中;
 
 /**
- * activate - 激活单元格
+ * Activate - 激活单元格
  * @returns {RangeChain} 当前实例
  */
 RangeChain.prototype.z激活 = function() {
     if (this._range) this._range.Activate();
     return this;
 };
-RangeChain.prototype.activate = RangeChain.prototype.z激活;
+RangeChain.prototype.Activate = RangeChain.prototype.z激活;
 
 /**
- * bold - 获取/设置加粗
+ * Bold - 获取/设置加粗
  * @param {boolean} [isBold] - 是否加粗（可选）
  * @returns {RangeChain|boolean} 设置时返回this，否则返回加粗状态
  */
@@ -5755,10 +5797,21 @@ RangeChain.prototype.z加粗 = function(isBold) {
     }
     return this._range ? this._range.Font.Bold : false;
 };
-RangeChain.prototype.bold = RangeChain.prototype.z加粗;
+
+// 使用属性方式定义 Bold
+Object.defineProperty(RangeChain.prototype, 'Bold', {
+    get: function() {
+        return this._range ? this._range.Font.Bold : false;
+    },
+    set: function(isBold) {
+        if (this._range) this._range.Font.Bold = isBold;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * italic - 获取/设置斜体
+ * Italic - 获取/设置斜体
  * @param {boolean} [isItalic] - 是否斜体（可选）
  * @returns {RangeChain|boolean} 设置时返回this，否则返回斜体状态
  */
@@ -5769,10 +5822,21 @@ RangeChain.prototype.z斜体 = function(isItalic) {
     }
     return this._range ? this._range.Font.Italic : false;
 };
-RangeChain.prototype.italic = RangeChain.prototype.z斜体;
+
+// 使用属性方式定义 Italic
+Object.defineProperty(RangeChain.prototype, 'Italic', {
+    get: function() {
+        return this._range ? this._range.Font.Italic : false;
+    },
+    set: function(isItalic) {
+        if (this._range) this._range.Font.Italic = isItalic;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * color - 获取/设置字体颜色
+ * FontColor - 获取/设置字体颜色
  * @param {number} [color] - RGB颜色值（可选）
  * @returns {RangeChain|number} 设置时返回this，否则返回颜色值
  */
@@ -5783,10 +5847,21 @@ RangeChain.prototype.z字体颜色 = function(color) {
     }
     return this._range ? this._range.Font.Color : 0;
 };
-RangeChain.prototype.fontColor = RangeChain.prototype.z字体颜色;
+
+// 使用属性方式定义 FontColor
+Object.defineProperty(RangeChain.prototype, 'FontColor', {
+    get: function() {
+        return this._range ? this._range.Font.Color : 0;
+    },
+    set: function(color) {
+        if (this._range) this._range.Font.Color = color;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * size - 获取/设置字体大小
+ * FontSize - 获取/设置字体大小
  * @param {number} [size] - 字体大小（可选）
  * @returns {RangeChain|number} 设置时返回this，否则返回字体大小
  */
@@ -5797,10 +5872,21 @@ RangeChain.prototype.z字号 = function(size) {
     }
     return this._range ? this._range.Font.Size : 11;
 };
-RangeChain.prototype.fontSize = RangeChain.prototype.z字号;
+
+// 使用属性方式定义 FontSize
+Object.defineProperty(RangeChain.prototype, 'FontSize', {
+    get: function() {
+        return this._range ? this._range.Font.Size : 11;
+    },
+    set: function(size) {
+        if (this._range) this._range.Font.Size = size;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * name - 获取/设置字体名称
+ * FontName - 获取/设置字体名称
  * @param {string} [fontName] - 字体名称（可选）
  * @returns {RangeChain|string} 设置时返回this，否则返回字体名称
  */
@@ -5811,10 +5897,21 @@ RangeChain.prototype.z字体名称 = function(fontName) {
     }
     return this._range ? this._range.Font.Name : '';
 };
-RangeChain.prototype.fontName = RangeChain.prototype.z字体名称;
+
+// 使用属性方式定义 FontName
+Object.defineProperty(RangeChain.prototype, 'FontName', {
+    get: function() {
+        return this._range ? this._range.Font.Name : '';
+    },
+    set: function(fontName) {
+        if (this._range) this._range.Font.Name = fontName;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * interiorColor - 获取/设置背景颜色
+ * InteriorColor - 获取/设置背景颜色
  * @param {number} [color] - RGB颜色值（可选）
  * @returns {RangeChain|number} 设置时返回this，否则返回颜色值
  */
@@ -5825,10 +5922,21 @@ RangeChain.prototype.z背景颜色 = function(color) {
     }
     return this._range ? this._range.Interior.Color : 16777215; // 默认白色
 };
-RangeChain.prototype.interiorColor = RangeChain.prototype.z背景颜色;
+
+// 使用属性方式定义 InteriorColor
+Object.defineProperty(RangeChain.prototype, 'InteriorColor', {
+    get: function() {
+        return this._range ? this._range.Interior.Color : 16777215;
+    },
+    set: function(color) {
+        if (this._range) this._range.Interior.Color = color;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * horizontalAlignment - 获取/设置水平对齐
+ * HorizontalAlignment - 获取/设置水平对齐
  * @param {number} [align] - 对齐方式（可选）
  * @returns {RangeChain|number} 设置时返回this，否则返回对齐方式
  */
@@ -5839,10 +5947,21 @@ RangeChain.prototype.z水平对齐 = function(align) {
     }
     return this._range ? this._range.HorizontalAlignment : -4151; // 默认常规
 };
-RangeChain.prototype.horizontalAlignment = RangeChain.prototype.z水平对齐;
+
+// 使用属性方式定义 HorizontalAlignment
+Object.defineProperty(RangeChain.prototype, 'HorizontalAlignment', {
+    get: function() {
+        return this._range ? this._range.HorizontalAlignment : -4151;
+    },
+    set: function(align) {
+        if (this._range) this._range.HorizontalAlignment = align;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * verticalAlignment - 获取/设置垂直对齐
+ * VerticalAlignment - 获取/设置垂直对齐
  * @param {number} [align] - 对齐方式（可选）
  * @returns {RangeChain|number} 设置时返回this，否则返回对齐方式
  */
@@ -5853,10 +5972,21 @@ RangeChain.prototype.z垂直对齐 = function(align) {
     }
     return this._range ? this._range.VerticalAlignment : -4160; // 默认底部
 };
-RangeChain.prototype.verticalAlignment = RangeChain.prototype.z垂直对齐;
+
+// 使用属性方式定义 VerticalAlignment
+Object.defineProperty(RangeChain.prototype, 'VerticalAlignment', {
+    get: function() {
+        return this._range ? this._range.VerticalAlignment : -4160;
+    },
+    set: function(align) {
+        if (this._range) this._range.VerticalAlignment = align;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * numberFormat - 获取/设置数字格式
+ * NumberFormat - 获取/设置数字格式
  * @param {string} [format] - 格式字符串（可选）
  * @returns {RangeChain|string} 设置时返回this，否则返回格式字符串
  */
@@ -5867,10 +5997,21 @@ RangeChain.prototype.z数字格式 = function(format) {
     }
     return this._range ? this._range.NumberFormat : 'General';
 };
-RangeChain.prototype.numberFormat = RangeChain.prototype.z数字格式;
+
+// 使用属性方式定义 NumberFormat
+Object.defineProperty(RangeChain.prototype, 'NumberFormat', {
+    get: function() {
+        return this._range ? this._range.NumberFormat : 'General';
+    },
+    set: function(format) {
+        if (this._range) this._range.NumberFormat = format;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * wrapText - 获取/设置自动换行
+ * WrapText - 获取/设置自动换行
  * @param {boolean} [wrap] - 是否自动换行（可选）
  * @returns {RangeChain|boolean} 设置时返回this，否则返回换行状态
  */
@@ -5881,39 +6022,58 @@ RangeChain.prototype.z自动换行 = function(wrap) {
     }
     return this._range ? this._range.WrapText : false;
 };
-RangeChain.prototype.wrapText = RangeChain.prototype.z自动换行;
+
+// 使用属性方式定义 WrapText
+Object.defineProperty(RangeChain.prototype, 'WrapText', {
+    get: function() {
+        return this._range ? this._range.WrapText : false;
+    },
+    set: function(wrap) {
+        if (this._range) this._range.WrapText = wrap;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * merge - 合并单元格
+ * Merge - 合并单元格
  * @returns {RangeChain} 当前实例
  */
 RangeChain.prototype.z合并 = function() {
     if (this._range) this._range.Merge();
     return this;
 };
-RangeChain.prototype.merge = RangeChain.prototype.z合并;
+RangeChain.prototype.Merge = RangeChain.prototype.z合并;
 
 /**
- * unMerge - 取消合并单元格
+ * UnMerge - 取消合并单元格
  * @returns {RangeChain} 当前实例
  */
 RangeChain.prototype.z取消合并 = function() {
     if (this._range) this._range.UnMerge();
     return this;
 };
-RangeChain.prototype.unMerge = RangeChain.prototype.z取消合并;
+RangeChain.prototype.UnMerge = RangeChain.prototype.z取消合并;
 
 /**
- * merged - 检查是否为合并单元格
+ * MergeCells - 检查是否为合并单元格
  * @returns {boolean} 是否合并
  */
 RangeChain.prototype.z已合并 = function() {
     return this._range ? this._range.MergeCells : false;
 };
-RangeChain.prototype.merged = RangeChain.prototype.z已合并;
+
+// 使用属性方式定义 MergeCells（只读）
+Object.defineProperty(RangeChain.prototype, 'MergeCells', {
+    get: function() {
+        return this._range ? this._range.MergeCells : false;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
- * delete - 删除区域
+ * Delete - 删除区域
  * @param {number} [shift] - 移动方向（可选）
  * @returns {RangeChain} 当前实例
  */
@@ -5921,10 +6081,10 @@ RangeChain.prototype.z删除 = function(shift) {
     if (this._range) this._range.Delete(shift);
     return this;
 };
-RangeChain.prototype.delete = RangeChain.prototype.z删除;
+RangeChain.prototype.Delete = RangeChain.prototype.z删除;
 
 /**
- * insert - 插入区域
+ * Insert - 插入区域
  * @param {number} [shift] - 移动方向（可选）
  * @returns {RangeChain} 当前实例
  */
@@ -5932,10 +6092,10 @@ RangeChain.prototype.z插入 = function(shift) {
     if (this._range) this._range.Insert(shift);
     return this;
 };
-RangeChain.prototype.insert = RangeChain.prototype.z插入;
+RangeChain.prototype.Insert = RangeChain.prototype.z插入;
 
 /**
- * copy - 复制区域
+ * Copy - 复制区域
  * @param {Range} [destination] - 目标区域（可选）
  * @returns {RangeChain} 当前实例
  */
@@ -5949,10 +6109,10 @@ RangeChain.prototype.z复制 = function(destination) {
     }
     return this;
 };
-RangeChain.prototype.copy = RangeChain.prototype.z复制;
+RangeChain.prototype.Copy = RangeChain.prototype.z复制;
 
 /**
- * paste - 粘贴区域
+ * Paste - 粘贴区域
  * @param {Range} [destination] - 目标区域（可选）
  * @param {number} [type] - 粘贴类型（可选）
  * @returns {RangeChain} 当前实例
@@ -5963,7 +6123,7 @@ RangeChain.prototype.z粘贴 = function(destination, type) {
     }
     return this;
 };
-RangeChain.prototype.paste = RangeChain.prototype.z粘贴;
+RangeChain.prototype.Paste = RangeChain.prototype.z粘贴;
 
 /**
  * 创建RngUtils静态方法代理对象
