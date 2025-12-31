@@ -5508,22 +5508,31 @@ const round = (number, decimals = 2) => {
 // ==================== Range快捷函数 ====================
 
 /**
- * RangeChain - Range链式调用包装类
+ * RangeChain - Range链式调用包装类（支持智能提示和链式调用）
  * @private
  * @class
- * @description 支持Range方法的链式调用
+ * @description 支持Range方法的链式调用和智能提示
  * @example
- * $.maxRange("A1:J1").safeArray()  // 链式调用
+ * $.maxRange("A1:J1").safeArray()     // 链式调用
+ * $(5, 2).z值()                       // 获取第5行第2列的值
+ * $(5, 2).z值("新值").z加粗()         // 链式设置
  */
-function RangeChain(rng) {
+function RangeChain(rng, colIndex) {
     if (!(this instanceof RangeChain)) {
-        return new RangeChain(rng);
+        return new RangeChain(rng, colIndex);
     }
     this._range = null;
 
-    if (typeof rng === 'string') {
+    // 两个参数模式：RangeChain(行号, 列号)
+    if (typeof rng === 'number' && typeof colIndex === 'number') {
+        this._range = isWPS ? Cells(rng, colIndex) : null;
+    }
+    // 字符串地址模式
+    else if (typeof rng === 'string') {
         this._range = isWPS ? Range(rng) : null;
-    } else if (rng && rng.Address) {
+    }
+    // Range对象模式
+    else if (rng && rng.Address) {
         this._range = rng;
     }
 }
@@ -5655,6 +5664,308 @@ RangeChain.prototype.clearFormats = function() {
 RangeChain.prototype.z清除格式 = RangeChain.prototype.clearFormats;
 
 /**
+ * value2 - 获取/设置值（Value2属性，比Value更快）
+ * @param {any} [newValue] - 新值（可选）
+ * @returns {RangeChain|any} 设置时返回this，否则返回当前值
+ * @example
+ * $(5, 2).z值()                    // 获取值
+ * $(5, 2).z值("新值")              // 设置值
+ * $(5, 2).z值("新值").z加粗()      // 链式调用
+ */
+RangeChain.prototype.z值 = function(newValue) {
+    if (newValue !== undefined) {
+        if (this._range) this._range.Value2 = newValue;
+        return this;
+    }
+    return this._range ? this._range.Value2 : undefined;
+};
+RangeChain.prototype.value2 = RangeChain.prototype.z值;
+RangeChain.prototype.val = RangeChain.prototype.z值;
+
+/**
+ * formula - 获取/设置公式
+ * @param {string} [newFormula] - 新公式（可选）
+ * @returns {RangeChain|string} 设置时返回this，否则返回公式
+ */
+RangeChain.prototype.z公式 = function(newFormula) {
+    if (newFormula !== undefined) {
+        if (this._range) this._range.Formula = newFormula;
+        return this;
+    }
+    return this._range ? this._range.Formula : '';
+};
+RangeChain.prototype.formula = RangeChain.prototype.z公式;
+
+/**
+ * text - 获取显示文本
+ * @returns {string} 显示文本
+ */
+RangeChain.prototype.z文本 = function() {
+    return this._range ? this._range.Text : '';
+};
+RangeChain.prototype.text = RangeChain.prototype.z文本;
+
+/**
+ * row - 获取行号
+ * @returns {number} 行号
+ */
+RangeChain.prototype.z行 = function() {
+    return this._range ? this._range.Row : 0;
+};
+RangeChain.prototype.row = RangeChain.prototype.z行;
+
+/**
+ * column - 获取列号
+ * @returns {number} 列号
+ */
+RangeChain.prototype.z列 = function() {
+    return this._range ? this._range.Column : 0;
+};
+RangeChain.prototype.column = RangeChain.prototype.z列;
+
+/**
+ * select - 选中区域
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z选中 = function() {
+    if (this._range) this._range.Select();
+    return this;
+};
+RangeChain.prototype.select = RangeChain.prototype.z选中;
+
+/**
+ * activate - 激活单元格
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z激活 = function() {
+    if (this._range) this._range.Activate();
+    return this;
+};
+RangeChain.prototype.activate = RangeChain.prototype.z激活;
+
+/**
+ * bold - 获取/设置加粗
+ * @param {boolean} [isBold] - 是否加粗（可选）
+ * @returns {RangeChain|boolean} 设置时返回this，否则返回加粗状态
+ */
+RangeChain.prototype.z加粗 = function(isBold) {
+    if (isBold !== undefined) {
+        if (this._range) this._range.Font.Bold = isBold;
+        return this;
+    }
+    return this._range ? this._range.Font.Bold : false;
+};
+RangeChain.prototype.bold = RangeChain.prototype.z加粗;
+
+/**
+ * italic - 获取/设置斜体
+ * @param {boolean} [isItalic] - 是否斜体（可选）
+ * @returns {RangeChain|boolean} 设置时返回this，否则返回斜体状态
+ */
+RangeChain.prototype.z斜体 = function(isItalic) {
+    if (isItalic !== undefined) {
+        if (this._range) this._range.Font.Italic = isItalic;
+        return this;
+    }
+    return this._range ? this._range.Font.Italic : false;
+};
+RangeChain.prototype.italic = RangeChain.prototype.z斜体;
+
+/**
+ * color - 获取/设置字体颜色
+ * @param {number} [color] - RGB颜色值（可选）
+ * @returns {RangeChain|number} 设置时返回this，否则返回颜色值
+ */
+RangeChain.prototype.z字体颜色 = function(color) {
+    if (color !== undefined) {
+        if (this._range) this._range.Font.Color = color;
+        return this;
+    }
+    return this._range ? this._range.Font.Color : 0;
+};
+RangeChain.prototype.fontColor = RangeChain.prototype.z字体颜色;
+
+/**
+ * size - 获取/设置字体大小
+ * @param {number} [size] - 字体大小（可选）
+ * @returns {RangeChain|number} 设置时返回this，否则返回字体大小
+ */
+RangeChain.prototype.z字号 = function(size) {
+    if (size !== undefined) {
+        if (this._range) this._range.Font.Size = size;
+        return this;
+    }
+    return this._range ? this._range.Font.Size : 11;
+};
+RangeChain.prototype.fontSize = RangeChain.prototype.z字号;
+
+/**
+ * name - 获取/设置字体名称
+ * @param {string} [fontName] - 字体名称（可选）
+ * @returns {RangeChain|string} 设置时返回this，否则返回字体名称
+ */
+RangeChain.prototype.z字体名称 = function(fontName) {
+    if (fontName !== undefined) {
+        if (this._range) this._range.Font.Name = fontName;
+        return this;
+    }
+    return this._range ? this._range.Font.Name : '';
+};
+RangeChain.prototype.fontName = RangeChain.prototype.z字体名称;
+
+/**
+ * interiorColor - 获取/设置背景颜色
+ * @param {number} [color] - RGB颜色值（可选）
+ * @returns {RangeChain|number} 设置时返回this，否则返回颜色值
+ */
+RangeChain.prototype.z背景颜色 = function(color) {
+    if (color !== undefined) {
+        if (this._range) this._range.Interior.Color = color;
+        return this;
+    }
+    return this._range ? this._range.Interior.Color : 16777215; // 默认白色
+};
+RangeChain.prototype.interiorColor = RangeChain.prototype.z背景颜色;
+
+/**
+ * horizontalAlignment - 获取/设置水平对齐
+ * @param {number} [align] - 对齐方式（可选）
+ * @returns {RangeChain|number} 设置时返回this，否则返回对齐方式
+ */
+RangeChain.prototype.z水平对齐 = function(align) {
+    if (align !== undefined) {
+        if (this._range) this._range.HorizontalAlignment = align;
+        return this;
+    }
+    return this._range ? this._range.HorizontalAlignment : -4151; // 默认常规
+};
+RangeChain.prototype.horizontalAlignment = RangeChain.prototype.z水平对齐;
+
+/**
+ * verticalAlignment - 获取/设置垂直对齐
+ * @param {number} [align] - 对齐方式（可选）
+ * @returns {RangeChain|number} 设置时返回this，否则返回对齐方式
+ */
+RangeChain.prototype.z垂直对齐 = function(align) {
+    if (align !== undefined) {
+        if (this._range) this._range.VerticalAlignment = align;
+        return this;
+    }
+    return this._range ? this._range.VerticalAlignment : -4160; // 默认底部
+};
+RangeChain.prototype.verticalAlignment = RangeChain.prototype.z垂直对齐;
+
+/**
+ * numberFormat - 获取/设置数字格式
+ * @param {string} [format] - 格式字符串（可选）
+ * @returns {RangeChain|string} 设置时返回this，否则返回格式字符串
+ */
+RangeChain.prototype.z数字格式 = function(format) {
+    if (format !== undefined) {
+        if (this._range) this._range.NumberFormat = format;
+        return this;
+    }
+    return this._range ? this._range.NumberFormat : 'General';
+};
+RangeChain.prototype.numberFormat = RangeChain.prototype.z数字格式;
+
+/**
+ * wrapText - 获取/设置自动换行
+ * @param {boolean} [wrap] - 是否自动换行（可选）
+ * @returns {RangeChain|boolean} 设置时返回this，否则返回换行状态
+ */
+RangeChain.prototype.z自动换行 = function(wrap) {
+    if (wrap !== undefined) {
+        if (this._range) this._range.WrapText = wrap;
+        return this;
+    }
+    return this._range ? this._range.WrapText : false;
+};
+RangeChain.prototype.wrapText = RangeChain.prototype.z自动换行;
+
+/**
+ * merge - 合并单元格
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z合并 = function() {
+    if (this._range) this._range.Merge();
+    return this;
+};
+RangeChain.prototype.merge = RangeChain.prototype.z合并;
+
+/**
+ * unMerge - 取消合并单元格
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z取消合并 = function() {
+    if (this._range) this._range.UnMerge();
+    return this;
+};
+RangeChain.prototype.unMerge = RangeChain.prototype.z取消合并;
+
+/**
+ * merged - 检查是否为合并单元格
+ * @returns {boolean} 是否合并
+ */
+RangeChain.prototype.z已合并 = function() {
+    return this._range ? this._range.MergeCells : false;
+};
+RangeChain.prototype.merged = RangeChain.prototype.z已合并;
+
+/**
+ * delete - 删除区域
+ * @param {number} [shift] - 移动方向（可选）
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z删除 = function(shift) {
+    if (this._range) this._range.Delete(shift);
+    return this;
+};
+RangeChain.prototype.delete = RangeChain.prototype.z删除;
+
+/**
+ * insert - 插入区域
+ * @param {number} [shift] - 移动方向（可选）
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z插入 = function(shift) {
+    if (this._range) this._range.Insert(shift);
+    return this;
+};
+RangeChain.prototype.insert = RangeChain.prototype.z插入;
+
+/**
+ * copy - 复制区域
+ * @param {Range} [destination] - 目标区域（可选）
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z复制 = function(destination) {
+    if (this._range) {
+        if (destination) {
+            this._range.Copy(destination);
+        } else {
+            this._range.Copy();
+        }
+    }
+    return this;
+};
+RangeChain.prototype.copy = RangeChain.prototype.z复制;
+
+/**
+ * paste - 粘贴区域
+ * @param {Range} [destination] - 目标区域（可选）
+ * @param {number} [type] - 粘贴类型（可选）
+ * @returns {RangeChain} 当前实例
+ */
+RangeChain.prototype.z粘贴 = function(destination, type) {
+    if (destination && destination.Paste) {
+        destination.Paste(type);
+    }
+    return this;
+};
+RangeChain.prototype.paste = RangeChain.prototype.z粘贴;
+
+/**
  * 创建RngUtils静态方法代理对象
  * @private
  */
@@ -5717,30 +6028,33 @@ function createRngUtilsProxy() {
 }
 
 /**
- * $函数 - Range快捷方式和RngUtils方法代理
- * @param {string|number} x - 地址或行列号
+ * $函数 - Range快捷方式和RngUtils方法代理（支持智能提示和链式调用）
+ * @param {string|number} x - 地址或行号
  * @param {number} [y] - 列号（可选，当传入两个数字参数时）
- * @returns {Range|null|RangeChain} Range对象或RangeChain包装对象
+ * @returns {RangeChain} RangeChain包装对象，支持智能提示和链式调用
  * @example
- * $("A1")               // A1单元格（Range对象）
- * $(5, 1)              // 第5行第1列
- * $.maxRange("A1:J1")   // 返回RangeChain，支持链式调用
+ * $("A1")                          // 返回RangeChain，支持链式调用
+ * $(5, 2)                          // 第5行第2列，返回RangeChain
+ * $(5, 2).z值()                    // 获取值
+ * $(5, 2).z值("新值")              // 设置值
+ * $(5, 2).z值("新值").z加粗()      // 链式调用
  * $.maxRange("A1:J1").safeArray()  // 链式调用
  */
 function $(x, y) {
-    // 两个参数模式：$(行, 列) - 直接返回Range
+    // 两个参数模式：$(行, 列) - 返回RangeChain
     if (arguments.length === 2 && typeof x === 'number' && typeof y === 'number') {
-        return isWPS ? Cells(x, y) : null;
+        return new RangeChain(x, y);
     }
-    // 单个参数模式 - 返回Range对象（不包装，保持向后兼容）
+    // 单个参数模式 - 返回RangeChain
     if (typeof x === 'string') {
-        return isWPS ? Range(x) : null;
+        return new RangeChain(x);
     } else if (typeof x === 'number') {
-        return isWPS ? Cells(x, 1) : null;
+        return new RangeChain(x, 1);
     } else if (x && x.Address) {
-        return x;
+        return new RangeChain(x);
     }
-    return null;
+    // 返回空的RangeChain
+    return new RangeChain(null);
 }
 
 // 将RngUtils静态方法添加到$函数对象上，支持$.method()调用

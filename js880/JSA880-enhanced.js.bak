@@ -424,6 +424,34 @@ Array2D.prototype.z连接 = function(separator = ',') {
 };
 Array2D.prototype.join = Array2D.prototype.z连接;
 
+/**
+ * 转JSON（转JSON字符串，二维数组内部数组横着对齐显示）
+ * @param {Boolean} [pretty=true] - 是否格式化输出（对齐显示）
+ * @returns {String} JSON字符串
+ * @example
+ * Array2D([[1,2],[3,4]]).z转JSON()
+ * // 输出:
+ * // [
+ * //  [1, 2],
+ * //  [3, 4]
+ * // ]
+ * Array2D([[1,2],[3,4]]).toJson(false)    // "[[1,2],[3,4]]" 紧凑格式
+ */
+Array2D.prototype.z转JSON = function(pretty) {
+    // 紧凑格式
+    if (pretty === false) {
+        return JSON.stringify(this._items);
+    }
+    // 格式化输出（对齐显示）
+    if (Array.isArray(this._items) && this._items.length > 0 && Array.isArray(this._items[0])) {
+        var lines = formatArray2DAsJSON(this._items);
+        return lines.join('\n');
+    }
+    // 其他情况使用标准JSON格式
+    return JSON.stringify(this._items, null, 2);
+};
+Array2D.prototype.toJson = Array2D.prototype.z转JSON;
+
 // ==================== 分块挑选 ====================
 
 /**
@@ -1063,7 +1091,7 @@ Array2D.prototype.z透视 = function(rowField, colField, valueField, aggregator)
             var colKey = colValues[c];
             var value = pivotData[rowKey] && pivotData[rowKey][colKey] !== undefined
                 ? pivotData[rowKey][colKey]
-                : (aggregator === function(acc, val) { return (isNaN(acc)?0:acc) + (isNaN(val)?0:val); } ? 0 : '');
+                : 0;
             rowData.push(value);
         }
         result.push(rowData);
@@ -3535,6 +3563,88 @@ DateUtils.prototype.z日期格式化 = function(jsdate, fmt) {
 };
 DateUtils.prototype.format = DateUtils.prototype.z日期格式化;
 
+/**
+ * 获取年份
+ * @returns {Number} 年份（4位数字）
+ * @example
+ * asDate("2023-9-21").z年份()  // 2023
+ */
+DateUtils.prototype.z年份 = function() {
+    return this._date.getFullYear();
+};
+DateUtils.prototype.getYear = DateUtils.prototype.z年份;
+
+/**
+ * 获取月份（1-12）
+ * @returns {Number} 月份（1-12）
+ * @example
+ * asDate("2023-9-21").z月份()  // 9
+ */
+DateUtils.prototype.z月份 = function() {
+    return this._date.getMonth() + 1;
+};
+DateUtils.prototype.getMonth = DateUtils.prototype.z月份;
+
+/**
+ * 获取日期（1-31）
+ * @returns {Number} 日期（1-31）
+ * @example
+ * asDate("2023-9-21").z日期()  // 21
+ */
+DateUtils.prototype.z日期 = function() {
+    return this._date.getDate();
+};
+DateUtils.prototype.getDate = DateUtils.prototype.z日期;
+
+/**
+ * 获取星期（1-7，7=周日）
+ * @returns {Number} 星期（1-7）
+ * @example
+ * asDate("2023-9-21").z星期()  // 4 (周四)
+ * asDate("2023-9-24").z星期()  // 7 (周日)
+ */
+DateUtils.prototype.z星期 = function() {
+    var day = this._date.getDay();
+    return day === 0 ? 7 : day;
+};
+DateUtils.prototype.getDay = DateUtils.prototype.z星期;
+
+/**
+ * 获取小时（0-23）
+ * @returns {Number} 小时（0-23）
+ */
+DateUtils.prototype.z小时 = function() {
+    return this._date.getHours();
+};
+DateUtils.prototype.getHour = DateUtils.prototype.z小时;
+
+/**
+ * 获取分钟（0-59）
+ * @returns {Number} 分钟（0-59）
+ */
+DateUtils.prototype.z分钟 = function() {
+    return this._date.getMinutes();
+};
+DateUtils.prototype.getMinute = DateUtils.prototype.z分钟;
+
+/**
+ * 获取秒数（0-59）
+ * @returns {Number} 秒数（0-59）
+ */
+DateUtils.prototype.z秒 = function() {
+    return this._date.getSeconds();
+};
+DateUtils.prototype.getSecond = DateUtils.prototype.z秒;
+
+/**
+ * 获取时间戳（毫秒）
+ * @returns {Number} 时间戳
+ */
+DateUtils.prototype.z时间戳 = function() {
+    return this._date.getTime();
+};
+DateUtils.prototype.getTime = DateUtils.prototype.z时间戳;
+
 // ==================== JSA - 通用函数库 ====================
 
 /**
@@ -3634,6 +3744,97 @@ JSA.z替换 = function(str, find, replaceWith) {
 JSA.replace = JSA.z替换;
 
 /**
+ * 全局替换（字符串扩展方法）
+ * @param {String} search - 查找字符串
+ * @param {String} replacement - 替换字符串
+ * @returns {String} 结果
+ * @description 在字符串上执行全局替换，等同于 replace(/search/g, replacement)
+ * @example "jsa字符串a".substitute('a','b') // 返回 "jsb字符串b"
+ */
+String.prototype.substitute = function(search, replacement) {
+    if (search === undefined || search === null || search === '') return String(this);
+    if (replacement === undefined) replacement = '';
+    // 使用 split + join 实现全局替换，避免正则特殊字符问题
+    return String(this).split(String(search)).join(String(replacement));
+};
+
+/**
+ * 全局替换（字符串扩展方法 - 中文别名）
+ */
+String.prototype.z全局替换 = String.prototype.substitute;
+
+/**
+ * 模糊匹配（字符串扩展方法）
+ * @param {String} pattern - 匹配模式（支持 * 通配符任意字符，? 通配符单个字符）
+ * @returns {Number} 匹配返回-1，不匹配返回0
+ * @description 包含模式匹配，自动在模式前后添加 *，除非模式以 ^ 开头或 $ 结尾
+ * @example "jsa字符串b".like('a*b')        // 返回 -1 (包含a和b)
+ * @example "jsa字符串c".like('a*b')        // 返回 0  (有a但没有b)
+ * @example "hello".like('h?llo')          // 返回 -1 (?匹配单字符)
+ * @example "abc".like('a*c')              // 返回 -1
+ * @example "abc".like('a?c')              // 返回 -1
+ * @example "abc".like('^a')               // 返回 -1 (以a开头)
+ * @example "abc".like('c$')               // 返回 -1 (以c结尾)
+ */
+String.prototype.like = function(pattern) {
+    if (pattern === undefined || pattern === null) return 0;
+    var str = String(this);
+    // 转义正则特殊字符，但保留 * 和 ?
+    var regexPattern = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+                              .replace(/\*/g, '.*')
+                              .replace(/\?/g, '.');
+    // 包含模式：自动在前后加上 .*，除非模式已经以 ^ 开头或 $ 结尾
+    var anchored = regexPattern;
+    if (anchored.indexOf('^') !== 0) anchored = '.*' + anchored;
+    if (anchored.charAt(anchored.length - 1) !== '$') anchored = anchored + '.*';
+    var regex = new RegExp('^' + anchored + '$');
+    // 匹配返回-1，不匹配返回0
+    return regex.test(str) ? -1 : 0;
+};
+
+/**
+ * 模糊匹配（字符串扩展方法 - 中文别名）
+ */
+String.prototype.z模糊匹配 = String.prototype.like;
+
+/**
+ * 数组转JSON字符串（数组扩展方法）
+ * @returns {String} JSON字符串
+ * @description 将数组转换为JSON格式字符串
+ * @example [1,2,3].toJson()              // 返回 "[1,2,3]"
+ * @example ["a","b"].toJson()            // 返回 "[\"a\",\"b\"]"
+ * @example [{x:1},{y:2}].toJson()        // 返回 "[{\"x\":1},{\"y\":2}]"
+ */
+Array.prototype.toJson = function() {
+    return JSON.stringify(this);
+};
+
+/**
+ * 数组转JSON字符串（数组扩展方法 - 中文别名）
+ */
+Array.prototype.z转JSON = Array.prototype.toJson;
+
+/**
+ * 数组元素转数值（数组扩展方法）
+ * @returns {Array} 数值数组
+ * @description 将数组中每个元素转换为数值
+ * @example "1a2b3c4asd5".match(/\d/g).val()        // 返回 [1,2,3,4,5]
+ * @example ["1","2","3"].val()                    // 返回 [1,2,3]
+ * @example ["10","20","abc"].val()                // 返回 [10,20,0]
+ */
+Array.prototype.val = function() {
+    return this.map(function(item) {
+        var num = Number(item);
+        return isNaN(num) ? 0 : num;
+    });
+};
+
+/**
+ * 数组元素转数值（数组扩展方法 - 中文别名）
+ */
+Array.prototype.z转数值 = Array.prototype.val;
+
+/**
  * 截取字符
  * @param {String} str - 字符串
  * @param {Number} start - 起始位置（从1开始）
@@ -3715,15 +3916,45 @@ JSA.average = JSA.z平均值;
 /**
  * 模糊匹配
  * @param {String} str - 字符串
- * @param {String} pattern - 模式（支持*）
- * @returns {Boolean} 是否匹配
+ * @param {String} pattern - 模式（支持*和?）
+ * @returns {Number} 匹配返回-1，不匹配返回0
+ * @description 包含模式匹配，自动在模式前后添加 *，除非模式以 ^ 开头或 $ 结尾
  */
 JSA.z模糊匹配 = function(str, pattern) {
-    var regexPattern = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    var regex = new RegExp('^' + regexPattern + '$');
-    return regex.test(str);
+    if (pattern === undefined || pattern === null) return 0;
+    // 转义正则特殊字符，但保留 * 和 ?
+    var regexPattern = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+                              .replace(/\*/g, '.*')
+                              .replace(/\?/g, '.');
+    // 包含模式：自动在前后加上 .*，除非模式已经以 ^ 开头或 $ 结尾
+    var anchored = regexPattern;
+    if (anchored.indexOf('^') !== 0) anchored = '.*' + anchored;
+    if (anchored.charAt(anchored.length - 1) !== '$') anchored = anchored + '.*';
+    var regex = new RegExp('^' + anchored + '$');
+    // 匹配返回-1，不匹配返回0
+    return regex.test(str) ? -1 : 0;
 };
 JSA.like = JSA.z模糊匹配;
+
+/**
+ * 表达式求值
+ * @param {String} expr - 字符串表达式（如 '5*6+5'）
+ * @returns {Number} 计算结果
+ * @description 对字符串表达式进行求值计算
+ * @example JSA.eval880('5*6+5')     // 返回 35
+ * @example JSA.eval880('10+20*3')   // 返回 70
+ * @example JSA.eval880('(1+2)*3')   // 返回 9
+ */
+JSA.z表达式求值 = function(expr) {
+    if (typeof expr !== 'string') return Number(expr) || 0;
+    // 使用 Function 构造函数安全地计算表达式
+    try {
+        return new Function('return ' + expr)();
+    } catch (e) {
+        return 0;
+    }
+};
+JSA.eval880 = JSA.z表达式求值;
 
 /**
  * 生成数字序列
@@ -4424,25 +4655,31 @@ function asNumber(a) {
 }
 
 /**
- * asDate函数 - 将值转换为Date对象
+ * asDate函数 - 将值转换为DateUtils对象（支持智能提示和链式调用）
  * @param {any} a - 要转换的值
- * @returns {Date} Date对象
+ * @returns {DateUtils} DateUtils实例
  * @example
- * asDate("2023-9-1")     // Date对象
- * asDate(45170)          // Date对象 (Excel日期序号)
- * asDate("2023/09/01")   // Date对象
+ * asDate("2023-9-1").z月份()     // 9
+ * asDate(45170).z年份()          // 2023 (Excel日期序号)
+ * asDate("2023/09/01").z日期()   // 1
  */
 function asDate(a) {
-    if (a instanceof Date) return a;
-    if (typeof a === 'number') {
+    var date;
+    if (a instanceof DateUtils) return a;
+    if (a instanceof Date) {
+        date = a;
+    } else if (typeof a === 'number') {
         // Excel日期序号转JS Date
-        return new Date((a - 25569) * 86400 * 1000);
+        date = new Date((a - 25569) * 86400 * 1000);
+    } else if (typeof a === 'string') {
+        date = new Date(a);
+        if (isNaN(date.getTime())) {
+            date = new Date();
+        }
+    } else {
+        date = new Date();
     }
-    if (typeof a === 'string') {
-        var date = new Date(a);
-        return isNaN(date.getTime()) ? new Date() : date;
-    }
-    return new Date();
+    return new DateUtils(date);
 }
 
 /**
@@ -4543,34 +4780,44 @@ function asShape(shp) {
     return null;
 }
 
-/**
- * asSheet函数 - 将对象转换为工作表对象
- * @param {any} sht - 要转换的对象
- * @returns {Sheet|null} 工作表对象，失败时返回null
- * @example
- * asSheet("1月")           // 工作表对象
- * asSheet(1)              // 第一个工作表
- * asSheet(Sheets(1))       // 返回原工作表对象
- */
-function asSheet(sht) {
-    // 检查WPS环境和Sheets可用性
-    if (typeof Sheets === 'undefined') return null;
+// ==================== SheetChain - 工作表链式调用类 ====================
 
-    // 如果已经是Sheet对象，直接返回
-    if (sht && sht.Activate && sht.Name) return sht;
+/**
+ * SheetChain - 工作表链式调用包装类（支持智能提示和链式调用）
+ * @class
+ * @description 包装WPS工作表对象，提供链式调用和智能提示
+ * @example
+ * asSheet("Sheet1").z激活().z名称()
+ * asSheet(1).z已使用区域().z安全数组()
+ */
+function SheetChain(sht) {
+    if (!(this instanceof SheetChain)) {
+        return new SheetChain(sht);
+    }
+    this._sheet = null;
+
+    // 检查WPS环境和Sheets可用性
+    if (typeof Sheets === 'undefined') return;
+
+    // 如果已经是Sheet对象，直接使用
+    if (sht && sht.Activate && sht.Name) {
+        this._sheet = sht;
+        return;
+    }
 
     if (typeof sht === 'number') {
         try {
-            return Sheets(sht);
+            this._sheet = Sheets(sht);
         } catch (e) {
-            return null;
+            this._sheet = null;
         }
+        return;
     }
 
     if (typeof sht === 'string') {
         try {
             // 首先尝试精确匹配
-            return Sheets(sht);
+            this._sheet = Sheets(sht);
         } catch (e) {
             // 精确匹配失败，尝试模糊匹配
             try {
@@ -4578,21 +4825,265 @@ function asSheet(sht) {
                     var sheet = Sheets(i);
                     // 包含匹配
                     if (sheet.Name.indexOf(sht) >= 0) {
-                        return sheet;
+                        this._sheet = sheet;
+                        return;
                     }
                     // 忽略大小写匹配
                     if (sheet.Name.toLowerCase() === sht.toLowerCase()) {
-                        return sheet;
+                        this._sheet = sheet;
+                        return;
                     }
                 }
             } catch (e2) {
-                console.log("asSheet模糊匹配失败: " + e2.message);
+                console.log("SheetChain模糊匹配失败: " + e2.message);
             }
-            return null;
+            this._sheet = null;
         }
+        return;
+    }
+}
+
+/**
+ * 获取原始Sheet对象
+ * @returns {Worksheet|null} 工作表对象
+ */
+SheetChain.prototype.value = function() {
+    return this._sheet;
+};
+SheetChain.prototype.val = SheetChain.prototype.value;
+
+/**
+ * 获取工作表名称
+ * @returns {String} 工作表名称
+ */
+SheetChain.prototype.z名称 = function() {
+    return this._sheet ? this._sheet.Name : '';
+};
+SheetChain.prototype.name = SheetChain.prototype.z名称;
+
+/**
+ * 激活工作表
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z激活 = function() {
+    if (this._sheet) this._sheet.Activate();
+    return this;
+};
+SheetChain.prototype.Activate = SheetChain.prototype.z激活;
+
+/**
+ * 获取已使用区域
+ * @returns {Range|null} 已使用区域
+ */
+SheetChain.prototype.z已使用区域 = function() {
+    if (!this._sheet) return null;
+    try {
+        return this._sheet.UsedRange;
+    } catch (e) {
+        return null;
+    }
+};
+SheetChain.prototype.usedRange = SheetChain.prototype.z已使用区域;
+
+/**
+ * 获取安全已使用区域（处理空表情况）
+ * @returns {Range|null} 安全区域
+ */
+SheetChain.prototype.z安全已使用区域 = function() {
+    if (!this._sheet) return null;
+
+    var usedRange;
+    try {
+        usedRange = this._sheet.UsedRange;
+    } catch (e) {
+        return this._sheet.Range("A1");
     }
 
-    return null;
+    if (!usedRange) return this._sheet.Range("A1");
+
+    var lastRow = usedRange.Row + usedRange.Rows.Count - 1;
+    var lastCol = usedRange.Column + usedRange.Columns.Count - 1;
+
+    return this._sheet.Range(this._sheet.Cells(1, 1), this._sheet.Cells(lastRow, lastCol));
+};
+SheetChain.prototype.safeUsedRange = SheetChain.prototype.z安全已使用区域;
+
+/**
+ * 获取Range对象
+ * @param {String} address - 地址
+ * @returns {Range|null} Range对象
+ */
+SheetChain.prototype.z区域 = function(address) {
+    if (!this._sheet) return null;
+    try {
+        return this._sheet.Range(address);
+    } catch (e) {
+        return null;
+    }
+};
+SheetChain.prototype.range = SheetChain.prototype.z区域;
+
+/**
+ * 获取Cells对象
+ * @param {Number} row - 行号
+ * @param {Number} col - 列号
+ * @returns {Range|null} Cell对象
+ */
+SheetChain.prototype.z单元格 = function(row, col) {
+    if (!this._sheet) return null;
+    try {
+        return this._sheet.Cells(row, col);
+    } catch (e) {
+        return null;
+    }
+};
+SheetChain.prototype.cell = SheetChain.prototype.z单元格;
+
+/**
+ * 删除工作表
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z删除 = function() {
+    if (this._sheet) {
+        try {
+            this._sheet.Delete();
+        } catch (e) {
+            console.log("删除工作表失败: " + e.message);
+        }
+    }
+    return this;
+};
+SheetChain.prototype.delete = SheetChain.prototype.z删除;
+
+/**
+ * 复制工作表
+ * @param {Worksheet} [before] - 在此工作表之前插入
+ * @param {Worksheet} [after] - 在此工作表之后插入
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z复制 = function(before, after) {
+    if (!this._sheet) return this;
+    try {
+        if (before) {
+            this._sheet.Copy(before);
+        } else if (after) {
+            this._sheet.Copy(undefined, after);
+        } else {
+            this._sheet.Copy();
+        }
+    } catch (e) {
+        console.log("复制工作表失败: " + e.message);
+    }
+    return this;
+};
+SheetChain.prototype.copy = SheetChain.prototype.z复制;
+
+/**
+ * 保护工作表
+ * @param {String} [password] - 密码
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z保护 = function(password) {
+    if (!this._sheet) return this;
+    try {
+        if (password) {
+            this._sheet.Protect(password);
+        } else {
+            this._sheet.Protect();
+        }
+    } catch (e) {
+        console.log("保护工作表失败: " + e.message);
+    }
+    return this;
+};
+SheetChain.prototype.protect = SheetChain.prototype.z保护;
+
+/**
+ * 取消保护工作表
+ * @param {String} [password] - 密码
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z取消保护 = function(password) {
+    if (!this._sheet) return this;
+    try {
+        if (password) {
+            this._sheet.Unprotect(password);
+        } else {
+            this._sheet.Unprotect();
+        }
+    } catch (e) {
+        console.log("取消保护工作表失败: " + e.message);
+    }
+    return this;
+};
+SheetChain.prototype.unprotect = SheetChain.prototype.z取消保护;
+
+/**
+ * 隐藏工作表
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z隐藏 = function() {
+    if (!this._sheet) return this;
+    this._sheet.Visible = false;
+    return this;
+};
+SheetChain.prototype.hide = SheetChain.prototype.z隐藏;
+
+/**
+ * 显示工作表
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z显示 = function() {
+    if (!this._sheet) return this;
+    this._sheet.Visible = true;
+    return this;
+};
+SheetChain.prototype.show = SheetChain.prototype.z显示;
+
+/**
+ * 获取工作表索引
+ * @returns {Number} 工作表索引
+ */
+SheetChain.prototype.z索引 = function() {
+    return this._sheet ? this._sheet.Index : 0;
+};
+SheetChain.prototype.index = SheetChain.prototype.z索引;
+
+/**
+ * 设置工作表名称
+ * @param {String} newName - 新名称
+ * @returns {SheetChain} 当前实例
+ */
+SheetChain.prototype.z设置名称 = function(newName) {
+    if (this._sheet) {
+        this._sheet.Name = newName;
+    }
+    return this;
+};
+SheetChain.prototype.setName = SheetChain.prototype.z设置名称;
+
+/**
+ * 判断工作表是否存在
+ * @returns {Boolean} 是否存在
+ */
+SheetChain.prototype.z存在 = function() {
+    return this._sheet !== null;
+};
+SheetChain.prototype.exists = SheetChain.prototype.z存在;
+
+// ==================== 类型转换函数 ====================
+
+/**
+ * asSheet函数 - 将对象转换为SheetChain对象（支持智能提示和链式调用）
+ * @param {any} sht - 要转换的对象
+ * @returns {SheetChain} SheetChain实例
+ * @example
+ * asSheet("1月").z激活().z名称()
+ * asSheet(1).z已使用区域().z安全数组()
+ * asSheet().z激活()
+ */
+function asSheet(sht) {
+    return new SheetChain(sht);
 }
 
 /**
@@ -5011,28 +5502,8 @@ const round = (number, decimals = 2) => {
     return Math.round(number * factor) / factor;
 };
 
-/**
- * ubound函数 - 获取数组的指定维度的上界
- * @param {Array} arr - 要获取上界的数组
- * @param {number} [dimension=1] - 要获取上界的维度（默认为1）
- * @returns {Number} 指定维度的上界
- * @example
- * ubound([[1,2,3],[4,5,6]], 2)  // 2 (第二维上界，实际列数-1)
- */
-const ubound = (arr, dimension = 1) => {
-    if (!Array.isArray(arr)) return -1;
-    if (dimension === 1) return arr.length - 1;
-    if (dimension === 2) {
-        let maxLen = 0;
-        for (let i = 0; i < arr.length; i++) {
-            if (Array.isArray(arr[i]) && arr[i].length > maxLen) {
-                maxLen = arr[i].length;
-            }
-        }
-        return maxLen - 1;
-    }
-    return -1;
-};
+// ubound函数 - 获取数组的指定维度的上界
+// 在导出部分定义以避免WPS打印函数定义
 
 // ==================== Range快捷函数 ====================
 
@@ -5374,55 +5845,87 @@ if (isNodeJS) {
     module.exports.typeName = typeName;
     module.exports.val = val;
     module.exports.round = round;
-    module.exports.ubound = ubound;
+    // ubound函数 - 获取数组的指定维度的上界
+    module.exports.ubound = function(arr, dimension) {
+        dimension = dimension || 1;
+        if (!Array.isArray(arr)) return -1;
+        if (dimension === 1) return arr.length - 1;
+        if (dimension === 2) {
+            var maxLen = 0;
+            for (var i = 0; i < arr.length; i++) {
+                if (Array.isArray(arr[i]) && arr[i].length > maxLen) {
+                    maxLen = arr[i].length;
+                }
+            }
+            return maxLen - 1;
+        }
+        return -1;
+    };
 }
 
-// WPS/Browser环境
+// WPS/Browser环境 - 使用立即执行函数避免WPS打印函数定义
 if (isWPS || isBrowser) {
-    this.Array2D = Array2D;
-    this.As = As;
-    this.RngUtils = RngUtils;
-    this.ShtUtils = ShtUtils;
-    this.DateUtils = DateUtils;
-    this.JSA = JSA;
-    this.IO = IO;
-    this.$ = $;
-    this.log = log;
-    this.logjson = logjson;
-    // Global函数
-    this.f1 = f1;
-    this.$fx = $fx;
-    this.$toArray = $toArray;
-    this.As = As;
-    this.asArray = asArray;
-    this.asDate = asDate;
-    this.asMap = asMap;
-    this.asNumber = asNumber;
-    this.asObject = asObject;
-    this.asRange = asRange;
-    this.asShape = asShape;
-    this.asSheet = asSheet;
-    this.asString = asString;
-    this.asWorkbook = asWorkbook;
-    this.cdate = cdate;
-    this.cstr = cstr;
-    this.isArray = isArray;
-    this.isArray2D = isArray2D;
-    this.isBoolean = isBoolean;
-    this.isCollection = isCollection;
-    this.isDate = isDate;
-    this.isEmpty = isEmpty;
-    this.isNumberic = isNumberic;
-    this.isRange = isRange;
-    this.isRegex = isRegex;
-    this.isSameClass = isSameClass;
-    this.isSheet = isSheet;
-    this.isString = isString;
-    this.isWorkbook = isWorkbook;
-    this.typeName = typeName;
-    this.val = val;
-    this.round = round;
-    this.ubound = ubound;
+    (function() {
+        this.Array2D = Array2D;
+        this.As = As;
+        this.RngUtils = RngUtils;
+        this.ShtUtils = ShtUtils;
+        this.DateUtils = DateUtils;
+        this.JSA = JSA;
+        this.IO = IO;
+        this.$ = $;
+        this.log = log;
+        this.logjson = logjson;
+        // Global函数
+        this.f1 = f1;
+        this.$fx = $fx;
+        this.$toArray = $toArray;
+        this.As = As;
+        this.asArray = asArray;
+        this.asDate = asDate;
+        this.asMap = asMap;
+        this.asNumber = asNumber;
+        this.asObject = asObject;
+        this.asRange = asRange;
+        this.asShape = asShape;
+        this.asSheet = asSheet;
+        this.asString = asString;
+        this.asWorkbook = asWorkbook;
+        this.cdate = cdate;
+        this.cstr = cstr;
+        this.isArray = isArray;
+        this.isArray2D = isArray2D;
+        this.isBoolean = isBoolean;
+        this.isCollection = isCollection;
+        this.isDate = isDate;
+        this.isEmpty = isEmpty;
+        this.isNumberic = isNumberic;
+        this.isRange = isRange;
+        this.isRegex = isRegex;
+        this.isSameClass = isSameClass;
+        this.isSheet = isSheet;
+        this.isString = isString;
+        this.isWorkbook = isWorkbook;
+        this.typeName = typeName;
+        this.val = val;
+        this.round = round;
+        // ubound函数 - 获取数组的指定维度的上界
+        this.ubound = function(arr, dimension) {
+            dimension = dimension || 1;
+            if (!Array.isArray(arr)) return -1;
+            if (dimension === 1) return arr.length - 1;
+            if (dimension === 2) {
+                var maxLen = 0;
+                for (var i = 0; i < arr.length; i++) {
+                    if (Array.isArray(arr[i]) && arr[i].length > maxLen) {
+                        maxLen = arr[i].length;
+                    }
+                }
+                return maxLen - 1;
+            }
+            return -1;
+        };
+    }).call(this);
 }
 
 /**
