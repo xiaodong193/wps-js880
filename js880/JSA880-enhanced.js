@@ -3563,6 +3563,86 @@ DateUtils.prototype.z日期格式化 = function(jsdate, fmt) {
 };
 DateUtils.prototype.format = DateUtils.prototype.z日期格式化;
 
+/**
+ * 获取年份
+ * @returns {Number} 年份（4位数字）
+ * @example
+ * asDate("2023-9-21").z年份()  // 2023
+ */
+DateUtils.prototype.z年份 = function() {
+    return this._date.getFullYear();
+};
+DateUtils.prototype.getYear = DateUtils.prototype.z年份;
+
+/**
+ * 获取月份（1-12）
+ * @returns {Number} 月份（1-12）
+ * @example
+ * asDate("2023-9-21").z月份()  // 9
+ */
+DateUtils.prototype.z月份 = function() {
+    return this._date.getMonth() + 1;
+};
+DateUtils.prototype.getMonth = DateUtils.prototype.z月份;
+
+/**
+ * 获取日期（1-31）
+ * @returns {Number} 日期（1-31）
+ * @example
+ * asDate("2023-9-21").z日期()  // 21
+ */
+DateUtils.prototype.z日期 = function() {
+    return this._date.getDate();
+};
+DateUtils.prototype.getDate = DateUtils.prototype.z日期;
+
+/**
+ * 获取星期（0-6，0=周日）
+ * @returns {Number} 星期（0-6）
+ * @example
+ * asDate("2023-9-21").z星期()  // 4 (周四)
+ */
+DateUtils.prototype.z星期 = function() {
+    return this._date.getDay();
+};
+DateUtils.prototype.getDay = DateUtils.prototype.z星期;
+
+/**
+ * 获取小时（0-23）
+ * @returns {Number} 小时（0-23）
+ */
+DateUtils.prototype.z小时 = function() {
+    return this._date.getHours();
+};
+DateUtils.prototype.getHour = DateUtils.prototype.z小时;
+
+/**
+ * 获取分钟（0-59）
+ * @returns {Number} 分钟（0-59）
+ */
+DateUtils.prototype.z分钟 = function() {
+    return this._date.getMinutes();
+};
+DateUtils.prototype.getMinute = DateUtils.prototype.z分钟;
+
+/**
+ * 获取秒数（0-59）
+ * @returns {Number} 秒数（0-59）
+ */
+DateUtils.prototype.z秒 = function() {
+    return this._date.getSeconds();
+};
+DateUtils.prototype.getSecond = DateUtils.prototype.z秒;
+
+/**
+ * 获取时间戳（毫秒）
+ * @returns {Number} 时间戳
+ */
+DateUtils.prototype.z时间戳 = function() {
+    return this._date.getTime();
+};
+DateUtils.prototype.getTime = DateUtils.prototype.z时间戳;
+
 // ==================== JSA - 通用函数库 ====================
 
 /**
@@ -4573,25 +4653,31 @@ function asNumber(a) {
 }
 
 /**
- * asDate函数 - 将值转换为Date对象
+ * asDate函数 - 将值转换为DateUtils对象（支持智能提示和链式调用）
  * @param {any} a - 要转换的值
- * @returns {Date} Date对象
+ * @returns {DateUtils} DateUtils实例
  * @example
- * asDate("2023-9-1")     // Date对象
- * asDate(45170)          // Date对象 (Excel日期序号)
- * asDate("2023/09/01")   // Date对象
+ * asDate("2023-9-1").z月份()     // 9
+ * asDate(45170).z年份()          // 2023 (Excel日期序号)
+ * asDate("2023/09/01").z日期()   // 1
  */
 function asDate(a) {
-    if (a instanceof Date) return a;
-    if (typeof a === 'number') {
+    var date;
+    if (a instanceof DateUtils) return a;
+    if (a instanceof Date) {
+        date = a;
+    } else if (typeof a === 'number') {
         // Excel日期序号转JS Date
-        return new Date((a - 25569) * 86400 * 1000);
+        date = new Date((a - 25569) * 86400 * 1000);
+    } else if (typeof a === 'string') {
+        date = new Date(a);
+        if (isNaN(date.getTime())) {
+            date = new Date();
+        }
+    } else {
+        date = new Date();
     }
-    if (typeof a === 'string') {
-        var date = new Date(a);
-        return isNaN(date.getTime()) ? new Date() : date;
-    }
-    return new Date();
+    return new DateUtils(date);
 }
 
 /**
