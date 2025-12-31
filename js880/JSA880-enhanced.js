@@ -3597,13 +3597,15 @@ DateUtils.prototype.z日期 = function() {
 DateUtils.prototype.getDate = DateUtils.prototype.z日期;
 
 /**
- * 获取星期（0-6，0=周日）
- * @returns {Number} 星期（0-6）
+ * 获取星期（1-7，7=周日）
+ * @returns {Number} 星期（1-7）
  * @example
  * asDate("2023-9-21").z星期()  // 4 (周四)
+ * asDate("2023-9-24").z星期()  // 7 (周日)
  */
 DateUtils.prototype.z星期 = function() {
-    return this._date.getDay();
+    var day = this._date.getDay();
+    return day === 0 ? 7 : day;
 };
 DateUtils.prototype.getDay = DateUtils.prototype.z星期;
 
