@@ -2,17 +2,22 @@
  * JSA880-enhanced.js - 郑广学JSA880快速开发框架（智能提示版本）
  * 原作者: 郑广学 (EXCEL880)
  * 改造: Claude Code
- * 版本: 3.2.0 (ES6增强版 + RngUtils完整版 + As类型转换类)
- *
- * @description 完整的JSA880框架，支持智能提示、链式调用、中英双语API
+ * 版本: 3.3.0 (2024最新版 + API文档增强 + 一行代码优化)
+ * 
+ * API文档: https://vbayyds.com/api/jsa880/
+ * 课程咨询: 微信 EXCEL880B
+ * 
+ * @description 郑广学JSA880快速开发框架，一行代码走天下，用最短的代码完成最复杂的需求！
  * @description 基于ES6语法重构，支持WPS JSA V8引擎
- * @description RngUtils完整实现，支持静态方法和实例方法
- * @description As类型转换包装类，支持智能提示和链式调用
+ * @description 完整实现RngUtils、Array2D、RangeChain、As类型转换等核心模块
+ * @description 200+高频办公场景函数库，大部分场景可一行代码完成
  * @example
- * // 支持智能提示和链式调用
+ * // 一行代码完成复杂透视汇总（核心卖点）
+ * Array2D.z超级透视(数据, ['产品+,国家-'], ['月份+'], ['count(),sum("销量"),average("金额")']);
+ * 
+ * // 智能提示和链式调用
  * Array2D([[1,2],[3,4]]).z求和().z转置().val();
  * RngUtils("A1").z加边框().z自动列宽();
- * RngUtils.z最大行("A:A");  // 静态方法
  * $.z最大行("A:A");         // 快捷调用
  * DateUtils.dt().z加天(5).z月底().val();
  * As([[1,2],[3,4]]).toArray().z转置().z求和().val();  // As类型转换
@@ -83,12 +88,26 @@ function parseLambda(expr) {
     return fn;
 }
 
+/**
+ * 静态方法：解析Lambda表达式
+ * @param {string|Function} expr - Lambda表达式或函数
+ * @returns {Function|null} 可执行函数
+ * @example
+ * Array2D.parseLambda('f1+f2')
+ * Array2D.z解析函数表达式('row=>row.x*2')
+ */
+Array2D.parseLambda = parseLambda;
+Array2D.z解析函数表达式 = parseLambda;
+
 // ==================== Array2D - 二维数组工具库 ====================
 
 /**
  * Array2D - 二维数组处理工具（支持智能提示和链式调用）
+ * @constructor
  * @class
  * @description 提供丰富的二维数组操作函数，支持中英双语API
+ * @param {Array} [data] - 二维数组数据
+ * @returns {Array2D} Array2D实例，支持链式调用和智能提示
  * @example
  * // 基本使用
  * Array2D([[1,2,3],[4,5,6]]).z求和()        // 21
@@ -96,31 +115,72 @@ function parseLambda(expr) {
  * Array2D([[1,2],[3,4]]).z转置().z扁平化().val()  // [1,3,2,4]
  * // Lambda表达式
  * Array2D([[1,2],[3,4]]).z求和('f1')       // 4 (第1列求和)
+ * // 写入单元格
+ * Array2D([[1,2],[3,4]]).toRange("A1")     // 写入A1:B2
  */
+// 使用寄生组合式继承，让 Array2D 真正继承 Array
 function Array2D(data) {
     // 支持工厂模式调用
     if (!(this instanceof Array2D)) {
         return new Array2D(data);
     }
 
-    this._original = data;
-    this._items = null;
-    this._init(data);
+    // 调用 Array 构造函数
+    var items = [];
+    if (data === null || data === undefined) {
+        items = [];
+    } else if (Array.isArray(data)) {
+        items = data;
+    } else {
+        items = [[data]];
+    }
+
+    // 使用 Array.apply 将数组元素复制到 this
+    // 这样 this 就真正拥有数组属性
+    Array.prototype.push.apply(this, items);
+
+    // 添加自定义属性（使用 Object.defineProperty 避免被枚举）
+    Object.defineProperty(this, '_original', {
+        value: data,
+        writable: true,
+        enumerable: false,
+        configurable: true
+    });
+
+    // _items 作为 getter，直接返回 this（因为 this 本身就是数组）
+    // 这样当数组被修改时，_items 会自动同步
+    Object.defineProperty(this, '_items', {
+        get: function() {
+            // 将类数组对象转为真正的数组
+            var arr = [];
+            for (var i = 0; i < this.length; i++) {
+                arr.push(this[i]);
+            }
+            return arr;
+        },
+        set: function(value) {
+            // 设置时清空并重新填充
+            Array.prototype.splice.call(this, 0, this.length);
+            Array.prototype.push.apply(this, value);
+        },
+        enumerable: false,
+        configurable: true
+    });
 }
 
-/**
- * 初始化数组
- * @private
- */
-Array2D.prototype._init = function(data) {
-    if (data === null || data === undefined) {
-        this._items = [];
-    } else if (Array.isArray(data)) {
-        this._items = data;
-    } else {
-        this._items = [[data]];
-    }
-};
+// 设置原型链继承
+Array2D.prototype = Object.create(Array.prototype);
+Array2D.prototype.constructor = Array2D;
+
+// 添加 toJSON 方法，使 JSON.stringify 只序列化数组内容
+Object.defineProperty(Array2D.prototype, 'toJSON', {
+    value: function() {
+        return this._items;
+    },
+    enumerable: false,
+    configurable: true,
+    writable: true
+});
 
 /**
  * 创建新实例（链式调用核心）
@@ -129,8 +189,43 @@ Array2D.prototype._init = function(data) {
  * @returns {Array2D} 新实例
  */
 Array2D.prototype._new = function(data) {
-    const instance = new Array2D();
-    instance._items = data;
+    // 创建空实例并设置数组属性
+    var instance = [];
+    Array.prototype.push.apply(instance, data);
+
+    // 使用 Object.setPrototypeOf 设置原型（如果支持）
+    if (Object.setPrototypeOf) {
+        Object.setPrototypeOf(instance, Array2D.prototype);
+    } else {
+        // 备用方案：使用 __proto__
+        instance.__proto__ = Array2D.prototype;
+    }
+
+    // 添加自定义属性
+    Object.defineProperty(instance, '_original', {
+        value: data,
+        writable: true,
+        enumerable: false,
+        configurable: true
+    });
+
+    // _items 作为 getter/setter，与构造函数保持一致
+    Object.defineProperty(instance, '_items', {
+        get: function() {
+            var arr = [];
+            for (var i = 0; i < this.length; i++) {
+                arr.push(this[i]);
+            }
+            return arr;
+        },
+        set: function(value) {
+            Array.prototype.splice.call(this, 0, this.length);
+            Array.prototype.push.apply(this, value);
+        },
+        enumerable: false,
+        configurable: true
+    });
+
     return instance;
 };
 
@@ -146,6 +241,7 @@ Array2D.prototype._new = function(data) {
  */
 Array2D.prototype.val = function(newData) {
     if (newData !== undefined) {
+        // setter 会自动同步数组属性
         this._items = newData;
         return this;
     }
@@ -187,11 +283,104 @@ Array2D.prototype.z克隆 = function() {
 };
 Array2D.prototype.copy = Array2D.prototype.z克隆;
 
+// ==================== 使用辅助函数创建 Array2D 方法别名 ====================
+createBilingualAliases(Array2D.prototype, [
+    ['z填充', 'fill'],
+    ['z补齐空位', 'fillBlank'],
+    ['z扁平化', 'flat'],
+    ['z反转', 'reverse'],
+    ['z求和', 'sum'],
+    ['z平均值', 'average'],
+    ['z中位数', 'median'],
+    ['z最大值', 'max'],
+    ['z最小值', 'min'],
+    ['z第一个', 'first'],
+    ['z最后一个', 'last'],
+    ['z转置', 'transpose'],
+    ['z矩阵信息', 'matrixInfo'],
+    ['z单元格', 'cell'],
+    ['z设置单元格', 'setCell'],
+    ['z写入单元格', 'toRange'],
+    ['z连接', 'join'],
+    ['z转JSON', 'toJson'],
+    ['z分块', 'chunk'],
+    ['z挑选', 'pick'],
+    ['z跳过', 'skip'],
+    ['z取前N个', 'take'],
+    ['z查找索引', 'findIndex'],
+    ['z包含', 'includes'],
+    ['z筛选', 'filter'],
+    ['z映射', 'map'],
+    ['z归约', 'reduce'],
+    ['z倒序归约', 'reduceRight'],
+    ['z全部满足', 'every'],
+    ['z有满足', 'some'],
+    ['z行数', 'rowCount'],
+    ['z列数', 'colCount'],
+    ['z获取行', 'getRow'],
+    ['z获取列', 'getCol'],
+    ['z首行', 'firstRow'],
+    ['z末行', 'lastRow'],
+    ['z首列', 'firstCol'],
+    ['z末列', 'lastCol'],
+    ['z添加行', 'addRow'],
+    ['z提取列', 'pluck'],
+    ['z添加列', 'addCol'],
+    ['z删除行', 'deleteRow'],
+    ['z删除列', 'deleteCol'],
+    ['z升序排序', 'sortAsc'],
+    ['z按规则升序', 'sortBy'],
+    ['z按规则降序', 'sortByDesc'],
+    ['z降序排序', 'sortDesc'],
+    ['z行排序', 'sortRow'],
+    ['z列排序', 'sortCol'],
+    ['z多列排序', 'sortByCols'],
+    ['z自定义排序', 'sortByList'],
+    ['z去重', 'distinct'],
+    ['z转矩阵', 'toMatrix'],
+    ['z分组', 'groupBy'],
+    ['z透视', 'pivotBy'],
+    ['z上下连接', 'concat'],
+    ['z左连接', 'leftjoin'],
+    ['z一对多连接', 'leftFulljoin'],
+    ['z左右全连接', 'fulljoin'],
+    ['z左右连接', 'zip'],
+    ['z排除', 'except'],
+    ['z取交集', 'intersect'],
+    ['z去重并集', 'union'],
+    ['z超级查找', 'superLookup'],
+    ['z查找单个', 'find'],
+    ['z查找所有下标', 'findAllIndex'],
+    ['z查找所有行下标', 'findRowsIndex'],
+    ['z查找所有列下标', 'findColsIndex'],
+    ['z查找元素下标', 'findIndexByPredicate'],
+    ['z值位置', 'indexOf'],
+    ['z从后往前值位置', 'lastIndexOf'],
+    ['z批量删除列', 'deleteCols'],
+    ['z批量删除行', 'deleteRows'],
+    ['z批量插入列', 'insertCols'],
+    ['z批量插入行', 'insertRows'],
+    ['z插入行号', 'insertRowNum'],
+    ['z按页数分页', 'pageByCount'],
+    ['z按行数分页', 'pageByRows'],
+    ['z按下标分页', 'pageByIndexs'],
+    ['z间隔取数', 'nth'],
+    ['z补齐数组', 'pad'],
+    ['z重设大小', 'resize'],
+    ['z处理空值', 'noNull'],
+    ['z选择列', 'selectCols'],
+    ['z选择行', 'selectRows'],
+    ['z结果', 'res'],
+    ['z行切片', 'slice'],
+    ['z行切片删除行', 'splice'],
+    ['z转字符串', 'toString']
+]);
+
 // ==================== 填充操作 ====================
 
 /**
  * 批量填充数组
- * @param {any} value - 填充值
+ * @param {string|number|boolean|null|undefined} value - 填充值
  * @param {Number} [rows] - 行数（可选，默认当前行数或1）
  * @param {Number} [cols] - 列数（可选，默认当前列数或1）
  * @returns {Array2D} 新实例
@@ -214,30 +403,125 @@ Array2D.prototype.z填充 = function(value, rows, cols) {
 Array2D.prototype.fill = Array2D.prototype.z填充;
 
 /**
- * 补齐空位（用指定值填充null/undefined）
- * @param {any} fillValue - 填充值，默认为空字符串
+ * 补齐空位（fillBlank）- 支持方向填充的增强版，可处理合并单元格
+ * @param {string} [direction='right'] - 填充方向：left/right/up/down
+ * @param {string} [rangeAddress] - 参照单元格地址（如"A2:D2"），用于确定填充区域
+ * @param {any} [fillValue=''] - 填充值
  * @returns {Array2D} 新实例
+ * @example
+ * // 基础用法：填充null/undefined
+ * Array2D([[1,null],[2,undefined]]).z补齐空位()  // [[1,''],[2,'']]
+ * 
+ * // 高级用法：按方向填充（用于合并单元格处理）
+ * Array2D([[1,2],[3,4]]).z补齐空位('right', 'A2:D2')  // 向右填充到D2区域
+ * Array2D([[1,2],[3,4]]).z补齐空位('down', 'A2:A10')  // 向下填充到A10区域
+ * Array2D([[1,2],[3,4]]).z补齐空位('left', 'A2:C2')   // 向左填充到A2区域
+ * Array2D([[1,2],[3,4]]).z补齐空位('up', 'A5:C10')    // 向上填充到A5区域
+ * 
+ * // 混合参数：先按方向填充再补全
+ * Array2D([[1,null],[2]]).z补齐空位('right', 'A2:D2', 0)  // [[1,0,0,0],[2,0,0,0]]
  */
-Array2D.prototype.z补齐空位 = function(fillValue) {
+Array2D.prototype.z补齐空位 = function(direction, rangeAddress, fillValue) {
+    // 参数重载处理
+    if (typeof direction !== 'string') {
+        // 旧版调用：仅传fillValue
+        fillValue = direction;
+        direction = 'right';
+        rangeAddress = null;
+    }
+    
     fillValue = fillValue !== undefined ? fillValue : '';
+    direction = direction || 'right';
+    
     var result = [];
-    for (var i = 0; i < this._items.length; i++) {
-        var row = [];
-        var maxLen = 0;
-        // 找出最大列数
-        for (var r = 0; r < this._items.length; r++) {
-            if (this._items[r].length > maxLen) {
-                maxLen = this._items[r].length;
+    
+    // 如果提供了区域地址，解析出行列范围
+    var targetRows = this._items.length;
+    var targetCols = 0;
+    var startRow = 0, startCol = 0;
+    
+    if (rangeAddress && typeof rangeAddress === 'string') {
+        // 解析类似 "A2:D10" 的地址
+        var match = rangeAddress.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/i);
+        if (match) {
+            // 转换为0-based索引
+            startCol = this._colToIndex(match[1]);  // 起始列
+            startRow = parseInt(match[2]) - 1;      // 起始行
+            var endCol = this._colToIndex(match[3]);   // 结束列
+            var endRow = parseInt(match[4]) - 1;       // 结束行
+            
+            targetRows = endRow - startRow + 1;
+            targetCols = endCol - startCol + 1;
+        }
+    }
+    
+    // 找出最大列数
+    var maxLen = 0;
+    for (var r = 0; r < this._items.length; r++) {
+        if (this._items[r] && this._items[r].length > maxLen) {
+            maxLen = this._items[r].length;
+        }
+    }
+    
+    // 根据方向计算最终维度
+    var finalRows = targetRows || this._items.length;
+    var finalCols = targetCols || Math.max(maxLen, targetCols);
+    
+    // 按方向填充
+    for (var i = 0; i < finalRows; i++) {
+        var row = new Array(finalCols);
+        
+        // 初始化全为fillValue
+        for (var j = 0; j < finalCols; j++) {
+            row[j] = fillValue;
+        }
+        
+        // 根据方向填充原始数据
+        for (var j = 0; j < finalCols; j++) {
+            var origRow = i, origCol = j;
+            
+            // 根据方向调整坐标（处理方向偏移）
+            switch (direction) {
+                case 'left':
+                    // 从右向左填充
+                    origCol = j + (finalCols - maxLen);
+                    break;
+                case 'up':
+                    // 从下向上填充
+                    origRow = i + (finalRows - this._items.length);
+                    break;
+                case 'down':
+                case 'right':
+                default:
+                    // 默认：左上对齐，向右/向下填充
+                    origRow = i;
+                    origCol = j;
+                    break;
+            }
+            
+            // 检查是否在原始数组范围内
+            if (origRow >= 0 && origRow < this._items.length && 
+                origCol >= 0 && this._items[origRow] && origCol < this._items[origRow].length) {
+                var val = this._items[origRow][origCol];
+                row[j] = (val === null || val === undefined) ? fillValue : val;
             }
         }
-        for (var j = 0; j < maxLen; j++) {
-            var val = this._items[i][j];
-            row.push((val === null || val === undefined) ? fillValue : val);
-        }
+        
         result.push(row);
     }
+    
     return this._new(result);
 };
+
+// 列字母转数字索引的辅助函数
+Array2D.prototype._colToIndex = function(colStr) {
+    var result = 0;
+    for (var i = 0; i < colStr.length; i++) {
+        result = result * 26 + (colStr.charCodeAt(i) - 64);
+    }
+    return result - 1; // 返回0-based索引
+};
+
 Array2D.prototype.fillBlank = Array2D.prototype.z补齐空位;
 
 /**
@@ -264,6 +548,8 @@ Array2D.prototype.flat = Array2D.prototype.z扁平化;
 /**
  * 数组反转
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4]]).z反转()  // [[3,4],[1,2]]
  */
 Array2D.prototype.z反转 = function() {
     return this._new(this._items.slice().reverse());
@@ -309,12 +595,13 @@ Array2D.prototype.average = Array2D.prototype.z平均值;
 /**
  * 求最大值
  * @param {string|Function} [colSelector] - 列选择器
- * @returns {Number} 最大值
+ * @returns {Number} 最大值，空数组返回 undefined
  */
 Array2D.prototype.z最大值 = function(colSelector) {
     const fn = colSelector ? parseLambda(colSelector) : null;
     const flat = fn ? this._items.map(fn) : this.z扁平化();
     const numbers = flat.filter(v => typeof v === 'number' || !isNaN(parseFloat(v)));
+    if (numbers.length === 0) return undefined;  // 空数组返回 undefined 而非 -Infinity
     return Math.max(...numbers);
 };
 Array2D.prototype.max = Array2D.prototype.z最大值;
@@ -322,15 +609,35 @@ Array2D.prototype.max = Array2D.prototype.z最大值;
 /**
  * 求最小值
  * @param {string|Function} [colSelector] - 列选择器
- * @returns {Number} 最小值
+ * @returns {Number} 最小值，空数组返回 undefined
  */
 Array2D.prototype.z最小值 = function(colSelector) {
     const fn = colSelector ? parseLambda(colSelector) : null;
     const flat = fn ? this._items.map(fn) : this.z扁平化();
     const numbers = flat.filter(v => typeof v === 'number' || !isNaN(parseFloat(v)));
+    if (numbers.length === 0) return undefined;  // 空数组返回 undefined 而非 Infinity
     return Math.min(...numbers);
 };
 Array2D.prototype.min = Array2D.prototype.z最小值;
+
+/**
+ * 求中位数（median）
+ * @param {string|Function} [colSelector] - 列选择器
+ * @returns {Number} 中位数
+ * @example
+ * Array2D([[1,2,3],[4,5,6]]).z中位数()  // 3.5
+ */
+Array2D.prototype.z中位数 = function(colSelector) {
+    const fn = colSelector ? parseLambda(colSelector) : null;
+    const flat = fn ? this._items.map(fn) : this.z扁平化();
+    const numbers = flat.filter(v => typeof v === 'number' || !isNaN(parseFloat(v)))
+        .map(v => typeof v === 'number' ? v : parseFloat(v));
+    if (numbers.length === 0) return undefined;
+    numbers.sort(function(a, b) { return a - b; });
+    const mid = Math.floor(numbers.length / 2);
+    return numbers.length % 2 !== 0 ? numbers[mid] : (numbers[mid - 1] + numbers[mid]) / 2;
+};
+Array2D.prototype.median = Array2D.prototype.z中位数;
 
 /**
  * 获取第一个元素
@@ -404,7 +711,7 @@ Array2D.prototype.cell = Array2D.prototype.z单元格;
  * 设置单元格值
  * @param {Number} row - 行号
  * @param {Number} col - 列号
- * @param {any} value - 新值
+ * @param {string|number|boolean|null|Date|object} value - 新值
  * @returns {Array2D} 当前实例
  */
 Array2D.prototype.z设置单元格 = function(row, col, value) {
@@ -415,6 +722,34 @@ Array2D.prototype.z设置单元格 = function(row, col, value) {
 Array2D.prototype.setCell = Array2D.prototype.z设置单元格;
 
 /**
+ * 写入单元格（实例方法，根据数组大小自动扩展区域）
+ * @param {Range|string} rng - 目标单元格区域（左上角单元格）
+ * @returns {Array2D} 当前实例（支持链式调用）
+ * @example
+ * Array2D([[1,2],[3,4]]).toRange("A1")     // 写入A1:B2
+ * Array2D([[1,2],[3,4]]).z写入单元格("K1")  // 写入K1:L2
+ */
+Array2D.prototype.toRange = function(rng) {
+    if (!isWPS) return this;
+    // 空数组检查，防止 Item(0,0) 报错
+    if (!this._items || this._items.length === 0) {
+        return this;
+    }
+    var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    var rows = this._items.length;
+    var cols = rows > 0 ? (Array.isArray(this._items[0]) ? this._items[0].length : 1) : 0;
+    // 列数边界检查
+    if (cols === 0) return this;
+    // 根据数组大小调整目标区域
+    var endRng = targetRng.Item(rows, cols);
+    var sheet = targetRng.Worksheet || Application.ActiveSheet;
+    var writeRng = sheet.Range(targetRng, endRng);
+    writeRng.Value2 = this._items;
+    return this;
+};
+Array2D.prototype.z写入单元格 = Array2D.prototype.toRange;
+
+/**
  * 连接成字符串
  * @param {String} [separator=','] - 分隔符
  * @returns {String} 连接后的字符串
@@ -423,6 +758,31 @@ Array2D.prototype.z连接 = function(separator = ',') {
     return this._items.map(row => Array.isArray(row) ? row.join(separator) : String(row)).join(separator);
 };
 Array2D.prototype.join = Array2D.prototype.z连接;
+
+/**
+ * 文本连接（textjoin）- 选择指定列的值，用分隔符连接
+ * @param {String|Number|Function} selector - 列选择器，如 'f1' 或 0 或 row=>row.col
+ * @param {String} [separator=','] - 分隔符
+ * @returns {String} 连接后的字符串
+ * @example
+ * Array2D([['a','b'],['c','d']]).z文本连接(1, '+')  // "b+d"
+ * Array2D([['a','b'],['c','d']]).textjoin('f2', '+')  // "b+d"
+ */
+Array2D.prototype.z文本连接 = function(selector, separator = ',') {
+    var fn = typeof selector === 'function' ? selector : parseLambda(selector);
+    var values = [];
+    for (var i = 0; i < this._items.length; i++) {
+        var row = this._items[i];
+        if (fn) {
+            values.push(fn(row, i));
+        } else {
+            // 默认取第一列
+            values.push(Array.isArray(row) ? row[0] : row);
+        }
+    }
+    return values.join(separator);
+};
+Array2D.prototype.textjoin = Array2D.prototype.z文本连接;
 
 /**
  * 转JSON（转JSON字符串，二维数组内部数组横着对齐显示）
@@ -458,6 +818,8 @@ Array2D.prototype.toJson = Array2D.prototype.z转JSON;
  * 分块
  * @param {Number} size - 块大小
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1],[2],[3],[4],[5]]).z分块(2)  // [[[1],[2]],[[3],[4]],[[5]]]
  */
 Array2D.prototype.z分块 = function(size) {
     const result = [];
@@ -472,6 +834,8 @@ Array2D.prototype.chunk = Array2D.prototype.z分块;
  * 挑选元素
  * @param {Number} count - 数量
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1],[2],[3],[4],[5]]).z挑选(3)  // [[1],[2],[3]]
  */
 Array2D.prototype.z挑选 = function(count) {
     return this._new(this._items.slice(0, count));
@@ -482,6 +846,8 @@ Array2D.prototype.pick = Array2D.prototype.z挑选;
  * 跳过元素
  * @param {Number} count - 跳过数量
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1],[2],[3],[4],[5]]).z跳过(2)  // [[3],[4],[5]]
  */
 Array2D.prototype.z跳过 = function(count) {
     return this._new(this._items.slice(count));
@@ -497,6 +863,99 @@ Array2D.prototype.z取前N个 = function(count) {
     return this._new(this._items.slice(0, count));
 };
 Array2D.prototype.take = Array2D.prototype.z取前N个;
+
+/**
+ * 跳过前面连续满足（skipWhile）- 跳过前面连续满足条件的元素
+ * @param {string|Function} predicate - 条件函数
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z跳过前面连续满足('x=>x[0]<4')  // [[5,6]]
+ */
+Array2D.prototype.z跳过前面连续满足 = function(predicate) {
+    var fn = typeof predicate === 'function' ? predicate : parseLambda(predicate);
+    if (!fn) return this._new(this._items.slice());
+    var startIndex = 0;
+    for (var i = 0; i < this._items.length; i++) {
+        if (!fn(this._items[i], i)) {
+            startIndex = i;
+            break;
+        }
+        startIndex = i + 1;
+    }
+    return this._new(this._items.slice(startIndex));
+};
+Array2D.prototype.skipWhile = Array2D.prototype.z跳过前面连续满足;
+
+/**
+ * 取前面连续满足（takeWhile）- 取前面连续满足条件的元素
+ * @param {string|Function} predicate - 条件函数
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z取前面连续满足('x=>x[0]<4')  // [[1,2],[3,4]]
+ */
+Array2D.prototype.z取前面连续满足 = function(predicate) {
+    var fn = typeof predicate === 'function' ? predicate : parseLambda(predicate);
+    if (!fn) return this._new([]);
+    var endIndex = 0;
+    for (var i = 0; i < this._items.length; i++) {
+        if (!fn(this._items[i], i)) {
+            endIndex = i;
+            break;
+        }
+        endIndex = i + 1;
+    }
+    return this._new(this._items.slice(0, endIndex));
+};
+Array2D.prototype.takeWhile = Array2D.prototype.z取前面连续满足;
+
+/**
+ * 行切片（slice）- 提取指定范围的行
+ * @param {Number} [start=0] - 起始索引
+ * @param {Number} [end] - 结束索引（不包含）
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z行切片(1, 2)  // [[3,4]]
+ */
+Array2D.prototype.z行切片 = function(start, end) {
+    start = start || 0;
+    if (end === undefined) end = this._items.length;
+    return this._new(this._items.slice(start, end));
+};
+Array2D.prototype.slice = Array2D.prototype.z行切片;
+
+/**
+ * 行切片删除行（splice）- 删除/插入行
+ * @param {Number} start - 起始位置
+ * @param {Number} [deleteCount=1] - 删除数量
+ * @param {...Array} items - 要插入的行
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z行切片删除行(1, 1)  // [[1,2],[5,6]]
+ */
+Array2D.prototype.z行切片删除行 = function(start, deleteCount, items) {
+    deleteCount = deleteCount !== undefined ? deleteCount : 1;
+    var result = this._items.slice();
+    var removed = result.splice.apply(result, [start, deleteCount].concat(Array.prototype.slice.call(arguments, 2)));
+    return this._new(result);
+};
+Array2D.prototype.splice = Array2D.prototype.z行切片删除行;
+
+/**
+ * 转字符串（toString）- 将数组转换为字符串
+ * @param {string} [rowSeparator='\n'] - 行分隔符
+ * @param {string} [colSeparator=','] - 列分隔符
+ * @returns {string} 字符串
+ * @example
+ * Array2D([[1,2],[3,4]]).z转字符串()  // "1,2\n3,4"
+ */
+Array2D.prototype.z转字符串 = function(rowSeparator, colSeparator) {
+    rowSeparator = rowSeparator !== undefined ? rowSeparator : '\n';
+    colSeparator = colSeparator !== undefined ? colSeparator : ',';
+    return this._items.map(function(row) {
+        return row.join(colSeparator);
+    }).join(rowSeparator);
+};
+Array2D.prototype.toString = Array2D.prototype.z转字符串;
 
 // ==================== 查找筛选 ====================
 
@@ -523,6 +982,34 @@ Array2D.prototype.z包含 = function(value) {
     return this.z查找索引(value) !== -1;
 };
 Array2D.prototype.includes = Array2D.prototype.z包含;
+
+/**
+ * 遍历每个元素
+ * @param {Function} callback - 回调函数 (item, index)
+ * @returns {Array2D} this 支持链式调用
+ * @example
+ * Array2D([[1,2],[3,4]]).forEach((row, i) => Console.log(i, row))
+ */
+Array2D.prototype.forEach = function(callback) {
+    this._items.forEach(callback);
+    return this;
+};
+
+/**
+ * 倒序遍历执行（forEachRev）- 从后向前遍历每个元素
+ * @param {Function} callback - 回调函数 (item, index)，返回false可中断
+ * @returns {Array2D} this 支持链式调用
+ * @example
+ * Array2D([[1,2],[3,4]]).z倒序遍历执行((row, i) => Console.log(i, row))
+ */
+Array2D.prototype.z倒序遍历执行 = function(callback) {
+    for (var i = this._items.length - 1; i >= 0; i--) {
+        var result = callback(this._items[i], i);
+        if (result === false) break; // 支持提前退出
+    }
+    return this;
+};
+Array2D.prototype.forEachRev = Array2D.prototype.z倒序遍历执行;
 
 /**
  * 筛选元素
@@ -560,6 +1047,19 @@ Array2D.prototype.z归约 = function(callback, initialValue) {
     return this._items.reduce(callback, initialValue);
 };
 Array2D.prototype.reduce = Array2D.prototype.z归约;
+
+/**
+ * 倒序归约（reduceRight）- 从右向左归约计算
+ * @param {Function} callback - 回调函数
+ * @param {any} initialValue - 初始值
+ * @returns {any} 计算结果
+ * @example
+ * Array2D([[1,2],[3,4]]).z倒序归约((acc, val) => acc + val[0], 0)  // 4
+ */
+Array2D.prototype.z倒序归约 = function(callback, initialValue) {
+    return this._items.reduceRight(callback, initialValue);
+};
+Array2D.prototype.reduceRight = Array2D.prototype.z倒序归约;
 
 /**
  * 检查是否全部满足
@@ -623,7 +1123,12 @@ Array2D.prototype.getRow = Array2D.prototype.z获取行;
 Array2D.prototype.z获取列 = function(index) {
     var result = [];
     for (var i = 0; i < this._items.length; i++) {
-        result.push(this._items[i] ? this._items[i][index] : undefined);
+        var row = this._items[i];
+        if (Array.isArray(row) && index < row.length) {
+            result.push(row[index]);
+        } else {
+            result.push(undefined);
+        }
     }
     return result;
 };
@@ -696,6 +1201,9 @@ Array2D.prototype.pluck = Array2D.prototype.z提取列;
  * @param {Array} col - 列数据
  * @param {Number} index - 插入位置（可选，默认为末尾）
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4]]).z添加列([5,6])        // [[1,2,5],[3,4,6]]
+ * Array2D([[1,2],[3,4]]).z添加列([5,6], 0)     // [[5,1,2],[6,3,4]]
  */
 Array2D.prototype.z添加列 = function(col, index) {
     var result = [];
@@ -713,8 +1221,14 @@ Array2D.prototype.addCol = Array2D.prototype.z添加列;
  * 删除行
  * @param {Number} index - 行号
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z删除行(1)  // [[1,2],[5,6]]
  */
 Array2D.prototype.z删除行 = function(index) {
+    // 索引边界检查
+    if (index < 0 || index >= this._items.length) {
+        return this._new(this._items.slice());  // 索引无效，返回副本
+    }
     var result = this._items.slice();
     result.splice(index, 1);
     return this._new(result);
@@ -725,8 +1239,14 @@ Array2D.prototype.deleteRow = Array2D.prototype.z删除行;
  * 删除列
  * @param {Number} index - 列号
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2,3],[4,5,6]]).z删除列(1)  // [[1,3],[4,6]]
  */
 Array2D.prototype.z删除列 = function(index) {
+    // 索引边界检查
+    if (index < 0 || index >= this.z列数()) {
+        return this._new(this._items.slice());  // 索引无效，返回副本
+    }
     var result = [];
     for (var i = 0; i < this._items.length; i++) {
         var newRow = this._items[i].slice();
@@ -736,6 +1256,45 @@ Array2D.prototype.z删除列 = function(index) {
     return this._new(result);
 };
 Array2D.prototype.deleteCol = Array2D.prototype.z删除列;
+
+/**
+ * 尾部弹出一项（pop）- 删除并返回最后一行
+ * @returns {Array} 被删除的行
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z尾部弹出一项()  // [5,6]
+ */
+Array2D.prototype.z尾部弹出一项 = function() {
+    if (this._items.length === 0) return undefined;
+    return this._items.pop();
+};
+Array2D.prototype.pop = Array2D.prototype.z尾部弹出一项;
+
+/**
+ * 追加一项（push）- 向数组末尾添加行
+ * @param {...Array} rows - 要添加的行
+ * @returns {Number} 添加后的行数
+ * @example
+ * Array2D([[1,2],[3,4]]).z追加一项([5,6], [7,8])  // 4
+ */
+Array2D.prototype.z追加一项 = function() {
+    for (var i = 0; i < arguments.length; i++) {
+        this._items.push(arguments[i]);
+    }
+    return this._items.length;
+};
+Array2D.prototype.push = Array2D.prototype.z追加一项;
+
+/**
+ * 删除第一个（shift）- 删除并返回第一行
+ * @returns {Array} 被删除的行
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).z删除第一个()  // [1,2]
+ */
+Array2D.prototype.z删除第一个 = function() {
+    if (this._items.length === 0) return undefined;
+    return this._items.shift();
+};
+Array2D.prototype.shift = Array2D.prototype.z删除第一个;
 
 // ==================== 排序去重 ====================
 
@@ -754,6 +1313,69 @@ Array2D.prototype.sort = function(compareFn) {
     }
     return this;  // 返回 this 支持链式调用
 };
+
+/**
+ * 按规则升序（sortBy）- 使用Lambda表达式指定排序键进行升序排序
+ * @param {string|Function} keySelector - 键选择器
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[3,'C'],[1,'A'],[2,'B']]).z按规则升序('x=>x[0]')  // [[1,'A'],[2,'B'],[3,'C']]
+ */
+Array2D.prototype.z按规则升序 = function(keySelector) {
+    var fn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
+    if (!fn) return this._new(this._items.slice());
+    var result = this._items.slice();
+    result.sort(function(a, b) {
+        var valA = fn(a);
+        var valB = fn(b);
+        if (valA < valB) return -1;
+        if (valA > valB) return 1;
+        return 0;
+    });
+    return this._new(result);
+};
+Array2D.prototype.sortBy = Array2D.prototype.z按规则升序;
+
+/**
+ * 按规则降序（sortByDesc）- 使用Lambda表达式指定排序键进行降序排序
+ * @param {string|Function} keySelector - 键选择器
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[3,'C'],[1,'A'],[2,'B']]).z按规则降序('x=>x[0]')  // [[3,'C'],[2,'B'],[1,'A']]
+ */
+Array2D.prototype.z按规则降序 = function(keySelector) {
+    var fn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
+    if (!fn) return this._new(this._items.slice());
+    var result = this._items.slice();
+    result.sort(function(a, b) {
+        var valA = fn(a);
+        var valB = fn(b);
+        if (valA > valB) return -1;
+        if (valA < valB) return 1;
+        return 0;
+    });
+    return this._new(result);
+};
+Array2D.prototype.sortByDesc = Array2D.prototype.z按规则降序;
+
+/**
+ * 降序排序（sortDesc）- 按首列降序排序
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[3,'C'],[1,'A'],[2,'B']]).z降序排序()  // [[3,'C'],[2,'B'],[1,'A']]
+ */
+Array2D.prototype.z降序排序 = function() {
+    var result = this._items.slice();
+    result.sort(function(a, b) {
+        var valA = a[0];
+        var valB = b[0];
+        if (valA > valB) return -1;
+        if (valA < valB) return 1;
+        return 0;
+    });
+    return this._new(result);
+};
+Array2D.prototype.sortDesc = Array2D.prototype.z降序排序;
 
 /**
  * 升序排序 - 按首列升序排序
@@ -779,9 +1401,16 @@ Array2D.prototype.sortAsc = Array2D.prototype.z升序排序;
  * @param {Number} colIndex - 排序依据的列
  * @param {Boolean} ascending - 是否升序
  * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,3],[2,2],[3,1]]).z行排序(1)       // [[3,1],[2,2],[1,3]]
+ * Array2D([[1,3],[2,2],[3,1]]).z行排序(1, false)  // [[1,3],[2,2],[3,1]] 降序
  */
 Array2D.prototype.z行排序 = function(colIndex, ascending) {
     ascending = ascending !== undefined ? ascending : true;
+    // 列边界检查
+    if (colIndex < 0 || colIndex >= this.z列数()) {
+        return this._new(this._items.slice());  // 列索引无效，返回副本
+    }
     var result = this._items.slice();
     result.sort(function(a, b) {
         var valA = a[colIndex];
@@ -1221,6 +1850,45 @@ Array2D.prototype.z左右全连接 = function(brr, leftKeySelector, rightKeySele
 Array2D.prototype.fulljoin = Array2D.prototype.z左右全连接;
 
 /**
+ * 一对多连接（leftFulljoin）- 左表所有行与右表匹配的所有行连接
+ * @param {Array} brr - 右表数组
+ * @param {string|Function} leftKeySelector - 左表键选择器
+ * @param {string|Function} rightKeySelector - 右表键选择器
+ * @param {Function} resultSelector - 结果选择器
+ * @returns {Array2D} 新实例
+ * @example
+ * arr.leftFulljoin(brr, 'f1', 'f1')
+ */
+Array2D.prototype.z一对多连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return row[0]; };
+    var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return row[0]; };
+    var resFn = resultSelector || function(a, b) { return a.concat(b || []); };
+
+    var rightMap = Object.create(null);
+    for (var j = 0; j < brr.length; j++) {
+        var key = rightFn(brr[j], j);
+        if (!rightMap[key]) rightMap[key] = [];
+        rightMap[key].push(brr[j]);
+    }
+
+    var result = [];
+    for (var i = 0; i < this._items.length; i++) {
+        var leftRow = this._items[i];
+        var key = leftFn(leftRow, i);
+        var rightRows = rightMap[key] || [];
+        if (rightRows.length === 0) {
+            result.push(resFn(leftRow.slice(), []));
+        } else {
+            for (var r = 0; r < rightRows.length; r++) {
+                result.push(resFn(leftRow.slice(), rightRows[r].slice()));
+            }
+        }
+    }
+    return this._new(result);
+};
+Array2D.prototype.leftFulljoin = Array2D.prototype.z一对多连接;
+
+/**
  * 左右连接（zip）- 按行左右拼接
  * @param {...Array} arrays - 要拼接的数组
  * @returns {Array2D} 新实例
@@ -1488,6 +2156,44 @@ Array2D.prototype.z查找元素下标 = function(predicate) {
     return -1;
 };
 Array2D.prototype.findIndexByPredicate = Array2D.prototype.z查找元素下标;
+
+/**
+ * 值位置（indexOf）- 查找元素首次出现的位置
+ * @param {any} value - 要查找的值
+ * @param {Number} [fromIndex=0] - 开始查找的位置
+ * @returns {Number} 下标，未找到返回-1
+ * @example
+ * Array2D([[1,2],[3,4],[1,2]]).z值位置([1,2])  // 0
+ */
+Array2D.prototype.z值位置 = function(value, fromIndex) {
+    fromIndex = fromIndex || 0;
+    for (var i = fromIndex; i < this._items.length; i++) {
+        if (JSON.stringify(this._items[i]) === JSON.stringify(value)) {
+            return i;
+        }
+    }
+    return -1;
+};
+Array2D.prototype.indexOf = Array2D.prototype.z值位置;
+
+/**
+ * 从后往前值位置（lastIndexOf）- 查找元素最后出现的位置
+ * @param {any} value - 要查找的值
+ * @param {Number} [fromIndex] - 开始查找的位置（从后往前）
+ * @returns {Number} 下标，未找到返回-1
+ * @example
+ * Array2D([[1,2],[3,4],[1,2]]).z从后往前值位置([1,2])  // 2
+ */
+Array2D.prototype.z从后往前值位置 = function(value, fromIndex) {
+    fromIndex = fromIndex !== undefined ? fromIndex : this._items.length - 1;
+    for (var i = fromIndex; i >= 0; i--) {
+        if (JSON.stringify(this._items[i]) === JSON.stringify(value)) {
+            return i;
+        }
+    }
+    return -1;
+};
+Array2D.prototype.lastIndexOf = Array2D.prototype.z从后往前值位置;
 
 // ==================== 批量操作方法 ====================
 
@@ -1906,16 +2612,24 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
     var indexes = [];
     var useHeader = false;
 
-    // 处理字符串参数：支持 "f2,f3,f6" 或 "col1,col2,col3" 格式
+    // 处理字符串参数：支持 "f2,f3,f6" 或 "f2,f3-f7" 范围格式
     if (typeof cols === 'string') {
         // 检查是否是 f 模式（列号格式）
-        if (cols.includes(',') && (cols.toLowerCase().includes('f'))) {
-            // f 模式：按逗号分割，转换为列索引数组
+        if ((cols.includes(',') || cols.includes('-')) && (cols.toLowerCase().includes('f'))) {
+            // f 模式：先按逗号分割，再处理范围
             var parts = cols.split(',');
             indexes = [];
             for (var i = 0; i < parts.length; i++) {
                 var part = parts[i].trim();
-                if (part.toLowerCase().startsWith('f')) {
+                if (part.includes('-')) {
+                    // 处理范围 f3-f7
+                    var range = part.split('-');
+                    var start = parseInt(range[0].toLowerCase().replace('f', ''));
+                    var end = parseInt(range[1].toLowerCase().replace('f', ''));
+                    for (var j = start; j <= end; j++) {
+                        indexes.push(j - 1);
+                    }
+                } else if (part.toLowerCase().startsWith('f')) {
                     indexes.push(parseInt(part.substring(1)) - 1);  // f2 → 索引1
                 } else {
                     indexes.push(parseInt(part) - 1);
@@ -1937,8 +2651,22 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
             }
         }
         if (allFMode) {
-            // f 模式数组：转换为列索引
-            indexes = cols.map(function(c) { return parseInt(c.substring(1)) - 1; });
+            // f 模式数组：转换为列索引（支持范围）
+            indexes = [];
+            for (var i = 0; i < cols.length; i++) {
+                var c = cols[i];
+                if (c.includes('-')) {
+                    // 处理范围
+                    var range = c.split('-');
+                    var start = parseInt(range[0].substring(1));
+                    var end = parseInt(range[1].substring(1));
+                    for (var j = start; j <= end; j++) {
+                        indexes.push(j - 1);
+                    }
+                } else {
+                    indexes.push(parseInt(c.substring(1)) - 1);
+                }
+            }
             useHeader = false;
         } else {
             useHeader = true;
@@ -2017,6 +2745,17 @@ Array2D.prototype.z选择行 = function(rowIndexes) {
 Array2D.prototype.selectRows = Array2D.prototype.z选择行;
 
 /**
+ * 获取结果（res）- 获取当前数组的值（val的别名）
+ * @returns {Array} 当前数组
+ * @example
+ * Array2D([[1,2],[3,4]]).z结果()  // [[1,2],[3,4]]
+ */
+Array2D.prototype.z结果 = function() {
+    return this._items;
+};
+Array2D.prototype.res = Array2D.prototype.z结果;
+
+/**
  * 矩阵分布（getMatrix）- 生成数字序列的矩阵分布
  * @param {Number} totalRows - 总行数
  * @param {Number} cols - 列数
@@ -2024,6 +2763,8 @@ Array2D.prototype.selectRows = Array2D.prototype.z选择行;
  * @returns {Array} 分布后的数组
  */
 Array2D.getMatrix = function(totalRows, cols, direction) {
+    if (totalRows === undefined || totalRows <= 0) return [];
+    if (cols === undefined || cols <= 0) return [];
     direction = direction || 'r';
     var result = [];
     var numbers = [];
@@ -2075,36 +2816,465 @@ Array2D.getIndexs = function(start, end, step) {
 Array2D.z生成下标数组 = Array2D.getIndexs;
 
 /**
- * 静态方法：转置
+ * 下标数组（indexArray）- 根据条件获取元素的下标数组
+ * @param {Array} arr - 数组
+ * @param {string|Function} predicate - 筛选条件
+ * @returns {Array} 下标数组
+ * @example
+ * Array2D.indexArray([[1,2],[3,4],[5,6]], 'x=>x[0]>1')  // [1, 2]
  */
-Array2D.z转置 = function(arr) {
-    return new Array2D(arr).z转置().val();
+Array2D.indexArray = function(arr, predicate) {
+    var fn = typeof predicate === 'function' ? predicate : parseLambda(predicate);
+    if (!fn) return [];
+    var result = [];
+    for (var i = 0; i < arr.length; i++) {
+        if (fn(arr[i], i)) {
+            result.push(i);
+        }
+    }
+    return result;
 };
-Array2D.transpose = Array2D.z转置;
+Array2D.z下标数组 = Array2D.indexArray;
 
 /**
- * 静态方法：求和
+ * 按范围遍历（rangeForEach）- 对指定索引范围的元素执行回调
+ * @param {Array} arr - 数组
+ * @param {Number} start - 起始索引
+ * @param {Number} end - 结束索引
+ * @param {Function} callback - 回调函数 (item, index)
+ * @returns {void}
+ * @example
+ * Array2D.rangeForEach([[1,2],[3,4],[5,6]], 0, 1, (row, i) => Console.log(row))
  */
-Array2D.z求和 = function(arr, colSelector) {
-    return new Array2D(arr).z求和(colSelector);
+Array2D.rangeForEach = function(arr, start, end, callback) {
+    if (!arr || !Array.isArray(arr)) return;
+    start = start || 0;
+    end = end !== undefined ? end : arr.length - 1;
+    for (var i = start; i <= end && i < arr.length; i++) {
+        callback(arr[i], i);
+    }
 };
-Array2D.sum = Array2D.z求和;
+Array2D.z按范围遍历 = Array2D.rangeForEach;
 
 /**
- * 静态方法：克隆
+ * 局部映射（rangeMap）- 对指定索引范围的元素进行映射
+ * @param {Array} arr - 数组
+ * @param {Number} start - 起始索引
+ * @param {Number} end - 结束索引
+ * @param {string|Function} mapper - 转换函数
+ * @returns {Array} 映射后的数组
+ * @example
+ * Array2D.rangeMap([[1,2],[3,4],[5,6]], 0, 1, 'x=>x[0]*2')  // [[2], [6]]
  */
-Array2D.z克隆 = function(arr) {
-    return new Array2D(arr).z克隆().val();
+Array2D.rangeMap = function(arr, start, end, mapper) {
+    if (!arr || !Array.isArray(arr)) return [];
+    var fn = typeof mapper === 'function' ? mapper : parseLambda(mapper);
+    if (!fn) return [];
+    start = start || 0;
+    end = end !== undefined ? end : arr.length - 1;
+    var result = [];
+    for (var i = start; i <= end && i < arr.length; i++) {
+        result.push(fn(arr[i], i));
+    }
+    return result;
 };
-Array2D.copy = Array2D.z克隆;
+Array2D.z局部映射 = Array2D.rangeMap;
 
 /**
- * 静态方法：选择列
+ * 排名（rank）- 对数组进行排名
+ * @param {Array} arr - 数组
+ * @param {string|Function} colSelector - 列选择器，支持 f2, f2-（降序）
+ * @param {string} [type='cn'] - 排名类型：'cn'中式排名（并列跳过），'usa'美式排名（并列不跳过），'+'顺序编号
+ * @returns {Array} 排名结果（二维数组，每行一个排名值）
+ * @example
+ * Array2D.rank([[1,90],[2,80],[3,90]], 'f2-')  // [[1],[3],[1]]（中式）
+ * Array2D.rank([[1,90],[2,80],[3,90]], 'f2-', 'usa')  // [[1],[3],[1]]（美式）
+ * Array2D.rank([[1,90],[2,80],[3,90]], 'f2-', '+')  // [[1],[3],[2]]（顺序）
+ */
+Array2D.rank = function(arr, colSelector, type) {
+    if (!arr || !Array.isArray(arr)) return [];
+    type = type || 'cn';
+    var selectorStr = typeof colSelector === 'string' ? colSelector : '';
+    var isDesc = selectorStr.endsWith('-');
+    var fn = typeof colSelector === 'function' ? colSelector : parseLambda(colSelector);
+    if (!fn) return [];
+
+    var values = arr.map(function(row, i) { return {value: fn(row, i), index: i}; });
+    values.sort(function(a, b) {
+        var cmp = 0;
+        if (typeof a.value === 'number' && typeof b.value === 'number') {
+            cmp = a.value - b.value;
+        } else {
+            cmp = String(a.value).localeCompare(String(b.value));
+        }
+        return isDesc ? -cmp : cmp;
+    });
+
+    var ranks = [];
+    for (var i = 0; i < values.length; i++) {
+        var rank;
+        if (type === '+') {
+            rank = i + 1;
+        } else if (type === 'usa') {
+            rank = i + 1;
+        } else { // cn 中式排名
+            rank = i + 1;
+            for (var j = i - 1; j >= 0; j--) {
+                if (values[j].value === values[i].value) {
+                    rank = j + 1;
+                    break;
+                }
+            }
+        }
+        ranks[values[i].index] = [rank];
+    }
+    return ranks;
+};
+Array2D.z排名 = Array2D.rank;
+
+/**
+ * 分组排名（rankGroup）- 按分组进行排名
+ * @param {Array} arr - 数组
+ * @param {string|Function} colSelector - 列选择器，支持 f2, f2-（降序）
+ * @param {string|Function} groupCol - 分组列选择器
+ * @param {string} [type='cn'] - 排名类型
+ * @param {Number} [skipHeader=0] - 跳过标题行数
+ * @returns {Array} 排名结果（二维数组）
+ * @example
+ * Array2D.rankGroup([[1,'A',90],[2,'A',80],[3,'B',90]], 'f3-', 'f2')
+ */
+Array2D.rankGroup = function(arr, colSelector, groupCol, type, skipHeader) {
+    if (!arr || !Array.isArray(arr)) return [];
+    type = type || 'cn';
+    skipHeader = skipHeader || 0;
+    var selectorStr = typeof colSelector === 'string' ? colSelector : '';
+    var isDesc = selectorStr.endsWith('-');
+    var fn = typeof colSelector === 'function' ? colSelector : parseLambda(colSelector);
+    var groupFn = typeof groupCol === 'function' ? groupCol : parseLambda(groupCol);
+    if (!fn || !groupFn) return [];
+
+    var data = arr.slice(skipHeader);
+    var groups = Object.create(null);
+    for (var i = 0; i < data.length; i++) {
+        var key = JSON.stringify(groupFn(data[i], i));
+        if (!groups[key]) groups[key] = [];
+        groups[key].push({row: data[i], index: i + skipHeader});
+    }
+
+    var ranks = [];
+    for (var h = 0; h < skipHeader; h++) {
+        ranks.push(['']);
+    }
+
+    for (var key in groups) {
+        var group = groups[key];
+        var values = group.map(function(item) {
+            return {value: fn(item.row, item.index), index: item.index};
+        });
+        values.sort(function(a, b) {
+            var cmp = 0;
+            if (typeof a.value === 'number' && typeof b.value === 'number') {
+                cmp = a.value - b.value;
+            } else {
+                cmp = String(a.value).localeCompare(String(b.value));
+            }
+            return isDesc ? -cmp : cmp;
+        });
+
+        for (var j = 0; j < values.length; j++) {
+            var rank;
+            if (type === '+') {
+                rank = j + 1;
+            } else if (type === 'usa') {
+                rank = j + 1;
+            } else { // cn 中式排名
+                rank = j + 1;
+                for (var k = j - 1; k >= 0; k--) {
+                    if (values[k].value === values[j].value) {
+                        rank = k + 1;
+                        break;
+                    }
+                }
+            }
+            ranks[values[j].index] = [rank];
+        }
+    }
+    return ranks;
+};
+Array2D.z分组排名 = Array2D.rankGroup;
+
+/**
+ * 笛卡尔积（crossjoin）- 两个数组的笛卡尔积
+ * @param {Array} arr - 第一个数组
+ * @param {Array} brr - 第二个数组
+ * @returns {Array} 笛卡尔积结果
+ * @example
+ * Array2D.crossjoin([[1,2],[3,4]], [[5,6],[7,8]])  // [[1,2,5,6],[1,2,7,8],[3,4,5,6],[3,4,7,8]]
+ */
+Array2D.crossjoin = function(arr, brr) {
+    if (!arr || !brr) return [];
+    var result = [];
+    for (var i = 0; i < arr.length; i++) {
+        var aRow = Array.isArray(arr[i]) ? arr[i] : [arr[i]];
+        for (var j = 0; j < brr.length; j++) {
+            var bRow = Array.isArray(brr[j]) ? brr[j] : [brr[j]];
+            result.push(aRow.concat(bRow));
+        }
+    }
+    return result;
+};
+Array2D.z笛卡尔积 = Array2D.crossjoin;
+
+/**
+ * 分组汇总（groupInto）- 按键分组并进行汇总计算
+ * @param {Array} arr - 数组
+ * @param {string|Function} keySelector - 分组键选择器
+ * @param {string|Function} valueSelector - 值聚合选择器（支持 g.sum(), g.count(), g.average() 等）
+ * @param {string} [separator='@^@'] - 多列分组时的分隔符
+ * @returns {Array} 分组汇总结果（二维数组）
+ * @example
+ * Array2D.groupInto([[1,'A',10],[2,'B',20],[3,'A',30]], 'f2', 'g=>g.sum("f3")')
+ */
+Array2D.groupInto = function(arr, keySelector, valueSelector, separator) {
+    if (!arr || !Array.isArray(arr)) return [];
+    separator = separator || '@^@';
+    var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
+    if (!keyFn) return [];
+
+    // 解析值选择器
+    var valueFn;
+    if (typeof valueSelector === 'string') {
+        // 检查是否是聚合函数格式
+        var aggMatch = valueSelector.match(/g\.(sum|count|average|max|min)\s*\(\s*["']?f?(\d+)["']?\s*\)/i);
+        if (aggMatch) {
+            var aggFunc = aggMatch[1].toLowerCase();
+            var colIdx = parseInt(aggMatch[2]) - 1;
+            valueFn = function(group) {
+                var arr2d = new Array2D(group);
+                switch (aggFunc) {
+                    case 'sum': return arr2d.z求和(function(r) { return r[colIdx]; });
+                    case 'count': return arr2d.z数量();
+                    case 'average': return arr2d.z平均值(function(r) { return r[colIdx]; });
+                    case 'max': return arr2d.z最大值(function(r) { return r[colIdx]; });
+                    case 'min': return arr2d.z最小值(function(r) { return r[colIdx]; });
+                    default: return null;
+                }
+            };
+        } else {
+            valueFn = typeof valueSelector === 'function' ? valueSelector : parseLambda(valueSelector);
+        }
+    } else {
+        valueFn = valueSelector;
+    }
+
+    if (!valueFn) return [];
+
+    var groups = Object.create(null);
+    for (var i = 0; i < arr.length; i++) {
+        var key = keyFn(arr[i], i);
+        var keyStr = Array.isArray(key) ? key.join(separator) : String(key);
+        if (!groups[keyStr]) {
+            groups[keyStr] = { key: key, rows: [] };
+        }
+        groups[keyStr].rows.push(arr[i]);
+    }
+
+    var result = [];
+    for (var key in groups) {
+        var group = groups[key];
+        var agg = valueFn(group.rows);
+        var row = Array.isArray(group.key) ? group.key.concat([agg]) : [group.key, agg];
+        result.push(row);
+    }
+    return result;
+};
+Array2D.z分组汇总 = Array2D.groupInto;
+
+/**
+ * 分组汇总到字典（groupIntoMap）- 按键分组并汇总到Map对象
+ * @param {Array} arr - 数组
+ * @param {string|Function} keySelector - 分组键选择器
+ * @param {string|Function} [valueSelector] - 值选择器
+ * @returns {Map} Map对象，键为分组键，值为 {group: 数组, agg: 聚合结果}
+ * @example
+ * var map = Array2D.groupIntoMap([[1,'A',10],[2,'B',20]], 'f2')
+ */
+Array2D.groupIntoMap = function(arr, keySelector, valueSelector) {
+    if (!arr || !Array.isArray(arr)) return new Map();
+    var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
+    var valueFn = valueSelector ? (typeof valueSelector === 'function' ? valueSelector : parseLambda(valueSelector)) : null;
+    if (!keyFn) return new Map();
+
+    var map = new Map();
+    for (var i = 0; i < arr.length; i++) {
+        var key = keyFn(arr[i], i);
+        if (!map.has(key)) {
+            map.set(key, { group: [], agg: [] });
+        }
+        var entry = map.get(key);
+        entry.group.push(arr[i]);
+        if (valueFn) {
+            entry.agg.push(valueFn(arr[i], i));
+        }
+    }
+    return map;
+};
+Array2D.z分组汇总到字典 = Array2D.groupIntoMap;
+
+/**
+ * 分组连接（groupIntoJoin）- 优化sumifs和Countifs批量条件统计
+ * @param {Array} targetData - 统计目标数据（左表）
+ * @param {Array} sourceData - 数据源（右表）
+ * @param {string|Function} keySelector - 分组键选择器
+ * @param {string|Function} valueSelector - 汇总函数或选择器
+ * @param {string} [separator='@^@'] - 多列分组时的分隔符
+ * @returns {Array} 连接汇总后的结果
+ * @example
+ * // 对源数据按条件分类汇总，然后左连接到目标数据
+ * Array2D.groupIntoJoin(目标表, 源数据表, 'f2', 'sum("f4")');
+ * Array2D.groupIntoJoin(目标表, 源数据表, 'f2,f3', 'count(),sum("f4")', '@^@');
+ * // 完整回调模式用法
+ * Array2D.groupIntoJoin(目标表, 源数据表, 'f2', g => g.count());
+ */
+Array2D.groupIntoJoin = function(targetData, sourceData, keySelector, valueSelector, separator) {
+    separator = separator || '@^@';
+    
+    // 1. 先对源数据做分类汇总
+    var grouped = Array2D.groupInto(sourceData, keySelector, valueSelector, separator);
+    
+    // 2. 将汇总结果作为右表，与目标表做左连接
+    return new Array2D(targetData).z左连接(
+        grouped,
+        keySelector,
+        keySelector,
+        function(leftRow, rightRow) {
+            return leftRow.concat(rightRow || []);
+        }
+    ).val();
+};
+Array2D.z分组汇总连接 = Array2D.groupIntoJoin;
+
+/**
+ * 复制到指定位置（copyWithin）- 数组内部复制
+ * @param {Array} arr - 数组
+ * @param {Number} target - 目标位置
+ * @param {Number} [start=0] - 源起始位置
+ * @param {Number} [end] - 源结束位置
+ * @returns {Array} 复制后的数组
+ * @example
+ * Array2D.copyWithin([[1,2],[3,4],[5,6]], 0, 2)  // [[5,6],[3,4],[5,6]]
+ */
+Array2D.copyWithin = function(arr, target, start, end) {
+    if (!arr || !Array.isArray(arr)) return [];
+    var result = JSON.parse(JSON.stringify(arr));
+    var copyArr = result.slice(start || 0, end !== undefined ? end : result.length);
+    for (var i = 0; i < copyArr.length; i++) {
+        if (target + i < result.length) {
+            result[target + i] = JSON.parse(JSON.stringify(copyArr[i]));
+        }
+    }
+    return result;
+};
+Array2D.z复制到指定位置 = Array2D.copyWithin;
+
+/**
+ * 随机一项（random）- 随机选择一行
+ * @param {Array} arr - 数组
+ * @returns {Array} 随机选择的行
+ * @example
+ * Array2D.random([[1,2],[3,4],[5,6]])  // 随机返回一行
+ */
+Array2D.random = function(arr) {
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return undefined;
+    var idx = Math.floor(Math.random() * arr.length);
+    return arr[idx];
+};
+Array2D.z随机一项 = Array2D.random;
+
+/**
+ * 随机打乱（shuffle）- Fisher-Yates 洗牌算法
+ * @param {Array} arr - 数组
+ * @returns {Array} 打乱后的数组
+ * @example
+ * Array2D.shuffle([[1,2],[3,4],[5,6]])
+ */
+Array2D.shuffle = function(arr) {
+    if (!arr || !Array.isArray(arr)) return [];
+    var result = JSON.parse(JSON.stringify(arr));
+    for (var i = result.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = result[i];
+        result[i] = result[j];
+        result[j] = temp;
+    }
+    return result;
+};
+Array2D.z随机打乱 = Array2D.shuffle;
+
+/**
+ * 重复N次（repeat）- 将数组重复N次
+ * @param {Array} arr - 数组
+ * @param {Number} count - 重复次数
+ * @returns {Array} 重复后的数组
+ * @example
+ * Array2D.repeat([[1,2]], 3)  // [[1,2],[1,2],[1,2]]
+ */
+Array2D.repeat = function(arr, count) {
+    if (!arr || !Array.isArray(arr)) return [];
+    if (count <= 0) return [];
+    var result = [];
+    for (var i = 0; i < count; i++) {
+        for (var j = 0; j < arr.length; j++) {
+            result.push(JSON.parse(JSON.stringify(arr[j])));
+        }
+    }
+    return result;
+};
+Array2D.z重复N次 = Array2D.repeat;
+
+/**
+ * 静态方法：选择列（返回 Array2D 对象，支持链式调用）
+ * @param {Array|Array2D} arr - 二维数组或 Array2D 对象
  */
 Array2D.z选择列 = function(arr, cols, newHeaders) {
-    return new Array2D(arr).z选择列(cols, newHeaders).val();
+    // 智能判断：如果是 Array2D 对象，直接调用实例方法
+    if (arr && arr instanceof Array2D) {
+        return arr.z选择列(cols, newHeaders);
+    }
+    return new Array2D(arr).z选择列(cols, newHeaders);
 };
 Array2D.selectCols = Array2D.z选择列;
+
+/**
+ * 版本号（version）- 返回Array2D函数库版本号
+ * @returns {String} 版本号
+ * @example
+ * Array2D.version()  // "3.2.0"
+ */
+Array2D.version = function() {
+    return '3.2.0';
+};
+
+/**
+ * 静态方法：数量（count）- 计算数组的元素数量
+ * @param {Array} arr - 数组
+ * @returns {Number} 元素数量
+ * @example
+ * Array2D.count([[1,2],[3,4]])  // 4
+ */
+Array2D.count = function(arr) {
+    if (!arr || !Array.isArray(arr)) return 0;
+    var count = 0;
+    for (var i = 0; i < arr.length; i++) {
+        if (Array.isArray(arr[i])) {
+            count += arr[i].length;
+        } else {
+            count++;
+        }
+    }
+    return count;
+};
+Array2D.z数量 = Array2D.count;
 
 /**
  * 静态方法：批量填充
@@ -2115,15 +3285,1647 @@ Array2D.z批量填充 = function(arr, value, rows, cols) {
 Array2D.fill = Array2D.z批量填充;
 
 /**
- * 静态方法：写入单元格
+ * 静态方法：写入单元格（根据数组大小自动扩展区域，返回 Range 对象）
+ * @param {Array} arr - 二维数组
+ * @param {Range|string} rng - 目标单元格区域（左上角单元格）
+ * @returns {Range} 写入的 Range 对象
+ * @example
+ * var arr = [[1, 'A'], [2, 'B'], [3, 'C']];
+ * Array2D.toRange(arr, "Sheet1!a1");
+ * Array2D.toRange(arr, "e1");
+ * var rs = Array2D.toRange(arr, Range("i1"));
+ * console.log(rs.Address());  // $I$1:$J$3
  */
-Array2D.z写入单元格 = function(arr, rng) {
-    if (!isWPS) return arr;
+Array2D.toRange = function(arr, rng) {
+    if (!isWPS) return null;
     var targetRng = typeof rng === 'string' ? Range(rng) : rng;
-    targetRng.Value2 = arr;
+    var rows = arr.length;
+    var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : 1) : 0;
+    // 根据数组大小调整目标区域
+    var endRng = targetRng.Item(rows, cols);
+    var sheet = targetRng.Worksheet || Application.ActiveSheet;
+    var writeRng = sheet.Range(targetRng, endRng);
+    writeRng.Value2 = arr;
+    return writeRng;
+};
+
+/**
+ * 静态方法：写入单元格（中文别名，返回 Range 对象）
+ */
+Array2D.z写入单元格 = Array2D.toRange;
+
+// ==================== 静态方法封装（支持直接调用）====================
+
+/**
+ * 静态方法：筛选（filter）- 根据条件筛选数组行
+ * @param {Array} arr - 二维数组
+ * @param {String|Function} predicate - 筛选条件
+ * @param {Number} skipHeader - 跳过表头行数
+ * @returns {Array} 筛选后的二维数组
+ * @example
+ * Array2D.filter(arr, 'f1>1')
+ * Array2D.filter(arr, x=>x.f1>5 && x.f2=="A")
+ * Array2D.filter(arr, "[f1,f3,f4]")
+ */
+Array2D.filter = function(arr, predicate, skipHeader) {
+    return new Array2D(arr).z筛选(predicate, skipHeader).val();
+};
+Array2D.z筛选 = Array2D.filter;
+
+/**
+ * 静态方法：映射（map）- 对数组的每行进行转换
+ * @param {Array} arr - 二维数组
+ * @param {String|Function} mapper - 转换函数
+ * @returns {Array} 转换后的二维数组
+ * @example
+ * Array2D.map(arr, 'f1*2')
+ * Array2D.map(arr, x=>[x.f1, x.f3])
+ * Array2D.map(arr, "[f1,f3]")
+ */
+Array2D.map = function(arr, mapper) {
+    return new Array2D(arr).z映射(mapper).val();
+};
+Array2D.z映射 = Array2D.map;
+
+/**
+ * 静态方法：去重（distinct）- 根据指定列去重
+ * @param {Array} arr - 二维数组
+ * @param {String|Function} keySelector - 去重依据的列
+ * @param {String} resultSelector - 结果选择器
+ * @returns {Array} 去重后的二维数组
+ * @example
+ * Array2D.distinct(arr, 'f1,f2')
+ * Array2D.distinct(arr, x=>x.f1)
+ * Array2D.distinct(arr)
+ */
+Array2D.distinct = function(arr, keySelector, resultSelector) {
+    return new Array2D(arr).z去重(keySelector, resultSelector).val();
+};
+Array2D.z去重 = Array2D.distinct;
+
+/**
+ * 静态方法：多列排序（sortByCols）- 按多列排序
+ * @param {Array} arr - 二维数组
+ * @param {String} colsConfig - 列配置，如 'f1+,f2-,f3+'
+ * @param {Number} skipHeader - 表头行数
+ * @returns {Array} 排序后的二维数组
+ * @example
+ * Array2D.sortByCols(arr, 'f1+,f2-', 1)
+ */
+Array2D.sortByCols = function(arr, colsConfig, skipHeader) {
+    return new Array2D(arr).z多列排序(colsConfig, skipHeader).val();
+};
+Array2D.z多列排序 = Array2D.sortByCols;
+
+/**
+ * 静态方法：自定义排序（sortByList）- 按自定义列表排序
+ * @param {Array} arr - 二维数组
+ * @param {String|Number} col - 列号或列名
+ * @param {String} orderList - 排序顺序，如 "A,B,C"
+ * @param {Number} skipHeader - 表头行数
+ * @returns {Array} 排序后的二维数组
+ * @example
+ * Array2D.sortByList(arr, 'f3', '美国,德国,中国')
+ */
+Array2D.sortByList = function(arr, col, orderList, skipHeader) {
+    return new Array2D(arr).z自定义排序(col, orderList, skipHeader).val();
+};
+Array2D.z自定义排序 = Array2D.sortByList;
+
+/**
+ * 静态方法：批量插入列（insertCols）- 在指定位置插入列
+ * @param {Array} arr - 二维数组
+ * @param {Number|Array} colPos - 插入位置或多个位置
+ * @param {Array|String} values - 插入的值
+ * @param {Number} totalCols - 总列数
+ * @returns {Array} 插入列后的二维数组
+ * @example
+ * Array2D.insertCols(arr, 2, ['新列1','新列2'])
+ */
+Array2D.insertCols = function(arr, colPos, values, totalCols) {
+    return new Array2D(arr).z批量插入列(colPos, values, totalCols).val();
+};
+Array2D.z批量插入列 = Array2D.insertCols;
+
+/**
+ * 静态方法：批量删除列（deleteCols/delCols）- 删除指定列
+ * @param {Array} arr - 二维数组
+ * @param {String|Number|Array} cols - 列配置
+ * @returns {Array} 删除列后的二维数组
+ * @example
+ * Array2D.deleteCols(arr, '1,3,5')
+ * Array2D.delCols(arr, [0, 2, 4])
+ */
+Array2D.deleteCols = function(arr, cols) {
+    return new Array2D(arr).z批量删除列(cols).val();
+};
+Array2D.z批量删除列 = Array2D.deleteCols;
+Array2D.delCols = Array2D.deleteCols;
+
+/**
+ * 静态方法：左连接（leftjoin）- 类似SQL的LEFT JOIN
+ * @param {Array} arr - 左表
+ * @param {Array} brr - 右表
+ * @param {String|Function} leftKey - 左表关键字
+ * @param {String|Function} rightKey - 右表关键字
+ * @param {String|Function} resultSelector - 结果选择器
+ * @returns {Array} 连接后的二维数组
+ * @example
+ * Array2D.leftjoin(arr, brr, 'f1', 'f1', 'f1,f2,f4')
+ */
+Array2D.leftjoin = function(arr, brr, leftKey, rightKey, resultSelector) {
+    return new Array2D(arr).z左连接(brr, leftKey, rightKey, resultSelector).val();
+};
+Array2D.z左连接 = Array2D.leftjoin;
+
+/**
+ * 静态方法：排除（except）- 获取在arr中但不在brr中的元素
+ * @param {Array} arr - 数组1
+ * @param {Array} brr - 数组2
+ * @returns {Array} 差异数组
+ * @example
+ * Array2D.except(arr, brr)
+ */
+Array2D.except = function(arr, brr) {
+    return new Array2D(arr).z排除(brr).val();
+};
+Array2D.z排除 = Array2D.except;
+
+/**
+ * 静态方法：交集（intersect）- 获取arr和brr的交集
+ * @param {Array} arr - 数组1
+ * @param {Array} brr - 数组2
+ * @returns {Array} 交集数组
+ * @example
+ * Array2D.intersect(arr, brr)
+ */
+Array2D.intersect = function(arr, brr) {
+    return new Array2D(arr).z取交集(brr).val();
+};
+Array2D.z取交集 = Array2D.intersect;
+
+/**
+ * 静态方法：并集（union）- 获取arr和brr的并集并去重
+ * @param {Array} arr - 数组1
+ * @param {Array} brr - 数组2
+ * @returns {Array} 并集数组
+ * @example
+ * Array2D.union(arr, brr)
+ */
+Array2D.union = function(arr, brr) {
+    return new Array2D(arr).z去重并集(brr).val();
+};
+Array2D.z去重并集 = Array2D.union;
+
+/**
+ * 静态方法：最大值（max）- 获取数组最大值
+ * @param {Array} arr - 数组
+ * @param {String|Function} selector - 选择器
+ * @returns {Number} 最大值
+ * @example
+ * Array2D.max(arr)
+ * Array2D.max(arr, 'f1')
+ */
+Array2D.max = function(arr, selector) {
+    var result = new Array2D(arr).z最大值(selector);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z最大值 = Array2D.max;
+
+/**
+ * 静态方法：最小值（min）- 获取数组最小值
+ * @param {Array} arr - 数组
+ * @param {String|Function} selector - 选择器
+ * @returns {Number} 最小值
+ * @example
+ * Array2D.min(arr)
+ * Array2D.min(arr, 'f1')
+ */
+Array2D.min = function(arr, selector) {
+    var result = new Array2D(arr).z最小值(selector);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z最小值 = Array2D.min;
+
+/**
+ * 静态方法：文本连接（textjoin）- 选择指定列的值，用分隔符连接
+ * @param {Array} arr - 二维数组
+ * @param {String|Number|Function} selector - 列选择器，如 'f1' 或 0 或 row=>row.col
+ * @param {String} [separator=','] - 分隔符
+ * @returns {String} 连接后的字符串
+ * @example
+ * Array2D.textjoin([['a','b'],['c','d']], 1, '+')  // "b+d"
+ * Array2D.textjoin([['a','b'],['c','d']], 'f2', '+')  // "b+d"
+ */
+Array2D.textjoin = function(arr, selector, separator = ',') {
+    return new Array2D(arr).z文本连接(selector, separator);
+};
+Array2D.z文本连接 = Array2D.textjoin;
+
+/**
+ * Array 原型方法：textjoin - 为普通数组添加 textjoin 方法
+ * 这样 .res() 返回的数组也可以使用 .textjoin()
+ */
+if (!Array.prototype.textjoin) {
+    Array.prototype.textjoin = function(selector, separator = ',') {
+        return Array2D.textjoin(this, selector, separator);
+    };
+}
+
+/**
+ * Array 原型方法：toRange - 为普通数组添加 toRange 方法
+ * 这样 .res() 返回的数组也可以使用 .toRange()
+ */
+if (!Array.prototype.toRange) {
+    Array.prototype.toRange = function(rng) {
+        return Array2D.toRange(this, rng);
+    };
+}
+
+/**
+ * Array 原型方法：getRange - 为普通数组添加 getRange 方法
+ * 这样 .res() 返回的数组也可以使用 .getRange()
+ */
+if (!Array.prototype.getRange) {
+    Array.prototype.getRange = function(rng) {
+        return Array2D.toRange(this, rng);
+    };
+}
+
+/**
+ * 静态方法：平均值（average）- 获取数组平均值
+ * @param {Array} arr - 数组
+ * @param {String|Function} selector - 选择器
+ * @returns {Number} 平均值
+ * @example
+ * Array2D.average(arr)
+ * Array2D.average(arr, 'f1')
+ */
+Array2D.average = function(arr, selector) {
+    var result = new Array2D(arr).z平均值(selector);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z平均值 = Array2D.average;
+
+/**
+ * 静态方法：第一个（first）- 获取第一个元素
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 筛选条件
+ * @returns {Array} 第一个元素（行）
+ * @example
+ * Array2D.first(arr)
+ * Array2D.first(arr, 'f1>5')
+ */
+Array2D.first = function(arr, predicate) {
+    var result = predicate ? new Array2D(arr).z第一个(predicate) : new Array2D(arr).z第一个();
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z第一个 = Array2D.first;
+
+/**
+ * 静态方法：最后一个（last）- 获取最后一个元素
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 筛选条件
+ * @returns {Array} 最后一个元素（行）
+ * @example
+ * Array2D.last(arr)
+ * Array2D.last(arr, 'f1>5')
+ */
+Array2D.last = function(arr, predicate) {
+    var result = predicate ? new Array2D(arr).z最后一个(predicate) : new Array2D(arr).z最后一个();
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z最后一个 = Array2D.last;
+
+/**
+ * 静态方法：跳过（skip）- 跳过前N个元素
+ * @param {Array} arr - 数组
+ * @param {Number} count - 跳过的数量
+ * @returns {Array} 剩余数组
+ * @example
+ * Array2D.skip(arr, 5)
+ */
+Array2D.skip = function(arr, count) {
+    return new Array2D(arr).z跳过(count).val();
+};
+Array2D.z跳过 = Array2D.skip;
+
+/**
+ * 静态方法：取前N个（take）- 获取前N个元素
+ * @param {Array} arr - 数组
+ * @param {Number} count - 获取的数量
+ * @returns {Array} 取出的数组
+ * @example
+ * Array2D.take(arr, 10)
+ */
+Array2D.take = function(arr, count) {
+    return new Array2D(arr).z取前N个(count).val();
+};
+Array2D.z取前N个 = Array2D.take;
+
+/**
+ * 静态方法：补齐数组（pad）- 补齐数组使所有行列数一致
+ * @param {Array} arr - 数组
+ * @param {Number} cols - 目标列数
+ * @param {Number} rows - 目标行数
+ * @param {*} fillValue - 填充值
+ * @returns {Array} 补齐后的数组
+ * @example
+ * Array2D.pad(arr, 5, 10)
+ * Array2D.pad(arr)  // 自动按最大列补齐
+ */
+Array2D.pad = function(arr, cols, rows, fillValue) {
+    return new Array2D(arr).z补齐数组(cols, rows, fillValue).val();
+};
+Array2D.z补齐数组 = Array2D.pad;
+
+/**
+ * 静态方法：查找（find）- 查找符合条件的第一个元素
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 查找条件
+ * @returns {Array} 找到的元素
+ * @example
+ * Array2D.find(arr, 'f1==5')
+ * Array2D.find(arr, x=>x.f1>10)
+ */
+Array2D.find = function(arr, predicate) {
+    var result = new Array2D(arr).z查找单个(predicate);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z查找单个 = Array2D.find;
+
+/**
+ * 静态方法：查找索引（findIndex）- 查找符合条件的第一个元素索引
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 查找条件
+ * @returns {Number} 元素索引
+ * @example
+ * Array2D.findIndex(arr, 'f1==5')
+ */
+Array2D.findIndex = function(arr, predicate) {
+    return new Array2D(arr).z查找索引(predicate);
+};
+Array2D.z查找索引 = Array2D.findIndex;
+
+/**
+ * 静态方法：按行数分页（pageByRows）- 将数组按指定行数分页
+ * @param {Array} arr - 数组
+ * @param {Number} pageSize - 每页行数
+ * @param {Number} pageNumber - 页码（从1开始）
+ * @returns {Array} 分页后的数组
+ * @example
+ * Array2D.pageByRows(arr, 10, 2)
+ */
+Array2D.pageByRows = function(arr, pageSize, pageNumber) {
+    return new Array2D(arr).z按行数分页(pageSize, pageNumber).val();
+};
+Array2D.z按行数分页 = Array2D.pageByRows;
+
+/**
+ * 静态方法：按页数分页（pageByCount）- 将数组平均分成指定页数
+ * @param {Array} arr - 数组
+ * @param {Number} pageCount - 总页数
+ * @param {Number} pageNumber - 页码（从1开始）
+ * @returns {Array} 分页后的数组
+ * @example
+ * Array2D.pageByCount(arr, 5, 2)
+ */
+Array2D.pageByCount = function(arr, pageCount, pageNumber) {
+    return new Array2D(arr).z按页数分页(pageCount, pageNumber).val();
+};
+Array2D.z按页数分页 = Array2D.pageByCount;
+
+/**
+ * 静态方法：填充空白（fillBlank）- 填充合并单元格的空白区域
+ * @param {Array} arr - 数组
+ * @param {String} direction - 填充方向 'up'/'down'/'left'/'right'
+ * @param {String} rangeAddress - 区域地址
+ * @returns {Array} 填充后的数组
+ * @example
+ * Array2D.fillBlank(arr, 'up', 'A2:D2')
+ */
+Array2D.fillBlank = function(arr, direction, rangeAddress) {
+    return new Array2D(arr).z补齐空位(direction, rangeAddress).val();
+};
+Array2D.z补齐空位 = Array2D.fillBlank;
+
+/**
+ * 静态方法：转矩阵（toMatrix）- 将数组转换为矩阵格式
+ * @param {Array} arr - 数组
+ * @param {Number} rows - 行数
+ * @param {Number} cols - 列数
+ * @param {String} direction - 方向 'r'/'c'
+ * @returns {Array} 矩阵数组
+ * @example
+ * Array2D.toMatrix(arr, 3, 4, 'r')
+ */
+Array2D.toMatrix = function(arr, rows, cols, direction) {
+    return new Array2D(arr).z转矩阵(rows, cols, direction).val();
+};
+Array2D.z转矩阵 = Array2D.toMatrix;
+
+/**
+ * 静态方法：查找所有行下标（findRowsIndex）- 查找符合条件的所有行索引
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 查找条件
+ * @returns {Array} 行索引数组
+ * @example
+ * Array2D.findRowsIndex(arr, 'f1=="A"')
+ */
+Array2D.findRowsIndex = function(arr, predicate) {
+    return new Array2D(arr).z查找所有行下标(predicate);
+};
+Array2D.z查找所有行下标 = Array2D.findRowsIndex;
+
+/**
+ * 静态方法：排序（sort）- 基本排序
+ * @param {Array} arr - 数组
+ * @param {String|Function} comparer - 比较函数
+ * @returns {Array} 排序后的数组
+ * @example
+ * Array2D.sort(arr)
+ * Array2D.sort(arr, 'f1+')
+ */
+Array2D.sort = function(arr, comparer) {
+    return new Array2D(arr).z升序排序(comparer).val();
+};
+Array2D.z升序排序 = Array2D.sort;
+
+/**
+ * 静态方法：降序排序（sortDesc）
+ * @param {Array} arr - 数组
+ * @param {String|Function} comparer - 比较函数
+ * @returns {Array} 排序后的数组
+ * @example
+ * Array2D.sortDesc(arr, 'f1-')
+ */
+Array2D.sortDesc = function(arr, comparer) {
+    return new Array2D(arr).z降序排序(comparer).val();
+};
+Array2D.z降序排序 = Array2D.sortDesc;
+
+/**
+ * 静态方法：求和（sum）- 计算数组元素的和
+ * @param {Array} arr - 数组
+ * @param {String|Function} selector - 选择器
+ * @returns {Number} 和
+ * @example
+ * Array2D.sum([1,2,3,4])
+ * Array2D.sum(arr, 'f1')
+ */
+Array2D.sum = function(arr, selector) {
+    var result = new Array2D(arr).z求和(selector);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+
+/**
+ * 静态方法：归约（reduce）- 对数组进行归约操作
+ * @param {Array} arr - 数组
+ * @param {Function} callback - 回调函数
+ * @param {*} initialValue - 初始值
+ * @returns {*} 归约结果
+ * @example
+ * Array2D.reduce(arr, (acc, row) => acc + row[0], 0)
+ */
+Array2D.reduce = function(arr, callback, initialValue) {
+    return new Array2D(arr).z归约(callback, initialValue);
+};
+Array2D.z归约 = Array2D.reduce;
+
+/**
+ * 静态方法：倒序归约（reduceRight）- 从右向左归约
+ * @param {Array} arr - 数组
+ * @param {Function} callback - 回调函数
+ * @param {*} initialValue - 初始值
+ * @returns {*} 归约结果
+ * @example
+ * Array2D.reduceRight(arr, (acc, row) => acc + row[0], 0)
+ */
+Array2D.reduceRight = function(arr, callback, initialValue) {
+    return new Array2D(arr).z倒序归约(callback, initialValue);
+};
+Array2D.z倒序归约 = Array2D.reduceRight;
+
+/**
+ * 静态方法：遍历（forEach）- 遍历数组的每一行
+ * @param {Array} arr - 数组
+ * @param {Function} callback - 回调函数
+ * @returns {Array} 原数组
+ * @example
+ * Array2D.forEach(arr, (row, i) => console.log(i, row))
+ */
+Array2D.forEach = function(arr, callback) {
+    var instance = new Array2D(arr);
+    instance.forEach(callback);
     return arr;
 };
-Array2D.toRange = Array2D.z写入单元格;
+
+/**
+ * 静态方法：倒序遍历（forEachRev）- 从后向前遍历
+ * @param {Array} arr - 数组
+ * @param {Function} callback - 回调函数
+ * @returns {Array} 原数组
+ * @example
+ * Array2D.forEachRev(arr, (row, i) => console.log(i, row))
+ */
+Array2D.forEachRev = function(arr, callback) {
+    new Array2D(arr).z倒序遍历执行(callback);
+    return arr;
+};
+Array2D.z倒序遍历执行 = Array2D.forEachRev;
+
+/**
+ * 静态方法：有满足（some）- 检查是否有元素满足条件
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 条件
+ * @returns {Boolean} 是否有满足
+ * @example
+ * Array2D.some(arr, 'f1>5')
+ */
+Array2D.some = function(arr, predicate) {
+    return new Array2D(arr).z有满足(predicate);
+};
+Array2D.z有满足 = Array2D.some;
+
+/**
+ * 静态方法：全部满足（every）- 检查是否所有元素都满足条件
+ * @param {Array} arr - 数组
+ * @param {String|Function} predicate - 条件
+ * @returns {Boolean} 是否全部满足
+ * @example
+ * Array2D.every(arr, 'f1>0')
+ */
+Array2D.every = function(arr, predicate) {
+    return new Array2D(arr).z全部满足(predicate);
+};
+Array2D.z全部满足 = Array2D.every;
+
+/**
+ * 静态方法：降维（flat）- 将二维数组降维为一维
+ * @param {Array} arr - 二维数组
+ * @param {Function} mapper - 可选的映射函数
+ * @returns {Array} 一维数组
+ * @example
+ * Array2D.flat(arr)
+ * Array2D.flat(arr, x=>x.f1)
+ */
+Array2D.flat = function(arr, mapper) {
+    var result = new Array2D(arr);
+    return mapper ? result.z扁平化(mapper) : result.z扁平化();
+};
+Array2D.z扁平化 = Array2D.flat;
+
+/**
+ * 静态方法：行切片删除（splice）- 删除/插入元素
+ * @param {Array} arr - 数组
+ * @param {Number} start - 起始位置
+ * @param {Number} deleteCount - 删除数量
+ * @param {...*} items - 要插入的元素
+ * @returns {Array} 被删除的元素
+ * @example
+ * Array2D.splice(arr, 2, 1, ['新行'])
+ */
+Array2D.splice = function(arr, start, deleteCount) {
+    var items = Array.prototype.slice.call(arguments, 3);
+    return new Array2D(arr).z行切片删除行(start, deleteCount, items);
+};
+Array2D.z行切片删除行 = Array2D.splice;
+
+/**
+ * 静态方法：追加一项（push）- 在数组末尾添加元素
+ * @param {Array} arr - 数组
+ * @param {*} item - 要添加的元素
+ * @returns {Number} 新长度
+ * @example
+ * Array2D.push(arr, [1,2,3])
+ */
+Array2D.push = function(arr, item) {
+    new Array2D(arr).z追加一项(item);
+    return arr.length;
+};
+Array2D.z追加一项 = Array2D.push;
+
+/**
+ * 静态方法：尾部弹出一项（pop）- 删除并返回最后一个元素
+ * @param {Array} arr - 数组
+ * @returns {Array} 被删除的元素
+ * @example
+ * Array2D.pop(arr)
+ */
+Array2D.pop = function(arr) {
+    return new Array2D(arr).z尾部弹出一项();
+};
+Array2D.z尾部弹出一项 = Array2D.pop;
+
+/**
+ * 静态方法：删除第一个（shift）- 删除并返回第一个元素
+ * @param {Array} arr - 数组
+ * @returns {Array} 被删除的元素
+ * @example
+ * Array2D.shift(arr)
+ */
+Array2D.shift = function(arr) {
+    return new Array2D(arr).z删除第一个();
+};
+Array2D.z删除第一个 = Array2D.shift;
+
+/**
+ * 静态方法：反转（reverse）- 反转数组顺序
+ * @param {Array} arr - 数组
+ * @returns {Array} 反转后的数组
+ * @example
+ * Array2D.reverse(arr)
+ */
+Array2D.reverse = function(arr) {
+    return new Array2D(arr).z反转().val();
+};
+Array2D.z反转 = Array2D.reverse;
+
+/**
+ * 静态方法：文本连接（join）- 用分隔符连接所有元素
+ * @param {Array} arr - 数组
+ * @param {String} separator - 分隔符
+ * @returns {String} 连接后的字符串
+ * @example
+ * Array2D.join(arr, ',')
+ */
+Array2D.join = function(arr, separator) {
+    return new Array2D(arr).z连接(separator);
+};
+Array2D.z连接 = Array2D.join;
+
+/**
+ * 静态方法：转JSON字符串（toJson）- 将数组转为JSON字符串
+ * @param {Array} arr - 数组
+ * @param {Number|String} indent - 缩进
+ * @returns {String} JSON字符串
+ * @example
+ * Array2D.toJson(arr, 2)
+ */
+Array2D.toJson = function(arr, indent) {
+    return new Array2D(arr).z转JSON(indent);
+};
+Array2D.z转JSON = Array2D.toJson;
+
+/**
+ * 静态方法：转字符串（toString）- 将数组转为字符串
+ * @param {Array} arr - 数组
+ * @param {String} separator - 分隔符
+ * @returns {String} 字符串
+ * @example
+ * Array2D.toString(arr, ',')
+ */
+Array2D.toString = function(arr, separator) {
+    return new Array2D(arr).z转字符串(separator);
+};
+Array2D.z转字符串 = Array2D.toString;
+
+/**
+ * 静态方法：是否为空（isEmpty）- 检查数组是否为空
+ * @param {Array} arr - 数组
+ * @returns {Boolean} 是否为空
+ * @example
+ * Array2D.isEmpty(arr)
+ */
+Array2D.isEmpty = function(arr) {
+    return new Array2D(arr).z是否为空();
+};
+Array2D.z是否为空 = Array2D.isEmpty;
+
+/**
+ * 静态方法：分组（groupBy）- 按指定条件分组
+ * @param {Array} arr - 数组
+ * @param {String|Function} keySelector - 分组依据
+ * @returns {Map} 分组结果
+ * @example
+ * Array2D.groupBy(arr, 'f1')
+ */
+Array2D.groupBy = function(arr, keySelector) {
+    return new Array2D(arr).z分组(keySelector);
+};
+Array2D.z分组 = Array2D.groupBy;
+
+/**
+ * 静态方法：左右全连接（fulljoin）- 类似SQL的FULL OUTER JOIN
+ * @param {Array} arr - 数组1
+ * @param {Array} brr - 数组2
+ * @param {String|Function} leftKey - 左表关键字
+ * @param {String|Function} rightKey - 右表关键字
+ * @param {String|Function} resultSelector - 结果选择器
+ * @returns {Array} 连接后的数组
+ * @example
+ * Array2D.fulljoin(arr, brr, 'f1', 'f1', 'f1,f2,f3')
+ */
+Array2D.fulljoin = function(arr, brr, leftKey, rightKey, resultSelector) {
+    return new Array2D(arr).z左右全连接(brr, leftKey, rightKey, resultSelector).val();
+};
+Array2D.z左右全连接 = Array2D.fulljoin;
+
+/**
+ * 静态方法：一对多连接（leftFulljoin）- 左表一对多连接
+ * @param {Array} arr - 左表
+ * @param {Array} brr - 右表
+ * @param {String|Function} leftKey - 左表关键字
+ * @param {String|Function} rightKey - 右表关键字
+ * @param {String|Function} resultSelector - 结果选择器
+ * @returns {Array} 连接后的数组
+ * @example
+ * Array2D.leftFulljoin(arr, brr, 'f1', 'f1', 'f1,f2,f3')
+ */
+Array2D.leftFulljoin = function(arr, brr, leftKey, rightKey, resultSelector) {
+    return new Array2D(arr).z一对多连接(brr, leftKey, rightKey, resultSelector).val();
+};
+Array2D.z一对多连接 = Array2D.leftFulljoin;
+
+/**
+ * 静态方法：超级查找（superLookup）- 增强版VLOOKUP
+ * @param {Array} arr - 查找范围
+ * @param {*} lookupValue - 查找值
+ * @param {Number|String} colIndex - 列号
+ * @param {Number|String} returnCol - 返回列号
+ * @returns {Array} 查找结果
+ * @example
+ * Array2D.superLookup(arr, 'A', 1, 3)
+ */
+Array2D.superLookup = function(arr, lookupValue, colIndex, returnCol) {
+    var result = new Array2D(arr).z超级查找(lookupValue, colIndex, returnCol);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z超级查找 = Array2D.superLookup;
+
+/**
+ * 静态方法：左右连接（zip）- 将两个数组的对应位置元素配对
+ * @param {Array} arr - 数组1
+ * @param {Array} brr - 数组2
+ * @returns {Array} 配对后的数组
+ * @example
+ * Array2D.zip(arr1, arr2)
+ */
+Array2D.zip = function(arr, brr) {
+    return new Array2D(arr).z左右连接(brr).val();
+};
+Array2D.z左右连接 = Array2D.zip;
+
+/**
+ * 静态方法：转置（transpose）- 转置二维数组
+ * @param {Array} arr - 二维数组
+ * @returns {Array} 转置后的数组
+ * @example
+ * Array2D.transpose([[1,2],[3,4]])  // [[1,3],[2,4]]
+ */
+Array2D.transpose = function(arr) {
+    return new Array2D(arr).z转置().val();
+};
+
+/**
+ * 静态方法：克隆（copy）- 深拷贝数组
+ * @param {Array} arr - 数组
+ * @returns {Array} 拷贝后的数组
+ * @example
+ * Array2D.copy(arr)
+ */
+Array2D.copy = function(arr) {
+    return new Array2D(arr).z克隆().val();
+};
+Array2D.z克隆 = Array2D.copy;
+
+/**
+ * 静态方法：上下连接（concat）- 连接多个数组
+ * @param {Array} arr - 数组1
+ * @param {...Array} arrays - 其他数组
+ * @returns {Array} 连接后的数组
+ * @example
+ * Array2D.concat(arr1, arr2, arr3)
+ */
+Array2D.concat = function(arr) {
+    var arrays = Array.prototype.slice.call(arguments, 1);
+    return new Array2D(arr).z上下连接.apply(new Array2D(arr), arrays).val();
+};
+Array2D.z上下连接 = Array2D.concat;
+
+/**
+ * 静态方法：选择行（selectRows）- 选择指定行
+ * @param {Array} arr - 数组
+ * @param {String|Array} rows - 行配置
+ * @returns {Array} 选择后的数组
+ * @example
+ * Array2D.selectRows(arr, '1,3,5')
+ * Array2D.selectRows(arr, [0, 2, 4])
+ */
+Array2D.selectRows = function(arr, rows) {
+    return new Array2D(arr).z选择行(rows).val();
+};
+Array2D.z选择行 = Array2D.selectRows;
+
+/**
+ * 静态方法：删除行（deleteRows）- 删除指定行
+ * @param {Array} arr - 数组
+ * @param {String|Array} rows - 行配置
+ * @returns {Array} 删除后的数组
+ * @example
+ * Array2D.deleteRows(arr, '1,3,5')
+ */
+Array2D.deleteRows = function(arr, rows) {
+    return new Array2D(arr).z批量删除行(rows).val();
+};
+Array2D.z批量删除行 = Array2D.deleteRows;
+
+/**
+ * 静态方法：插入行（insertRows）- 在指定位置插入行
+ * @param {Array} arr - 数组
+ * @param {Number|Array} rowPos - 插入位置
+ * @param {Array} values - 插入的值
+ * @returns {Array} 插入后的数组
+ * @example
+ * Array2D.insertRows(arr, 2, [[1,2,3]])
+ */
+Array2D.insertRows = function(arr, rowPos, values) {
+    return new Array2D(arr).z批量插入行(rowPos, values).val();
+};
+Array2D.z批量插入行 = Array2D.insertRows;
+
+/**
+ * 静态方法：插入行号（insertRowNum）- 在数组前插入行号列
+ * @param {Array} arr - 数组
+ * @param {Number} start - 起始行号
+ * @param {String} title - 列标题
+ * @returns {Array} 插入行号后的数组
+ * @example
+ * Array2D.insertRowNum(arr, 1, '序号')
+ */
+Array2D.insertRowNum = function(arr, start, title) {
+    return new Array2D(arr).z插入行号(start, title).val();
+};
+Array2D.z插入行号 = Array2D.insertRowNum;
+
+/**
+ * 静态方法：是否包含值（includes）- 检查数组是否包含某值
+ * @param {Array} arr - 数组
+ * @param {*} value - 要检查的值
+ * @returns {Boolean} 是否包含
+ * @example
+ * Array2D.includes(arr, [1,2])
+ */
+Array2D.includes = function(arr, value) {
+    return new Array2D(arr).z包含(value);
+};
+Array2D.z包含 = Array2D.includes;
+
+/**
+ * 静态方法：值位置（indexOf）- 查找元素的位置
+ * @param {Array} arr - 数组
+ * @param {*} value - 要查找的值
+ * @returns {Number} 元素索引
+ * @example
+ * Array2D.indexOf(arr, [1,2])
+ */
+Array2D.indexOf = function(arr, value) {
+    return new Array2D(arr).z值位置(value);
+};
+
+/**
+ * 静态方法：从后往前值位置（lastIndexOf）- 从后向前查找元素位置
+ * @param {Array} arr - 数组
+ * @param {*} value - 要查找的值
+ * @returns {Number} 元素索引
+ * @example
+ * Array2D.lastIndexOf(arr, [1,2])
+ */
+Array2D.lastIndexOf = function(arr, value) {
+    return new Array2D(arr).z从后往前值位置(value);
+};
+
+/**
+ * 静态方法：中位数（median）- 计算中位数
+ * @param {Array} arr - 数组
+ * @param {String|Function} selector - 选择器
+ * @returns {Number} 中位数
+ * @example
+ * Array2D.median(arr)
+ * Array2D.median(arr, 'f1')
+ */
+Array2D.median = function(arr, selector) {
+    var result = new Array2D(arr).z中位数(selector);
+    return typeof result === 'object' && result.val ? result.val() : result;
+};
+Array2D.z中位数 = Array2D.median;
+
+/**
+ * 静态方法：间隔取数（nth）- 每隔n个取一个
+ * @param {Array} arr - 数组
+ * @param {Number} n - 间隔
+ * @param {Number} offset - 偏移量
+ * @returns {Array} 取出的数组
+ * @example
+ * Array2D.nth(arr, 3, 0)  // 每3个取1个
+ */
+Array2D.nth = function(arr, n, offset) {
+    return new Array2D(arr).z间隔取数(n, offset).val();
+};
+Array2D.z间隔取数 = Array2D.nth;
+
+/**
+ * 静态方法：行切片（slice）- 提取指定范围的行
+ * @param {Array} arr - 数组
+ * @param {Number} start - 起始位置
+ * @param {Number} end - 结束位置
+ * @returns {Array} 切片后的数组
+ * @example
+ * Array2D.slice(arr, 1, 5)
+ */
+Array2D.slice = function(arr, start, end) {
+    return new Array2D(arr).z行切片(start, end).val();
+};
+
+/**
+ * 静态方法：结果（res）- 获取结果数组
+ * @param {Array} arr - 数组
+ * @returns {Array} 结果数组
+ * @example
+ * Array2D.res(arr)
+ */
+Array2D.res = function(arr) {
+    return new Array2D(arr).z结果();
+};
+Array2D.z结果 = Array2D.res;
+
+// ==================== 超级透视表（superPivot）====================
+/**
+ * 超级透视（z超级透视）- 将二维数组仿透视表生成行列字段，并进行各种汇总统计的交叉表
+ * @param {Array} arr - 二维数组
+ * @param {Array|string} rowFields - 行字段配置，如 ['f1+,f2-'] 或 ['f1,f2', '标题']
+ * @param {Array|string} colFields - 列字段配置，如 ['f5+,f6+'] 或 ['f2', '标题']
+ * @param {Array|string} dataFields - 数据字段配置，如 ['count(),sum("f3")'] 或 [[回调数组], '标题']
+ * @param {Number} headerRows - 标题行数，默认1
+ * @param {string|Number} outputHeader - 1:输出表头, 0:不输出, 'map':返回字典，默认1
+ * @param {string} separator - 分隔符，默认"@^@"
+ * @returns {Array|Map} 返回二维数组或Map
+ * @example
+ * // 示例1：基本透视（带排序符号）
+ * var rs = Array2D.z超级透视(arr, ['f1+,f2-'], ['f5+,f6+'], ['count(),sum("f3")']);
+ *
+ * // 示例2：带标题的透视
+ * var rs = Array2D.z超级透视(arr, ['f1,f5,f6','prod,year,month'], ['f2','country'], ['count(),sum("f3"),average("f4")','count,sum,avg']);
+ *
+ * // 示例3：回调函数模式 + Map返回
+ * var rs = Array2D.z超级透视(arr, ['f1,f5,f6','期数,年,月'], ['f2','国家'], [[g=>g.count(),g=>g.sum("f3")],'计数,求和'], 2, 'map');
+ */
+Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRows, outputHeader, separator) {
+    separator = separator || '@^@';
+    headerRows = headerRows !== undefined ? headerRows : 1;
+    outputHeader = outputHeader !== undefined ? outputHeader : 1;
+
+    // 处理 Array2D 对象
+    if (arr && typeof arr === 'object' && arr._items && Array.isArray(arr._items)) {
+        arr = arr._items;
+    }
+
+    // 辅助函数：将行数组转为带f1,f2...属性的对象
+    function toRowObject(row) {
+        var obj = Array(row.length);
+        for (var i = 0; i < row.length; i++) {
+            obj['f' + (i + 1)] = row[i];
+            obj[i] = row[i];
+        }
+        return obj;
+    }
+
+    // 辅助函数：创建分组对象，支持聚合操作
+    function createGroupObject(group) {
+        return {
+            _items: group,
+            count: function() { return group.length; },
+            sum: function(col) {
+                var total = 0;
+                for (var i = 0; i < group.length; i++) {
+                    var val = group[i][col];
+                    if (typeof val === 'number') {
+                        total += val;
+                    } else if (typeof val === 'string') {
+                        var num = parseFloat(val.replace(/,/g, ''));
+                        if (!isNaN(num)) total += num;
+                    }
+                }
+                return total;
+            },
+            average: function(col) {
+                if (group.length === 0) return 0;
+                var sum = this.sum(col);
+                return sum / group.length;
+            },
+            max: function(col) {
+                var max = null;
+                for (var i = 0; i < group.length; i++) {
+                    var val = group[i][col];
+                    if (typeof val === 'string') {
+                        val = parseFloat(val.replace(/,/g, ''));
+                    }
+                    if (typeof val === 'number' && !isNaN(val)) {
+                        if (max === null || val > max) max = val;
+                    }
+                }
+                return max;
+            },
+            min: function(col) {
+                var min = null;
+                for (var i = 0; i < group.length; i++) {
+                    var val = group[i][col];
+                    if (typeof val === 'string') {
+                        val = parseFloat(val.replace(/,/g, ''));
+                    }
+                    if (typeof val === 'number' && !isNaN(val)) {
+                        if (min === null || val < min) min = val;
+                    }
+                }
+                return min;
+            },
+            textjoin: function(col, sep) {
+                var values = [];
+                for (var i = 0; i < group.length; i++) {
+                    var val = group[i][col];
+                    values.push(val);
+                }
+                return values.join(sep);
+            }
+        };
+    }
+
+    // 辅助函数：解析结果选择器字符串
+    function parseResultSelector(str) {
+        var operations = [];
+        var regex = /(\w+)\s*\(([^)]*)\)/g;
+        var match;
+        while ((match = regex.exec(str)) !== null) {
+            var op = { name: match[1] };
+            var argsStr = match[2].trim();
+            if (argsStr) {
+                // 解析参数，支持带引号和不带引号
+                op.args = [];
+                var argRegex = /["']([^"']+)["']|([^,]+)/g;
+                var argMatch;
+                while ((argMatch = argRegex.exec(argsStr)) !== null) {
+                    op.args.push(argMatch[1] || argMatch[2]);
+                }
+            }
+            operations.push(op);
+        }
+        return operations;
+    }
+
+    // 解析字段配置
+    function parseFieldsConfig(fieldsConfig) {
+        var fields = [];
+        var titles = [];
+        var hasTitles = false;
+
+        if (Array.isArray(fieldsConfig)) {
+            // 先检查 [[回调数组], '标题'] 格式 - 数据字段
+            if (fieldsConfig.length === 2 && Array.isArray(fieldsConfig[0])) {
+                return {
+                    fields: [{ callbacks: fieldsConfig[0] }],
+                    titles: fieldsConfig[1].split(','),
+                    hasTitles: true,
+                    isCallback: true
+                };
+            }
+            // 检查 ['f1,f2,f3', '标题'] 格式 - 有排序符号的算无标题
+            if (fieldsConfig.length === 2 && typeof fieldsConfig[0] === 'string' && typeof fieldsConfig[1] === 'string') {
+                var fieldStr = fieldsConfig[0];
+                var items = fieldStr.split(',');
+                var hasSortSymbol = false;
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].match(/[+\-#]$/)) {
+                        hasSortSymbol = true;
+                        break;
+                    }
+                }
+                if (!hasSortSymbol) {
+                    // 没有排序符号，是带标题格式
+                    titles = fieldsConfig[1].split(',');
+                    for (var j = 0; j < items.length; j++) {
+                        var item = items[j].trim();
+                        fields.push({
+                            field: item,
+                            sort: '+'
+                        });
+                    }
+                    hasTitles = true;
+                    return { fields: fields, titles: titles, hasTitles: hasTitles };
+                }
+            }
+            // ['f1+,f2-'] 格式 或 带排序符号的格式
+            if (typeof fieldsConfig[0] === 'string') {
+                var fieldStr = fieldsConfig[0];
+                var items = fieldStr.split(',');
+                for (var k = 0; k < items.length; k++) {
+                    var item = items[k].trim();
+                    var match = item.match(/^(f\d+)([+\-#]*)$/);
+                    if (match) {
+                        fields.push({
+                            field: match[1],
+                            sort: match[2] || '+'
+                        });
+                    }
+                }
+            }
+        } else if (typeof fieldsConfig === 'string') {
+            var items = fieldsConfig.split(',');
+            for (var m = 0; m < items.length; m++) {
+                var item = items[m].trim();
+                var match = item.match(/^(f\d+)([+\-#]*)$/);
+                if (match) {
+                    fields.push({
+                        field: match[1],
+                        sort: match[2] || '+'
+                    });
+                }
+            }
+        }
+
+        return { fields: fields, titles: titles, hasTitles: hasTitles };
+    }
+
+    var rowConfig = parseFieldsConfig(rowFields);
+    var colConfig = parseFieldsConfig(colFields);
+    // 数据字段需要特殊处理
+    var dataConfig;
+    if (Array.isArray(dataFields)) {
+        if (dataFields.length === 2 && Array.isArray(dataFields[0])) {
+            // [[回调数组], '标题'] 格式
+            dataConfig = {
+                fields: [{ callbacks: dataFields[0] }],
+                titles: dataFields[1].split(','),
+                hasTitles: true,
+                isCallback: true,
+                rawString: null
+            };
+        } else if (dataFields.length === 2 && typeof dataFields[0] === 'string') {
+            // ['count(),sum("f3")', '标题'] 或 ['f1,f2', '标题'] 格式
+            var dfStr = dataFields[0];
+            // 检查是否包含聚合函数
+            if (dfStr.match(/count|sum|average|max|min|textjoin/)) {
+                // 数据字段格式
+                dataConfig = {
+                    fields: [{ field: dfStr }],
+                    titles: dataFields[1].split(','),
+                    hasTitles: true,
+                    rawString: dfStr
+                };
+            } else {
+                // 普通字段格式，使用 parseFieldsConfig
+                dataConfig = parseFieldsConfig(dataFields);
+            }
+        } else if (typeof dataFields[0] === 'string') {
+            // ['count(),sum("f3")'] 格式
+            dataConfig = {
+                fields: [{ field: dataFields[0] }],
+                titles: [],
+                hasTitles: false,
+                rawString: dataFields[0]
+            };
+        } else {
+            dataConfig = parseFieldsConfig(dataFields);
+        }
+    } else if (typeof dataFields === 'string') {
+        // 字符串格式的数据字段
+        dataConfig = {
+            fields: [{ field: dataFields }],
+            titles: [],
+            hasTitles: false,
+            rawString: dataFields
+        };
+    } else {
+        dataConfig = parseFieldsConfig(dataFields);
+    }
+
+    // 跳过标题行
+    var dataStartRow = headerRows || 1;
+    var data = arr.slice(dataStartRow);
+
+    // 将数据转为对象数组
+    var dataObjs = data.map(function(row) {
+        return toRowObject(row);
+    });
+
+    // 提取所有行字段值并排序
+    var rowKeys = [];
+    var rowKeyMap = Object.create(null);
+    for (var i = 0; i < dataObjs.length; i++) {
+        var obj = dataObjs[i];
+        var keyParts = [];
+        for (var j = 0; j < rowConfig.fields.length; j++) {
+            var rf = rowConfig.fields[j];
+            var match = rf.field.match(/^f(\d+)$/);
+            if (match) {
+                var idx = parseInt(match[1]) - 1;
+                keyParts.push(obj[idx]);
+            }
+        }
+        var key = keyParts.join(separator);
+        if (!rowKeyMap[key]) {
+            rowKeyMap[key] = {
+                values: keyParts.slice(),
+                originalIndex: i
+            };
+            rowKeys.push(key);
+        }
+    }
+
+    // 对行键排序
+    rowKeys.sort(function(a, b) {
+        var aParts = a.split(separator);
+        var bParts = b.split(separator);
+        for (var k = 0; k < rowConfig.fields.length; k++) {
+            var rf = rowConfig.fields[k];
+            var aVal = aParts[k];
+            var bVal = bParts[k];
+            var cmp = 0;
+            // 尝试转换为数字进行比较
+            var aNum = parseFloat(aVal);
+            var bNum = parseFloat(bVal);
+            if (!isNaN(aNum) && !isNaN(bNum) && String(aNum) === String(aVal).trim() && String(bNum) === String(bVal).trim()) {
+                cmp = aNum - bNum;
+            } else {
+                cmp = String(aVal).localeCompare(String(bVal));
+            }
+            if (cmp !== 0) {
+                return rf.sort === '-' ? -cmp : rf.sort === '#' ? 0 : cmp;
+            }
+        }
+        return 0;
+    });
+
+    // 提取所有列字段值并排序
+    var colKeys = [];
+    var colKeyMap = Object.create(null);
+    for (var m = 0; m < dataObjs.length; m++) {
+        var obj = dataObjs[m];
+        var keyParts = [];
+        for (var n = 0; n < colConfig.fields.length; n++) {
+            var cf = colConfig.fields[n];
+            var match = cf.field.match(/^f(\d+)$/);
+            if (match) {
+                var idx = parseInt(match[1]) - 1;
+                keyParts.push(obj[idx]);
+            }
+        }
+        var key = keyParts.join(separator);
+        if (!colKeyMap[key]) {
+            colKeyMap[key] = {
+                values: keyParts.slice(),
+                originalIndex: m
+            };
+            colKeys.push(key);
+        }
+    }
+
+    // 对列键排序
+    colKeys.sort(function(a, b) {
+        var aParts = a.split(separator);
+        var bParts = b.split(separator);
+        for (var k = 0; k < colConfig.fields.length; k++) {
+            var cf = colConfig.fields[k];
+            var aVal = aParts[k];
+            var bVal = bParts[k];
+            var cmp = 0;
+            var aNum = parseFloat(aVal);
+            var bNum = parseFloat(bVal);
+            if (!isNaN(aNum) && !isNaN(bNum) && String(aNum) === String(aVal).trim() && String(bNum) === String(bVal).trim()) {
+                cmp = aNum - bNum;
+            } else {
+                cmp = String(aVal).localeCompare(String(bVal));
+            }
+            if (cmp !== 0) {
+                return cf.sort === '-' ? -cmp : cf.sort === '#' ? 0 : cmp;
+            }
+        }
+        return 0;
+    });
+
+    // 分组数据：行键 + 列键 -> 数据行
+    var groupMap = Object.create(null);
+    for (var q = 0; q < dataObjs.length; q++) {
+        var obj = dataObjs[q];
+        var rowKeyParts = [];
+        for (var r = 0; r < rowConfig.fields.length; r++) {
+            var rf = rowConfig.fields[r];
+            var match = rf.field.match(/^f(\d+)$/);
+            if (match) {
+                var idx = parseInt(match[1]) - 1;
+                rowKeyParts.push(obj[idx]);
+            }
+        }
+        var colKeyParts = [];
+        for (var s = 0; s < colConfig.fields.length; s++) {
+            var cf = colConfig.fields[s];
+            var match = cf.field.match(/^f(\d+)$/);
+            if (match) {
+                var idx = parseInt(match[1]) - 1;
+                colKeyParts.push(obj[idx]);
+            }
+        }
+        var rowKey = rowKeyParts.join(separator);
+        var colKey = colKeyParts.join(separator);
+        var fullKey = rowKey + '|||' + colKey;
+        if (!groupMap[fullKey]) {
+            groupMap[fullKey] = [];
+        }
+        // 转回普通数组
+        var row = [];
+        for (var t = 0; t < obj.length; t++) {
+            row.push(obj[t]);
+        }
+        groupMap[fullKey].push(row);
+    }
+
+    // 解析数据字段操作
+    var dataOps = [];
+    if (dataConfig.isCallback) {
+        dataOps = dataConfig.fields[0].callbacks;
+    } else if (dataConfig.rawString) {
+        var operations = parseResultSelector(dataConfig.rawString);
+        dataOps = operations;
+    } else if (dataConfig.fields.length > 0) {
+        var opStr = dataConfig.fields[0].field || '';
+        var operations = parseResultSelector(opStr);
+        dataOps = operations;
+    }
+
+    // 执行聚合操作
+    function executeAggregation(group) {
+        var groupObj = createGroupObject(group.map(function(r) {
+            return toRowObject(r);
+        }));
+        var results = [];
+        if (Array.isArray(dataOps) && dataOps.length > 0 && typeof dataOps[0] === 'function') {
+            // 回调模式
+            for (var v = 0; v < dataOps.length; v++) {
+                var result = dataOps[v](groupObj);
+                results.push(result);
+            }
+        } else {
+            // 字符串模式
+            for (var w = 0; w < dataOps.length; w++) {
+                var op = dataOps[w];
+                var args = op.args || [];
+                switch (op.name) {
+                    case 'count':
+                        results.push(groupObj.count());
+                        break;
+                    case 'sum':
+                        results.push(groupObj.sum(args[0]));
+                        break;
+                    case 'average':
+                        results.push(groupObj.average(args[0]));
+                        break;
+                    case 'max':
+                        results.push(groupObj.max(args[0]));
+                        break;
+                    case 'min':
+                        results.push(groupObj.min(args[0]));
+                        break;
+                    case 'textjoin':
+                        results.push(groupObj.textjoin(args[0], args[1]));
+                        break;
+                }
+            }
+        }
+        return results;
+    }
+
+    // map 模式：返回查询标准字典
+    if (outputHeader === 'map') {
+        var resultMap = new Map();
+        for (var x = 0; x < rowKeys.length; x++) {
+            var rowKey = rowKeys[x];
+            for (var y = 0; y < colKeys.length; y++) {
+                var colKey = colKeys[y];
+                var fullKey = rowKey + '|||' + colKey;
+                if (groupMap[fullKey]) {
+                    var agg = executeAggregation(groupMap[fullKey]);
+                    var sortKey = rowKey + separator + colKey;
+                    var mapKey = '01L' + String(x + 1).padStart(4, '0') + ' ' + sortKey;
+                    resultMap.set(mapKey, {
+                        agg: agg,
+                        group: { '00000': groupMap[fullKey][0] }
+                    });
+                }
+            }
+        }
+        return resultMap;
+    }
+
+    // 构建透视表
+    var numDataFields = Array.isArray(dataOps) && dataOps.length > 0 ? dataOps.length :
+                       (dataConfig.titles && dataConfig.titles.length > 0 ? dataConfig.titles.length : 1);
+
+    // 生成默认数据字段标题
+    var defaultDataTitles = [];
+    if (Array.isArray(dataOps) && dataOps.length > 0 && typeof dataOps[0] !== 'function') {
+        // 根据聚合函数生成默认标题
+        var opNameMap = {
+            'count': '计数',
+            'sum': '求和',
+            'average': '平均',
+            'max': '最大',
+            'min': '最小',
+            'textjoin': '连接'
+        };
+        for (var i = 0; i < dataOps.length; i++) {
+            var opName = dataOps[i].name;
+            defaultDataTitles.push(opNameMap[opName] || opName);
+        }
+    } else if (dataConfig.titles && dataConfig.titles.length > 0) {
+        // 使用自定义标题
+        defaultDataTitles = dataConfig.titles.slice();
+    } else {
+        // 默认标题
+        for (var j = 0; j < numDataFields; j++) {
+            defaultDataTitles.push('值' + (j + 1));
+        }
+    }
+
+    var result = [];
+
+    // 构建表头
+    if (outputHeader === 1 || outputHeader === true) {
+        // 检查是否有自定义标题
+        var hasRowTitles = rowConfig.hasTitles && rowConfig.titles.length > 0;
+        var hasColTitles = colConfig.hasTitles && colConfig.titles.length > 0;
+        var hasDataTitles = dataConfig.hasTitles && dataConfig.titles.length > 0;
+
+        if (hasRowTitles) {
+            // 有自定义行标题时的表头格式（示例2格式）
+            // 为每个列字段创建一行：行字段占位 + 列字段标题 + 列键值（每个重复numDataFields次）
+            for (var cfIdx = 0; cfIdx < colConfig.fields.length; cfIdx++) {
+                var colHeaderRow = [];
+                // 行字段占位（比行字段数量少1，因为列字段标题占1列）
+                for (var rfIdx = 0; rfIdx < rowConfig.fields.length - 1; rfIdx++) {
+                    colHeaderRow.push('');
+                }
+                // 列字段标题
+                if (hasColTitles) {
+                    colHeaderRow.push(colConfig.titles[cfIdx]);
+                } else {
+                    colHeaderRow.push('');
+                }
+                // 列键的对应字段值（每个重复 numDataFields 次）
+                for (var ckIdx = 0; ckIdx < colKeys.length; ckIdx++) {
+                    var colKeyParts = colKeys[ckIdx].split(separator);
+                    var colFieldVal = colKeyParts[cfIdx];
+                    // 尝试转换为数字
+                    var numVal = parseFloat(colFieldVal);
+                    if (!isNaN(numVal) && String(numVal) === String(colFieldVal).trim()) {
+                        colFieldVal = numVal;
+                    }
+                    for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
+                        colHeaderRow.push(colFieldVal);
+                    }
+                }
+                result.push(colHeaderRow);
+            }
+
+            // 第2行：行字段标题 + 数据字段标题（重复）
+            var dataTitleRow = [];
+            // 行字段标题
+            for (var rtIdx = 0; rtIdx < rowConfig.titles.length; rtIdx++) {
+                dataTitleRow.push(rowConfig.titles[rtIdx]);
+            }
+            // 数据字段标题（为每列重复）
+            for (var colIdx = 0; colIdx < colKeys.length; colIdx++) {
+                for (var dtIdx = 0; dtIdx < defaultDataTitles.length; dtIdx++) {
+                    dataTitleRow.push(defaultDataTitles[dtIdx]);
+                }
+            }
+            result.push(dataTitleRow);
+        } else {
+            // 没有自定义行标题时的表头格式（示例1格式）
+            // 第1-colConfig.fields.length行：列字段标题和列值
+            for (var cfIdx = 0; cfIdx < colConfig.fields.length; cfIdx++) {
+                var headerRow = [];
+                // 为每个行字段添加空白占位符（最后一个位置留给列字段标题）
+                for (var rfIdx = 0; rfIdx < rowConfig.fields.length - 1; rfIdx++) {
+                    headerRow.push('');
+                }
+                // 列字段标题（从原数组获取）
+                var cf = colConfig.fields[cfIdx];
+                var match = cf.field.match(/^f(\d+)$/);
+                if (match && arr && arr[0]) {
+                    var origIdx = parseInt(match[1]) - 1;
+                    headerRow.push(arr[0][origIdx] || '');
+                } else {
+                    headerRow.push('');
+                }
+                // 列键的对应字段值
+                for (var ckIdx = 0; ckIdx < colKeys.length; ckIdx++) {
+                    var colKeyParts = colKeys[ckIdx].split(separator);
+                    var colFieldVal = colKeyParts[cfIdx];
+                    // 尝试转换为数字
+                    var numVal = parseFloat(colFieldVal);
+                    if (!isNaN(numVal) && String(numVal) === String(colFieldVal).trim()) {
+                        colFieldVal = numVal;
+                    }
+                    // 为每个数据字段重复
+                    for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
+                        headerRow.push(colFieldVal);
+                    }
+                }
+                result.push(headerRow);
+            }
+
+            // 下一行：行字段名 + 数据字段名
+            var dataTitleRow = [];
+            // 行字段标题（从原数组获取）
+            var maxRowIdx = arr && arr[0] ? arr[0].length : 0;
+            for (var rhIdx = 0; rhIdx < rowConfig.fields.length && rhIdx < maxRowIdx; rhIdx++) {
+                var match = rowConfig.fields[rhIdx].field.match(/^f(\d+)$/);
+                if (match && arr && arr[0]) {
+                    var origIdx = parseInt(match[1]) - 1;
+                    dataTitleRow.push(arr[0][origIdx] || '');
+                } else {
+                    dataTitleRow.push('');
+                }
+            }
+            // 数据字段标题（为每列重复）
+            for (var colIdx = 0; colIdx < colKeys.length; colIdx++) {
+                for (var dtIdx = 0; dtIdx < defaultDataTitles.length; dtIdx++) {
+                    dataTitleRow.push(defaultDataTitles[dtIdx]);
+                }
+            }
+            result.push(dataTitleRow);
+        }
+    }
+
+    // 构建数据行
+    for (var rk = 0; rk < rowKeys.length; rk++) {
+        var rowKey = rowKeys[rk];
+        var rowKeyParts = rowKey.split(separator);
+        var dataRow = rowKeyParts.slice();
+
+        for (var ck = 0; ck < colKeys.length; ck++) {
+            var colKey = colKeys[ck];
+            var fullKey = rowKey + '|||' + colKey;
+            if (groupMap[fullKey]) {
+                var agg = executeAggregation(groupMap[fullKey]);
+                dataRow = dataRow.concat(agg);
+            } else {
+                for (var c = 0; c < numDataFields; c++) {
+                    dataRow.push('');
+                }
+            }
+        }
+        result.push(dataRow);
+    }
+
+    // 包装结果，返回 Array2D 对象，添加 toRange 和 getRange 方法
+    var wrappedResult = result;
+    if (Array.isArray(result)) {
+        // 创建 Array2D 对象
+        wrappedResult = new Array2D(result);
+
+        /**
+         * toRange - 将结果写入单元格
+         * @param {Range|string} rng - 目标单元格
+         * @returns {Range} Range对象
+         */
+        wrappedResult.toRange = function(rng) {
+            return Array2D.toRange(result, rng);
+        };
+
+        /**
+         * getRange - 获取结果写入后的Range对象
+         * @param {Range|string} rng - 目标单元格
+         * @returns {Range} Range对象
+         */
+        wrappedResult.getRange = function(rng) {
+            return Array2D.toRange(result, rng);
+        };
+
+        /**
+         * val - 获取原始数组
+         * @returns {Array} 原始数组
+         */
+        wrappedResult.val = function() { return result; };
+
+        /**
+         * res - 获取原始数组（val的别名）
+         * @returns {Array} 原始数组
+         */
+        wrappedResult.res = function() { return result; };
+    }
+
+    return wrappedResult;
+};
+Array2D.superPivot = Array2D.z超级透视;
+
+/**
+ * z超级透视 - 实例方法版本
+ * 调用静态方法 Array2D.z超级透视，使用当前实例的数据
+ */
+Array2D.prototype.z超级透视 = function(rowFields, colFields, dataFields, headerRows, outputHeader, separator) {
+    return Array2D.z超级透视(this._items, rowFields, colFields, dataFields, headerRows, outputHeader, separator);
+};
+Array2D.prototype.superPivot = Array2D.prototype.z超级透视;
 
 /**
  * 生成静态方法（从实例方法自动生成）
@@ -2131,7 +4933,7 @@ Array2D.toRange = Array2D.z写入单元格;
 (function() {
     var propNames = Object.getOwnPropertyNames(Array2D.prototype);
     // 已经手动定义的静态方法，跳过自动生成
-    var manuallyDefined = ['z选择列', 'selectCols', 'z批量填充', 'fill', 'z写入单元格', 'toRange', 'z转置', 'transpose', 'z求和', 'sum', 'z克隆', 'copy'];
+    var manuallyDefined = ['z选择列', 'selectCols', 'z批量填充', 'fill', 'z写入单元格', 'toRange', 'z转置', 'transpose', 'z求和', 'sum', 'z克隆', 'copy', 'z超级透视', 'superPivot'];
 
     for (var i = 0; i < propNames.length; i++) {
         var name = propNames[i];
@@ -2169,6 +4971,7 @@ Array2D.toRange = Array2D.z写入单元格;
 /**
  * RngUtils - Range区域操作工具（支持智能提示和链式调用）
  * @class
+ * @constructor
  * @description WPS Range区域操作增强工具
  * @example
  * RngUtils("A1:C10").z加边框().z自动列宽()
@@ -2183,6 +4986,8 @@ function RngUtils(initialRange) {
 /**
  * 转换为Range对象
  * @private
+ * @param {Range|string} rng - Range对象或地址字符串
+ * @returns {Range|null} Range对象或null
  */
 RngUtils.prototype._toRange = function(rng) {
     if (!rng) return null;
@@ -2246,28 +5051,28 @@ RngUtils.z安全区域 = function(rng) {
 RngUtils.safeRange = RngUtils.z安全区域;
 
 /**
- * z安全数组 - 将指定区域转换为安全二维数组
+ * z安全数组 - 将指定区域转换为安全二维数组（返回 Array2D 对象，支持链式调用）
  * @param {Range|string} rng - 要转换的区域
- * @returns {Array} 二维数组
+ * @returns {Array2D} Array2D 对象，支持 filter/map/toRange 等链式调用
  * @example
- * RngUtils.z安全数组("A1:A13")
+ * RngUtils.z安全数组("A1:A13").filter(row => row[0] > 0).toRange("C1")
  */
 RngUtils.z安全数组 = function(rng) {
-    if (!isWPS) return [];
+    if (!isWPS) return new Array2D([]);
     var r = typeof rng === 'string' ? Range(rng) : rng;
     var arr = r.Value2;
-    if (arr === null || arr === undefined) return [];
+    if (arr === null || arr === undefined) return new Array2D([]);
     // 单个单元格转二维数组
-    if (!Array.isArray(arr)) return [[arr]];
+    if (!Array.isArray(arr)) return new Array2D([[arr]]);
     // 一维数组转二维
     if (!Array.isArray(arr[0])) {
         var result = [];
         for (var i = 0; i < arr.length; i++) {
             result.push([arr[i]]);
         }
-        return result;
+        return new Array2D(result);
     }
-    return arr;
+    return new Array2D(arr);
 };
 RngUtils.safeArray = RngUtils.z安全数组;
 
@@ -2276,12 +5081,42 @@ RngUtils.safeArray = RngUtils.z安全数组;
  * @param {Range|string} rng - 要获取最大行数的区域
  * @returns {number} 最大行数
  * @example
- * RngUtils.z最大行("A:A")  // 13
+ * RngUtils.z最大行("A:A")     // 70 (单列，从下往上查找第一个有效数据)
+ * RngUtils.z最大行("A1")      // 70 (单单元格，自动扩展为整列)
+ * RngUtils.z最大行("A1:C10")  // 10 (多单元格区域返回该区域的最后一行)
  */
 RngUtils.z最大行 = function(rng) {
     if (!isWPS) return 0;
     var r = typeof rng === 'string' ? Range(rng) : rng;
-    var safe = RngUtils.z安全区域(r);
+    var sheet = r.Worksheet;
+    var usedRange = sheet.UsedRange;
+    if (!usedRange) return 0;
+
+    // 单单元格或单列时，从下往上查找第一个有效数据
+    if (r.Columns.Count === 1) {
+        var col = r.Columns.Count === 1 && r.Rows.Count === 1 ? sheet.Columns(r.Column) : r;
+        var safe = Application.Intersect(col, usedRange);
+        if (!safe) return 0;
+        // 从下往上查找第一个非空单元格
+        for (var i = safe.Rows.Count; i >= 1; i--) {
+            var cell = safe.Cells(i, 1);
+            var val = cell.Value2;
+            // 跳过 null、undefined、空字符串（包括 =""）
+            if (val === null || val === undefined || val === '') {
+                continue;
+            }
+            // 跳过纯空白字符
+            if (typeof val === 'string' && val.trim() === '') {
+                continue;
+            }
+            // 找到第一个有效数据，返回行号
+            return safe.Row + i - 1;
+        }
+        return 0;
+    }
+
+    // 多列区域，返回该区域与UsedRange交集的最后一行
+    var safe = Application.Intersect(r, usedRange);
     if (!safe) return 0;
     return safe.Row + safe.Rows.Count - 1;
 };
@@ -2360,27 +5195,78 @@ RngUtils.z最大行区域 = function(rng, col) {
 
     return sheet.Range(sheet.Cells(startRow, startCol), sheet.Cells(maxEndRow, endCol));
 };
-RngUtils.maxRange = RngUtils.z最大行区域;
+
+/**
+ * maxRange - 获取从第一行到最后一行的区域（英文别名）
+ * @static
+ * @param {Range|string} rng - 要获取的区域
+ * @param {string} [col="A"] - 列号，如果rng是整行时需要指定
+ * @returns {Range} 从第一行到最后一行的区域
+ * @example
+ * RngUtils.maxRange("1:1000","A")  // $1:$13
+ * RngUtils.maxRange("A1:J1")       // A1:J最大行
+ */
+/**
+ * maxRange - 获取从第一行到最后一行的区域（英文别名，返回 RangeChain 支持智能提示）
+ * @static
+ * @param {Range|string} rng - 要获取的区域
+ * @param {string} [col="A"] - 列号，如果rng是整行时需要指定
+ * @returns {RangeChain} 从第一行到最后一行的区域（支持链式调用和智能提示）
+ * @example
+ * RngUtils.maxRange("1:1000","A").safeArray()  // 返回数组
+ * RngUtils.maxRange("A1:J1").z加边框()         // 链式调用
+ */
+RngUtils.maxRange = function(rng, col) {
+    var result = RngUtils.z最大行区域.apply(RngUtils, arguments);
+    if (result && result.Address && typeof result.Address === 'function') {
+        return new RangeChain(result);
+    }
+    return result;
+};
 
 /**
  * z最大列 - 获取指定区域的最大列数
  * @param {Range|string} rng - 要获取最大列数的区域
  * @returns {number} 最大列数
  * @example
- * RngUtils.z最大列("3:3")  // 3
+ * RngUtils.z最大列("1:1")     // 8 (单行，从右往左查找第一个有效数据)
+ * RngUtils.z最大列("A1")      // 8 (单单元格，自动扩展为整行)
+ * RngUtils.z最大列("A1:C10")  // 3 (多行区域返回该区域的最后一列)
  */
 RngUtils.z最大列 = function(rng) {
     if (!isWPS) return 0;
     var r = typeof rng === 'string' ? Range(rng) : rng;
     var sheet = r.Worksheet;
-    var lastCol = 0;
-    for (var col = 1; col <= 16384; col++) {
-        var c = sheet.Cells(r.Row, col);
-        if (c.Value2 !== null && c.Value2 !== undefined && c.Value2 !== '') {
-            lastCol = col;
+    var usedRange = sheet.UsedRange;
+    if (!usedRange) return 0;
+
+    // 单单元格或单行时，从右往左查找第一个有效数据
+    if (r.Rows.Count === 1) {
+        var row = r.Rows.Count === 1 && r.Columns.Count === 1 ? sheet.Rows(r.Row) : r;
+        var safe = Application.Intersect(row, usedRange);
+        if (!safe) return 0;
+        // 从右往左查找第一个非空单元格
+        for (var i = safe.Columns.Count; i >= 1; i--) {
+            var cell = safe.Cells(1, i);
+            var val = cell.Value2;
+            // 跳过 null、undefined、空字符串（包括 =""）
+            if (val === null || val === undefined || val === '') {
+                continue;
+            }
+            // 跳过纯空白字符
+            if (typeof val === 'string' && val.trim() === '') {
+                continue;
+            }
+            // 找到第一个有效数据，返回列号
+            return safe.Column + i - 1;
         }
+        return 0;
     }
-    return lastCol;
+
+    // 多行区域，返回该区域与UsedRange交集的最后一列
+    var safe = Application.Intersect(r, usedRange);
+    if (!safe) return 0;
+    return safe.Column + safe.Columns.Count - 1;
 };
 RngUtils.endCol = RngUtils.z最大列;
 
@@ -2501,38 +5387,79 @@ RngUtils.z合并相同单元格 = function(rng, direction) {
     direction = direction || 'r';
     var r = typeof rng === 'string' ? Range(rng) : rng;
 
+    // 如果传入的是单个单元格，自动扩展到当前选区
+    if (r.Rows.Count === 1 && r.Columns.Count === 1) {
+        console.log("检测到单个单元格，扩展到当前选区...");
+        r = Selection;
+        console.log("当前选区:", r.Address());
+    }
+
+    // 添加调试信息
+    console.log("=== mergeCells 调试 ===");
+    console.log("区域:", r.Address());
+    console.log("方向:", direction);
+    console.log("行数:", r.Rows.Count);
+    console.log("列数:", r.Columns.Count);
+
     if (direction === '-r' || direction === 'r') {
         // 按行合并
+        var mergedCount = 0;
         for (var i = 1; i <= r.Rows.Count; i++) {
             var startCol = 1;
             for (var j = 2; j <= r.Columns.Count; j++) {
-                if (r.Cells(i, j).Value2 !== r.Cells(i, startCol).Value2) {
+                var currentVal = r.Cells(i, j).Value2;
+                var startVal = r.Cells(i, startCol).Value2;
+                // 调试：输出前3行的合并信息
+                if (i <= 3 && j <= 5) {
+                    console.log("行" + i + " 列" + j + ": [" + currentVal + "] vs [" + startVal + "]");
+                }
+                if (currentVal !== startVal) {
                     if (j - startCol > 1) {
-                        r.Range(r.Cells(i, startCol), r.Cells(i, j - 1)).Merge();
+                        var mergeRng = r.Range(r.Cells(i, startCol), r.Cells(i, j - 1));
+                        mergeRng.Merge();
+                        mergedCount++;
+                        if (i <= 3) console.log("  -> 合并 列" + startCol + "-" + (j-1));
                     }
                     startCol = j;
                 }
             }
             if (r.Columns.Count - startCol + 1 > 1) {
                 r.Range(r.Cells(i, startCol), r.Cells(i, r.Columns.Count)).Merge();
+                mergedCount++;
+                if (i <= 3) console.log("  -> 合并 列" + startCol + "-" + r.Columns.Count);
             }
         }
+        console.log("按行合并完成，共合并 " + mergedCount + " 次");
     } else if (direction === '-c' || direction === 'c') {
         // 按列合并
+        console.log("开始按列合并...");
+        var mergedCount = 0;
         for (var j = 1; j <= r.Columns.Count; j++) {
             var startRow = 1;
             for (var i = 2; i <= r.Rows.Count; i++) {
-                if (r.Cells(i, j).Value2 !== r.Cells(startRow, j).Value2) {
+                var currentVal = r.Cells(i, j).Value2;
+                var startVal = r.Cells(startRow, j).Value2;
+                // 调试：输出前3列的合并信息
+                if (j <= 3 && i <= 5) {
+                    console.log("列" + j + " 行" + i + ": [" + currentVal + "] vs [" + startVal + "]");
+                }
+                if (currentVal !== startVal) {
                     if (i - startRow > 1) {
-                        r.Range(r.Cells(startRow, j), r.Cells(i - 1, j)).Merge();
+                        var mergeRng = r.Range(r.Cells(startRow, j), r.Cells(i - 1, j));
+                        mergeRng.Merge();
+                        mergedCount++;
+                        if (j <= 3) console.log("  -> 合并 行" + startRow + "-" + (i-1));
                     }
                     startRow = i;
                 }
             }
             if (r.Rows.Count - startRow + 1 > 1) {
                 r.Range(r.Cells(startRow, j), r.Cells(r.Rows.Count, j)).Merge();
+                mergedCount++;
+                if (j <= 3) console.log("  -> 合并 行" + startRow + "-" + r.Rows.Count);
             }
         }
+        console.log("按列合并完成，共合并 " + mergedCount + " 次");
     } else if (direction === '-rm') {
         // 先行后列，按上下级关系
         // 先按列合并（考虑前一列）
@@ -2613,6 +5540,110 @@ RngUtils.z取消合并填充单元格 = function(rng, fillAll) {
     }
 };
 RngUtils.unMergeCells = RngUtils.z取消合并填充单元格;
+
+// ==================== agg 聚合工具对象 ====================
+/**
+ * agg - 聚合工具对象，用于在普通数组上执行聚合操作
+ * 在 superPivot 回调中使用，支持对分组后的数据进行聚合
+ * @example
+ * // 在 superPivot 中使用
+ * Array2D.superPivot(arr, rows, cols, [
+ *   [g => agg.sum(g, "f4"), g => agg.count(g)],
+ *   ['sum', 'count']
+ * ])
+ * @namespace
+ */
+var agg = {
+    /**
+     * sum - 求和
+     * @param {Array} arr - 二维数组
+     * @param {string|number|function} selector - 列选择器 (如 "f4", 3, 或函数)
+     * @returns {number} 求和结果
+     * @example
+     * agg.sum([[1,2],[3,4]], 1)  // 6 (第二列求和)
+     * agg.sum([{f4:1}, {f4:2}], "f4")  // 3
+     */
+    sum: function(arr, selector) {
+        return Array2D.sum(arr, selector);
+    },
+
+    /**
+     * average - 求平均值
+     * @param {Array} arr - 二维数组
+     * @param {string|number|function} selector - 列选择器
+     * @returns {number} 平均值
+     */
+    average: function(arr, selector) {
+        return Array2D.average(arr, selector);
+    },
+
+    /**
+     * count - 计数
+     * @param {Array} arr - 数组
+     * @returns {number} 数组长度
+     */
+    count: function(arr) {
+        return arr ? arr.length : 0;
+    },
+
+    /**
+     * max - 求最大值
+     * @param {Array} arr - 二维数组
+     * @param {string|number|function} selector - 列选择器
+     * @returns {number} 最大值
+     */
+    max: function(arr, selector) {
+        return Array2D.max(arr, selector);
+    },
+
+    /**
+     * min - 求最小值
+     * @param {Array} arr - 二维数组
+     * @param {string|number|function} selector - 列选择器
+     * @returns {number} 最小值
+     */
+    min: function(arr, selector) {
+        return Array2D.min(arr, selector);
+    },
+
+    /**
+     * textjoin - 文本连接
+     * @param {Array} arr - 二维数组
+     * @param {string|number|function} selector - 列选择器
+     * @param {string} [separator=','] - 分隔符
+     * @returns {string} 连接后的字符串
+     * @example
+     * agg.textjoin([['a','b'],['c','d']], 1, '+')  // "b+d"
+     */
+    textjoin: function(arr, selector, separator) {
+        return Array2D.textjoin(arr, selector, separator);
+    },
+
+    /**
+     * first - 获取第一个元素
+     * @param {Array} arr - 数组
+     * @returns {*} 第一个元素
+     */
+    first: function(arr) {
+        if (!arr || !arr.length) return undefined;
+        return arr[0];
+    },
+
+    /**
+     * last - 获取最后一个元素
+     * @param {Array} arr - 数组
+     * @returns {*} 最后一个元素
+     */
+    last: function(arr) {
+        if (!arr || !arr.length) return undefined;
+        return arr[arr.length - 1];
+    }
+};
+
+// 导出 agg 到全局
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports.agg = agg;
+}
 
 /**
  * z插入多行 - 插入多行
@@ -3010,39 +6041,61 @@ RngUtils.rngFilter = RngUtils.z强力筛选;
 
 /**
  * z最大行数组 - 根据指定单元格区域获取最大行数组
- * @param {Range|string} rng - 单元格区域
- * @param {number} [cols] - 选择列作为获取最大行依据
- * @returns {Array} 结果二维数组
+ * @param {Range|string} rng - 单元格区域（如 "数据!A1:H1"）
+ * @param {number} [cols] - 选择列作为获取最大行依据（可选，1-based索引）
+ * @returns {Array2D} 结果二维数组（Array2D对象，支持链式调用）
+ * @description 找出指定区域中所有列的最大行数，返回从第一行到最大行的完整二维数组
  * @example
- * RngUtils.z最大行数组("a:d")
+ * RngUtils.z最大行数组("数据!A1:H1")        // 获取数据表A:H列的最大行数组
+ * // 假设A-H列的最大行分别为5,6,3,5,343,444,32,2，则返回A1:H444的二维数组
+ * RngUtils.z最大行数组("数据!A1:H1", 2)    // 使用第2列（B列）确定最大行
+ * // 支持链式调用
+ * $.maxArray("数据!A1:H1").z筛选(r=>r.f7>=4).superPivot(...).res()
  */
 RngUtils.z最大行数组 = function(rng, cols) {
-    if (!isWPS) return [];
+    if (!isWPS) return new Array2D([]);
     var r = typeof rng === 'string' ? Range(rng) : rng;
+    if (!r) return new Array2D([]);
+    
     var sheet = r.Worksheet;
+    var startRow = r.Row;
+    var startCol = r.Column;
     var maxRow = 0;
 
     if (cols !== undefined) {
-        // 按指定列获取最大行
-        var col = typeof cols === 'number' ? r.Columns(cols) : r;
-        var safe = RngUtils.z安全区域(col);
-        if (safe) {
-            maxRow = safe.Row + safe.Rows.Count - 1;
+        // 按指定列获取最大行（使用 z最大行 获取有效数据的最后一行）
+        // 修正：当r是多单元格区域时，使用 r.Columns(cols) 获取指定列
+        if (r.Columns.Count > 1) {
+            var col = r.Columns(cols);
+            maxRow = RngUtils.z最大行(col);
+        } else {
+            // 单列区域
+            maxRow = RngUtils.z最大行(r);
         }
     } else {
-        // 全部列中的最大行
-        maxRow = RngUtils.z最大行(r);
+        // 全部列中的最大行：遍历每一列，找出每列的最大行，取最大值
+        for (var c = 0; c < r.Columns.Count; c++) {
+            var colRange = sheet.Columns(startCol + c);
+            var colMaxRow = RngUtils.z最大行(colRange);
+            if (colMaxRow > maxRow) {
+                maxRow = colMaxRow;
+            }
+        }
     }
 
+    // 构建结果数组：从起始行到最大行
     var result = [];
-    for (var i = r.Row; i <= maxRow; i++) {
-        var rowData = [];
-        for (var j = 1; j <= r.Columns.Count; j++) {
-            rowData.push(sheet.Cells(i, r.Column + j - 1).Value2);
+    if (maxRow > 0) {
+        for (var i = startRow; i <= maxRow; i++) {
+            var rowData = [];
+            for (var j = 0; j < r.Columns.Count; j++) {
+                rowData.push(sheet.Cells(i, startCol + j).Value2);
+            }
+            result.push(rowData);
         }
-        result.push(rowData);
     }
-    return result;
+
+    return new Array2D(result);
 };
 RngUtils.maxArray = RngUtils.z最大行数组;
 
@@ -3184,13 +6237,29 @@ RngUtils.z选择不连续列数组 = function(rng, cols) {
 };
 RngUtils.selectColsArray = RngUtils.z选择不连续列数组;
 
-// ==================== 实例方法 - 支持链式调用 ====================
+// ==================== 使用辅助函数创建 RngUtils 实例方法别名 ====================
+createBilingualAliases(RngUtils.prototype, [
+    ['z加边框', 'addBorders'],
+    ['z去边框', 'removeBorders'],
+    ['z清除内容', 'clearContents'],
+    ['z清除格式', 'clearFormats'],
+    ['z自动列宽', 'autoFitColumns'],
+    ['z自动行高', 'autoFitRows'],
+    ['z设置背景色', 'backgroundColor'],
+    ['z设置字体色', 'fontColor'],
+    ['z行数', 'rowsCount'],
+    ['z列数', 'colsCount'],
+    ['z地址', 'address']
+]);
 
 /**
  * 加边框
  * @param {Number} lineStyle - 线条样式（默认1）
  * @param {Number} weight - 线条粗细（默认2）
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z加边框()
+ * RngUtils("A1:C10").z加边框(1, 3).z设置背景色(0xFFFF00)
  */
 RngUtils.prototype.z加边框 = function(lineStyle, weight) {
     if (!this._range) return this;
@@ -3205,6 +6274,8 @@ RngUtils.prototype.addBorders = RngUtils.prototype.z加边框;
 /**
  * 去边框
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z去边框()
  */
 RngUtils.prototype.z去边框 = function() {
     if (!this._range) return this;
@@ -3216,6 +6287,8 @@ RngUtils.prototype.removeBorders = RngUtils.prototype.z去边框;
 /**
  * 清除内容
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z清除内容()
  */
 RngUtils.prototype.z清除内容 = function() {
     if (!this._range) return this;
@@ -3227,6 +6300,8 @@ RngUtils.prototype.clearContents = RngUtils.prototype.z清除内容;
 /**
  * 清除格式
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z清除格式()
  */
 RngUtils.prototype.z清除格式 = function() {
     if (!this._range) return this;
@@ -3235,9 +6310,359 @@ RngUtils.prototype.z清除格式 = function() {
 };
 RngUtils.prototype.clearFormats = RngUtils.prototype.z清除格式;
 
+// ==================== TreeNode - 多级树结构工具类 ====================
+
+/**
+ * TreeNode - 多级树结构工具类（支持多级联动菜单、省市县等层级数据）
+ * @class
+ * @description 实现树形数据结构，支持从二维数组快速构建多级联动菜单
+ * @description 常用于：省市区三级联动、组织架构、分类层级等场景
+ * @example
+ * // 示例：从二维数组创建树（省市区数据）
+ * var tree = TreeNode.initTree([
+ *     ['四川省', '成都市', '武侯区'],
+ *     ['四川省', '成都市', '锦江区'],
+ *     ['广东省', '深圳市', '南山区']
+ * ]);
+ * 
+ * // 获取所有省级节点
+ * var provinces = tree.getChildren();
+ * 
+ * // 获取四川省下的所有市级节点
+ * var cities = tree.getChild('四川省').getChildren();
+ * 
+ * // 获取完整路径
+ * var path = tree.getPath('南山区'); // ['广东省', '深圳市', '南山区']
+ */
+function TreeNode(value) {
+    if (!(this instanceof TreeNode)) {
+        return new TreeNode(value);
+    }
+    this.value = value;          // 当前节点的值
+    this.children = {};          // 子节点集合 {key: TreeNode}
+    this.parent = null;          // 父节点引用
+    this.level = 0;              // 节点层级（从0开始）
+    this.data = {};              // 附加数据存储
+}
+
+/**
+ * 初始化树结构（从二维数组）
+ * @static
+ * @param {Array} arr - 二维数组，每行是一个完整路径（如['省','市','区']）
+ * @returns {TreeNode} 根节点
+ * @example
+ * var tree = TreeNode.initTree([
+ *     ['四川省', '成都市', '武侯区'],
+ *     ['四川省', '绵阳市', '涪城区']
+ * ]);
+ */
+TreeNode.initTree = function(arr) {
+    var root = new TreeNode('root');
+    root.level = -1;
+    
+    for (var i = 0; i < arr.length; i++) {
+        var path = arr[i];
+        var currentNode = root;
+        
+        for (var j = 0; j < path.length; j++) {
+            var key = path[j];
+            if (!key) continue; // 跳过空值
+            
+            if (!currentNode.children[key]) {
+                var newNode = new TreeNode(key);
+                newNode.parent = currentNode;
+                newNode.level = currentNode.level + 1;
+                currentNode.children[key] = newNode;
+            }
+            currentNode = currentNode.children[key];
+        }
+    }
+    
+    return root;
+};
+TreeNode.z从数组 = TreeNode.initTree;
+
+/**
+ * 添加子节点
+ * @param {string} key - 子节点键
+ * @param {any} [value] - 子节点值（不传则使用key）
+ * @returns {TreeNode} 新创建的子节点
+ * @example
+ * var node = new TreeNode('四川省');
+ * node.addChild('成都市');
+ */
+TreeNode.prototype.addChild = function(key, value) {
+    if (!this.children[key]) {
+        var newNode = new TreeNode(value !== undefined ? value : key);
+        newNode.parent = this;
+        newNode.level = this.level + 1;
+        this.children[key] = newNode;
+    }
+    return this.children[key];
+};
+TreeNode.z添加子节点 = TreeNode.prototype.addChild;
+
+/**
+ * 获取子节点
+ * @param {string} key - 子节点键
+ * @returns {TreeNode|null} 子节点或null
+ * @example
+ * var city = tree.getChild('四川省').getChild('成都市');
+ */
+TreeNode.prototype.getChild = function(key) {
+    return this.children[key] || null;
+};
+TreeNode.z获取子节点 = TreeNode.prototype.getChild;
+
+/**
+ * 获取所有子节点
+ * @returns {Array} 子节点数组
+ * @example
+ * var cities = tree.getChildren();
+ */
+TreeNode.prototype.getChildren = function() {
+    var result = [];
+    for (var key in this.children) {
+        result.push(this.children[key]);
+    }
+    return result;
+};
+TreeNode.z获取所有子节点 = TreeNode.prototype.getChildren;
+
+/**
+ * 获取所有子节点键名
+ * @returns {Array} 键名数组
+ * @example
+ * var cityNames = tree.getChildKeys(); // ['成都市', '绵阳市']
+ */
+TreeNode.prototype.getChildKeys = function() {
+    return Object.keys(this.children);
+};
+TreeNode.z获取子键数组 = TreeNode.prototype.getChildKeys;
+
+/**
+ * 判断是否有子节点
+ * @returns {boolean} 是否有子节点
+ * @example
+ * if (node.hasChildren()) { ... }
+ */
+TreeNode.prototype.hasChildren = function() {
+    return Object.keys(this.children).length > 0;
+};
+TreeNode.z有子节点 = TreeNode.prototype.hasChildren;
+
+/**
+ * 获取父节点
+ * @returns {TreeNode|null} 父节点或null
+ * @example
+ * var parent = node.getParent();
+ */
+TreeNode.prototype.getParent = function() {
+    return this.parent;
+};
+TreeNode.z获取父节点 = TreeNode.prototype.getParent;
+
+/**
+ * 获取从根到当前节点的完整路径
+ * @returns {Array} 路径数组
+ * @example
+ * var path = node.getPath(); // ['四川省', '成都市', '武侯区']
+ */
+TreeNode.prototype.getPath = function() {
+    var path = [];
+    var current = this;
+    while (current && current.parent) {
+        path.unshift(current.value);
+        current = current.parent;
+    }
+    return path;
+};
+TreeNode.z获取路径 = TreeNode.prototype.getPath;
+
+/**
+ * 根据路径查找节点
+ * @param {Array|string} path - 路径数组或点分隔字符串
+ * @returns {TreeNode|null} 找到的节点或null
+ * @example
+ * var node = tree.findByPath(['四川省', '成都市', '武侯区']);
+ * var node = tree.findByPath('四川省.成都市.武侯区');
+ */
+TreeNode.prototype.findByPath = function(path) {
+    if (typeof path === 'string') {
+        path = path.split('.');
+    }
+    
+    var current = this;
+    for (var i = 0; i < path.length; i++) {
+        if (current.children[path[i]]) {
+            current = current.children[path[i]];
+        } else {
+            return null; // 路径不存在
+        }
+    }
+    return current;
+};
+TreeNode.z查找路径 = TreeNode.prototype.findByPath;
+
+/**
+ * 深度优先遍历
+ * @param {Function} callback - 回调函数(node, level)
+ * @returns {TreeNode} 当前实例
+ * @example
+ * tree.depthFirst((node, level) => console.log(node.value, level));
+ */
+TreeNode.prototype.depthFirst = function(callback) {
+    callback(this, this.level);
+    for (var key in this.children) {
+        this.children[key].depthFirst(callback);
+    }
+    return this;
+};
+TreeNode.z深度遍历 = TreeNode.prototype.depthFirst;
+
+/**
+ * 广度优先遍历
+ * @param {Function} callback - 回调函数(node, level)
+ * @returns {TreeNode} 当前实例
+ * @example
+ * tree.breadthFirst((node, level) => console.log(node.value, level));
+ */
+TreeNode.prototype.breadthFirst = function(callback) {
+    var queue = [this];
+    while (queue.length > 0) {
+        var node = queue.shift();
+        callback(node, node.level);
+        for (var key in node.children) {
+            queue.push(node.children[key]);
+        }
+    }
+    return this;
+};
+TreeNode.z广度遍历 = TreeNode.prototype.breadthFirst;
+
+/**
+ * 获取最大深度
+ * @returns {number} 最大层级数
+ * @example
+ * var depth = tree.getMaxDepth(); // 3（省、市、区）
+ */
+TreeNode.prototype.getMaxDepth = function() {
+    var maxDepth = this.level;
+    for (var key in this.children) {
+        var childDepth = this.children[key].getMaxDepth();
+        if (childDepth > maxDepth) {
+            maxDepth = childDepth;
+        }
+    }
+    return maxDepth;
+};
+TreeNode.z最大深度 = TreeNode.prototype.getMaxDepth;
+
+/**
+ * 获取某一层级的所有节点
+ * @param {number} level - 目标层级
+ * @returns {Array} 节点数组
+ * @example
+ * var level2Nodes = tree.getNodesByLevel(2); // 所有区级节点
+ */
+TreeNode.prototype.getNodesByLevel = function(level) {
+    var result = [];
+    this.breadthFirst(function(node) {
+        if (node.level === level) {
+            result.push(node);
+        }
+    });
+    return result;
+};
+TreeNode.z获取层级节点 = TreeNode.prototype.getNodesByLevel;
+
+/**
+ * 转换为JSON（便于序列化）
+ * @returns {Object} JSON对象
+ * @example
+ * var json = tree.toJSON();
+ */
+TreeNode.prototype.toJSON = function() {
+    var obj = {
+        value: this.value,
+        level: this.level,
+        data: this.data,
+        children: {}
+    };
+    
+    for (var key in this.children) {
+        obj.children[key] = this.children[key].toJSON();
+    }
+    
+    return obj;
+};
+TreeNode.z转JSON = TreeNode.prototype.toJSON;
+
+/**
+ * 静态方法：快速创建树（从平面数据）
+ * @static
+ * @param {Array} flatData - 平面数组，每个元素包含parentKey
+ * @param {string} keyField - 键字段
+ * @param {string} parentField - 父键字段
+ * @returns {TreeNode} 根节点
+ * @example
+ * var tree = TreeNode.fromFlatData([{id:1,pid:0,name:'a'},{id:2,pid:1,name:'b'}], 'id', 'pid');
+ */
+TreeNode.fromFlatData = function(flatData, keyField, parentField, rootParentValue) {
+    rootParentValue = rootParentValue !== undefined ? rootParentValue : 0;
+    
+    var root = new TreeNode('root');
+    var nodeMap = {};
+    
+    // 第一轮：创建所有节点
+    for (var i = 0; i < flatData.length; i++) {
+        var item = flatData[i];
+        var key = item[keyField];
+        nodeMap[key] = new TreeNode(item);
+    }
+    
+    // 第二轮：建立父子关系
+    for (var i = 0; i < flatData.length; i++) {
+        var item = flatData[i];
+        var key = item[keyField];
+        var parentKey = item[parentField];
+        
+        if (parentKey == rootParentValue || !nodeMap[parentKey]) {
+            root.addChild(key, nodeMap[key]);
+        } else {
+            nodeMap[parentKey].addChild(key, nodeMap[key]);
+        }
+    }
+    
+    return root;
+};
+TreeNode.z从平面数据 = TreeNode.fromFlatData;
+
+// ==================== 使用辅助函数创建 TreeNode 方法别名 ====================
+createBilingualAliases(TreeNode.prototype, [
+    ['z从数组', 'initTree'],
+    ['z添加子节点', 'addChild'],
+    ['z获取子节点', 'getChild'],
+    ['z获取所有子节点', 'getChildren'],
+    ['z获取子键数组', 'getChildKeys'],
+    ['z有子节点', 'hasChildren'],
+    ['z获取父节点', 'getParent'],
+    ['z获取路径', 'getPath'],
+    ['z查找路径', 'findByPath'],
+    ['z深度遍历', 'depthFirst'],
+    ['z广度遍历', 'breadthFirst'],
+    ['z最大深度', 'getMaxDepth'],
+    ['z获取层级节点', 'getNodesByLevel'],
+    ['z转JSON', 'toJSON'],
+    ['z从平面数据', 'fromFlatData']
+]);
+
 /**
  * 自动列宽
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z自动列宽()
+ * RngUtils("A:Z").z自动列宽()  // 整列自动调整
  */
 RngUtils.prototype.z自动列宽 = function() {
     if (!this._range) return this;
@@ -3249,6 +6674,8 @@ RngUtils.prototype.autoFitColumns = RngUtils.prototype.z自动列宽;
 /**
  * 自动行高
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z自动行高()
  */
 RngUtils.prototype.z自动行高 = function() {
     if (!this._range) return this;
@@ -3261,6 +6688,9 @@ RngUtils.prototype.autoFitRows = RngUtils.prototype.z自动行高;
  * 设置背景色
  * @param {Number} color - RGB颜色值
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z设置背景色(RGB(255, 0, 0))  // 红色背景
+ * RngUtils("A1:C10").z设置背景色(0xFFFF00)        // 黄色背景
  */
 RngUtils.prototype.z设置背景色 = function(color) {
     if (!this._range) return this;
@@ -3273,6 +6703,9 @@ RngUtils.prototype.backgroundColor = RngUtils.prototype.z设置背景色;
  * 设置字体色
  * @param {Number} color - RGB颜色值
  * @returns {RngUtils} 当前实例
+ * @example
+ * RngUtils("A1:C10").z设置字体色(RGB(255, 0, 0))  // 红色字体
+ * RngUtils("A1:C10").z设置字体色(0xFF0000)        // 红色字体
  */
 RngUtils.prototype.z设置字体色 = function(color) {
     if (!this._range) return this;
@@ -3311,11 +6744,307 @@ RngUtils.prototype.z地址 = function() {
 };
 RngUtils.prototype.address = RngUtils.prototype.z地址;
 
+// ==================== SuperMap - 可在局部变量窗口实时展开查看的增强版 Map ====================
+
+/**
+ * SuperMap - 可在局部变量窗口实时展开查看的增强版 Map
+ *
+ * 特点：
+ * 1. 完全兼容原生 Map 的所有属性和方法
+ * 2. all 属性自动初始化，创建后立即可在局部变量窗口查看
+ * 3. 支持嵌套 SuperMap、二维数组、Map 数组
+ * 4. 层级前缀标识（01L00001 = 层数+序号+key）
+ * 5. 调试模式开关，关闭后性能接近原生 Map
+ */
+function SuperMap(entries) {
+    if (!(this instanceof SuperMap)) {
+        return new SuperMap(entries);
+    }
+    this._map = new Map(entries);
+    this._debug = true;
+    this._all = null;  // 存储 all 属性值
+    this._updateAll();  // 构造时立即初始化
+}
+
+// ========== 调试模式控制 ==========
+
+Object.defineProperty(SuperMap.prototype, 'debug', {
+    get: function() {
+        return this._debug;
+    },
+    set: function(value) {
+        this._debug = !!value;
+        this._updateAll();
+    },
+    enumerable: true,
+    configurable: true
+});
+
+Object.defineProperty(SuperMap, 'debug', {
+    get: function() {
+        return SuperMap._staticDebug;
+    },
+    set: function(value) {
+        SuperMap._staticDebug = !!value;
+    },
+    enumerable: true,
+    configurable: true
+});
+SuperMap._staticDebug = true;
+
+// ========== 定义 all 属性 ==========
+
+Object.defineProperty(SuperMap.prototype, 'all', {
+    get: function() {
+        return this._all;
+    },
+    enumerable: true,
+    configurable: true
+});
+
+// ========== 定义 size 属性 ==========
+
+Object.defineProperty(SuperMap.prototype, 'size', {
+    get: function() {
+        return this._map.size;
+    },
+    enumerable: true,
+    configurable: true
+});
+
+// ========== 原型方法 ==========
+
+/**
+ * 更新 all 属性（构造时和每次修改后自动调用）
+ */
+SuperMap.prototype._updateAll = function() {
+    if (!this._debug && !SuperMap._staticDebug) {
+        this._all = { _提示: "调试模式已关闭，设置 debug=true 查看" };
+        return;
+    }
+    this._all = this._buildAllView(1);
+};
+
+/**
+ * 构建树形视图
+ * 格式：01L00001 key（层数+序号+原key）
+ */
+SuperMap.prototype._buildAllView = function(level, maxRows) {
+    level = level || 1;
+    maxRows = maxRows || 255;
+
+    var result = {};
+    var count = 0;
+
+    for (var entry of this._map) {
+        var key = entry[0];
+        var value = entry[1];
+
+        if (count >= maxRows) {
+            result['_省略剩余' + (this._map.size - count) + '项'] = "...";
+            break;
+        }
+
+        // 格式：01L00001 key（层数+序号+原key）
+        var prefix = (level < 10 ? '0' : '') + level + 'L';
+        var seqNum = '0000' + (count + 1);
+        var displayKey = prefix + seqNum.slice(-5) + ' ' + key;
+
+        // 判断值类型并处理
+        if (value instanceof SuperMap) {
+            // 嵌套 SuperMap：递归展开
+            result[displayKey] = value._buildAllView(level + 1, maxRows);
+        } else if (value instanceof Map) {
+            // 普通 Map：转为 SuperMap 后展开
+            var superMap = SuperMap.fromMap(value, false);
+            superMap._debug = this._debug;
+            result[displayKey] = superMap._buildAllView(level + 1, maxRows);
+        } else if (this._is2DArray(value)) {
+            // 二维数组：按序号展开
+            var arrObj = {};
+            for (var i = 0; i < value.length && i < maxRows; i++) {
+                arrObj[i + 1] = value[i];
+            }
+            result[displayKey] = arrObj;
+        } else if (Array.isArray(value) && value.length > 0 && value[0] instanceof Map) {
+            // Map 数组：转为 SuperMap 数组
+            var arrObj = {};
+            for (var i = 0; i < value.length && i < maxRows; i++) {
+                var sm = SuperMap.fromMap(value[i], false);
+                sm._debug = this._debug;
+                arrObj[i + 1] = sm._buildAllView(level + 1, maxRows);
+            }
+            result[displayKey] = arrObj;
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            // 普通对象：直接展示
+            result[displayKey] = value;
+        } else {
+            // 基础数据类型
+            result[displayKey] = value;
+        }
+
+        count++;
+    }
+
+    return result;
+};
+
+/**
+ * 判断是否为二维数组
+ */
+SuperMap.prototype._is2DArray = function(value) {
+    if (!Array.isArray(value)) return false;
+    if (value.length === 0) return false;
+    return Array.isArray(value[0]);
+};
+
+// ========== Map 原生方法（自动更新 all）==========
+
+SuperMap.prototype.set = function(key, value) {
+    var result = this._map.set(key, value);
+    this._updateAll();  // 自动更新
+    return result;
+};
+
+SuperMap.prototype.get = function(key) {
+    return this._map.get(key);
+};
+
+SuperMap.prototype.has = function(key) {
+    return this._map.has(key);
+};
+
+SuperMap.prototype.delete = function(key) {
+    var result = this._map.delete(key);
+    this._updateAll();  // 自动更新
+    return result;
+};
+
+SuperMap.prototype.clear = function() {
+    var result = this._map.clear();
+    this._updateAll();  // 自动更新
+    return result;
+};
+
+SuperMap.prototype.forEach = function(callback, thisArg) {
+    return this._map.forEach(callback, thisArg);
+};
+
+SuperMap.prototype.keys = function() {
+    return this._map.keys();
+};
+
+SuperMap.prototype.values = function() {
+    return this._map.values();
+};
+
+SuperMap.prototype.entries = function() {
+    return this._map.entries();
+};
+
+// ========== 转换方法 ==========
+
+/**
+ * 转为普通 Map 对象
+ */
+SuperMap.prototype.toMap = function(deep) {
+    deep = deep !== undefined ? deep : true;
+
+    var result = new Map();
+    for (var entry of this._map) {
+        var key = entry[0];
+        var value = entry[1];
+
+        if (deep && value instanceof SuperMap) {
+            result.set(key, value.toMap(deep));
+        } else if (deep && value instanceof Map) {
+            result.set(key, new Map(value));
+        } else if (deep && Array.isArray(value)) {
+            result.set(key, value.map(function(item) {
+                return item instanceof SuperMap ? item.toMap(deep) : item;
+            }));
+        } else {
+            result.set(key, value);
+        }
+    }
+    return result;
+};
+
+/**
+ * 静态方法：将普通 Map 转为 SuperMap
+ */
+SuperMap.fromMap = function(map, deep) {
+    if (!(map instanceof Map)) {
+        throw new Error("参数必须是 Map 类型");
+    }
+
+    deep = deep !== undefined ? deep : true;
+    var entries = [];
+
+    for (var entry of map) {
+        var key = entry[0];
+        var value = entry[1];
+
+        if (deep && value instanceof Map) {
+            entries.push([key, SuperMap.fromMap(value, deep)]);
+        } else if (deep && Array.isArray(value)) {
+            entries.push([key, value.map(function(item) {
+                return item instanceof Map ? SuperMap.fromMap(item, deep) : item;
+            })]);
+        } else {
+            entries.push([key, value]);
+        }
+    }
+
+    return new SuperMap(entries);
+};
+SuperMap.z从Map = SuperMap.fromMap;
+
+/**
+ * 将SuperMap内容写入单元格
+ * @param {String|Range} rng - 目标单元格地址或Range对象
+ * @returns {SuperMap} 当前实例
+ * @example
+ * SuperMap.fromMap(map).toRange('A1');
+ */
+SuperMap.prototype.toRange = function(rng) {
+    if (!isWPS) return this;
+    if (this._map.size === 0) return this;
+
+    var arr = [['键', '聚合结果', '原始数据']];
+    this._map.forEach(function(value, key) {
+        var aggText = Array.isArray(value.agg) ? value.agg.join(', ') : JSON.stringify(value.agg);
+        arr.push([key, aggText, JSON.stringify(value.group || {})]);
+    });
+
+    var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    var rows = arr.length;
+    var cols = arr[0].length;
+    var endRng = targetRng.Item(rows, cols);
+    var sheet = targetRng.Worksheet || Application.ActiveSheet;
+    var writeRng = sheet.Range(targetRng, endRng);
+    writeRng.Value2 = arr;
+    return this;
+};
+SuperMap.prototype.z写入单元格 = SuperMap.prototype.toRange;
+
+/**
+ * 打印 all 内容到控制台
+ */
+SuperMap.prototype.print = function(title) {
+    title = title || "SuperMap 内容";
+    Console.log("===== " + title + " =====");
+    Console.log(JSON.stringify(this.all, null, 2));
+    Console.log("========================");
+};
+SuperMap.prototype.z打印 = SuperMap.prototype.print;
+
 // ==================== ShtUtils - 工作表工具库 ====================
 
 /**
  * ShtUtils - 工作表操作工具（支持智能提示和链式调用）
  * @class
+ * @constructor
  * @description WPS工作表操作增强工具
  * @example
  * ShtUtils.z安全已使用区域("Sheet1")
@@ -3330,6 +7059,8 @@ function ShtUtils(initialSheet) {
 /**
  * 获取工作表对象
  * @private
+ * @param {String|Worksheet} sht - 工作表名称或对象
+ * @returns {Worksheet|null} 工作表对象或null
  */
 ShtUtils.prototype._getSheet = function(sht) {
     if (typeof sht === 'string') {
@@ -3384,6 +7115,8 @@ ShtUtils.prototype.includesSht = ShtUtils.prototype.z包含表名;
 /**
  * 通配符转正则
  * @private
+ * @param {String} wildcard - 通配符模式（支持 * 和 ?）
+ * @returns {RegExp} 正则表达式对象
  */
 ShtUtils.prototype._wildcardToRegex = function(wildcard) {
     var pattern = wildcard.replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -3431,6 +7164,7 @@ ShtUtils.prototype.shtActivate = ShtUtils.prototype.z激活表;
 /**
  * DateUtils - 日期操作工具（支持智能提示和链式调用）
  * @class
+ * @constructor
  * @description 日期时间处理工具
  * @example
  * DateUtils.dt().z加天(5).z月底().val()
@@ -3692,17 +7426,23 @@ JSA.z转数值 = function(text) {
 JSA.val = JSA.z转数值;
 
 /**
- * 写入单元格
+ * 写入单元格（根据数组大小自动扩展区域）
  * @param {Array} arr - 数组
- * @param {Range|string} rng - 单元格区域
- * @param {Boolean} clearDown - 是否清空下方
+ * @param {Range|string} rng - 单元格区域（左上角单元格）
+ * @param {Boolean} clearDown - 是否清空下方（保留参数兼容性）
  * @returns {Range} 写入的Range
  */
 JSA.z写入单元格 = function(arr, rng, clearDown) {
     if (!isWPS) return null;
     var targetRng = typeof rng === 'string' ? Range(rng) : rng;
-    targetRng.Value2 = arr;
-    return targetRng;
+    var rows = arr.length;
+    var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : 1) : 0;
+    // 根据数组大小调整目标区域
+    var endRng = targetRng.Item(rows, cols);
+    var sheet = targetRng.Worksheet || Application.ActiveSheet;
+    var writeRng = sheet.Range(targetRng, endRng);
+    writeRng.Value2 = arr;
+    return writeRng;
 };
 JSA.toRange = JSA.z写入单元格;
 
@@ -3833,6 +7573,34 @@ Array.prototype.val = function() {
  * 数组元素转数值（数组扩展方法 - 中文别名）
  */
 Array.prototype.z转数值 = Array.prototype.val;
+
+/**
+ * 数组写入单元格（数组扩展方法，根据数组大小自动扩展区域）
+ * @param {Range|string} rng - 单元格区域（左上角单元格）
+ * @returns {Range} 写入的Range
+ * @description 将二维数组写入指定单元格
+ * @example
+ * var arr = [[1, 'A'], [2, 'B'], [3, 'C']];
+ * arr.toRange("J2");                    // 写入J2:L4
+ * arr.toRange(Range("A1"));             // 写入A1:C4
+ */
+Array.prototype.toRange = function(rng) {
+    if (!isWPS) return null;
+    var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    var rows = this.length;
+    var cols = rows > 0 ? (Array.isArray(this[0]) ? this[0].length : 1) : 0;
+    // 根据数组大小调整目标区域
+    var endRng = targetRng.Item(rows, cols);
+    var sheet = targetRng.Worksheet || Application.ActiveSheet;
+    var writeRng = sheet.Range(targetRng, endRng);
+    writeRng.Value2 = this;
+    return writeRng;
+};
+
+/**
+ * 数组写入单元格（数组扩展方法 - 中文别名）
+ */
+Array.prototype.z写入单元格 = Array.prototype.toRange;
 
 /**
  * 截取字符
@@ -4365,6 +8133,24 @@ function log() {
 }
 
 /**
+ * 批量创建中英文方法别名
+ * @private
+ * @param {Object} prototype - 原型对象
+ * @param {Array} aliases - 别名配置数组 [[中文名, 英文名], ...]
+ */
+function createBilingualAliases(prototype, aliases) {
+    for (var i = 0; i < aliases.length; i++) {
+        var cnName = aliases[i][0];
+        var enName = aliases[i][1];
+        if (prototype[cnName] && !prototype[enName]) {
+            prototype[enName] = prototype[cnName];
+        } else if (prototype[enName] && !prototype[cnName]) {
+            prototype[cnName] = prototype[enName];
+        }
+    }
+}
+
+/**
  * JSON日志输出
  * @param {any} x - 对象
  * @param {Boolean} wrapopt - 是否包装JSON对象(即是否要输出日期等信息)，默认true
@@ -4515,7 +8301,8 @@ function formatArray2DAsJSON(arr) {
             var paddingNeeded = contentWidths[col] - displayWidth;
 
             // 使用普通空格填充（每个空格占1个显示宽度）
-            var paddingStr = paddingNeeded > 0 ? ' '.repeat(paddingNeeded) : '';
+            // 使用 Array().join() 替代 String.repeat() 以提升兼容性
+            var paddingStr = paddingNeeded > 0 ? Array(paddingNeeded + 1).join(' ') : '';
 
             // 构建单元格：前面填充 + "内容"
             var cell = '"' + paddingStr + cellStr + '"';
@@ -4614,27 +8401,65 @@ function asString(s) {
 }
 
 /**
- * asArray函数 - 将值转换为数组
+ * asArray函数 - 将值转换为Array2D对象（支持链式调用和toRange）
  * @param {any} a - 要转换的值
- * @returns {Array} 数组
+ * @returns {Array2D} Array2D对象
  * @example
- * asArray(123)           // [123]
- * asArray("abc")         // ["abc"]
- * asArray([1,2,3])       // [1,2,3]
- * asArray("a,b,c")       // ["a","b","c"] (按逗号分割)
+ * asArray(123)                      // Array2D([[123]])
+ * asArray("abc")                    // Array2D([["abc"]])
+ * asArray([1,2,3])                  // Array2D([[1],[2],[3]])
+ * asArray([[1,2],[3,4]])            // Array2D([[1,2],[3,4]])
+ * asArray(Array2D([[1,2]]))         // Array2D([[1,2]]) (原样返回)
+ * asArray("a,b,c")                  // Array2D([["a"],["b"],["c"]])
  */
 function asArray(a) {
-    if (Array.isArray(a)) return a;
-    if (a === null || a === undefined) return [];
-    if (typeof a === 'string') {
+    // 如果已经是 Array2D，直接返回
+    if (a instanceof Array2D) return a;
+
+    var arr;
+    if (Array.isArray(a)) {
+        arr = a;
+    } else if (a === null || a === undefined) {
+        arr = [];
+    } else if (typeof a === 'string') {
         // 尝试按逗号分割
         if (a.indexOf(',') >= 0) {
-            return a.split(',').map(function(s) { return s.trim(); });
+            var parts = a.split(',').map(function(s) { return s.trim(); });
+            // 转为二维数组
+            arr = [];
+            for (var i = 0; i < parts.length; i++) {
+                arr.push([parts[i]]);
+            }
+        } else {
+            arr = [[a]];
         }
-        return [a];
+    } else {
+        arr = [[a]];
     }
-    return [a];
+
+    // 确保 arr 是二维数组
+    if (arr.length > 0 && !Array.isArray(arr[0])) {
+        var newArr = [];
+        for (var j = 0; j < arr.length; j++) {
+            newArr.push([arr[j]]);
+        }
+        arr = newArr;
+    }
+
+    return new Array2D(arr);
 }
+
+/**
+ * asArray2D函数 - 将值转换为Array2D对象（asArray的别名）
+ * @param {any} a - 要转换的值
+ * @returns {Array2D} Array2D对象
+ * @example
+ * asArray2D([[1,2],[3,4]])           // Array2D([[1,2],[3,4]])
+ * asArray2D([1,2,3])                  // Array2D([[1],[2],[3]])
+ * asArray2D("a,b,c")                  // Array2D([["a"],["b"],["c"]])
+ * asArray2D(Array2D([[1,2]]))         // Array2D([[1,2]]) (原样返回)
+ */
+var asArray2D = asArray;
 
 /**
  * asNumber函数 - 将值转换为数字
@@ -4785,6 +8610,7 @@ function asShape(shp) {
 /**
  * SheetChain - 工作表链式调用包装类（支持智能提示和链式调用）
  * @class
+ * @constructor
  * @description 包装WPS工作表对象，提供链式调用和智能提示
  * @example
  * asSheet("Sheet1").z激活().z名称()
@@ -4872,12 +8698,12 @@ SheetChain.prototype.Activate = SheetChain.prototype.z激活;
 
 /**
  * UsedRange - 获取已使用区域
- * @returns {Range|null} 已使用区域
+ * @returns {RangeChain|null} RangeChain对象
  */
 SheetChain.prototype.z已使用区域 = function() {
     if (!this._sheet) return null;
     try {
-        return this._sheet.UsedRange;
+        return new RangeChain(this._sheet.UsedRange);
     } catch (e) {
         return null;
     }
@@ -4886,7 +8712,7 @@ SheetChain.prototype.UsedRange = SheetChain.prototype.z已使用区域;
 
 /**
  * SafeUsedRange - 获取安全已使用区域（处理空表情况）
- * @returns {Range|null} 安全区域
+ * @returns {RangeChain|null} RangeChain对象
  */
 SheetChain.prototype.z安全已使用区域 = function() {
     if (!this._sheet) return null;
@@ -4895,27 +8721,27 @@ SheetChain.prototype.z安全已使用区域 = function() {
     try {
         usedRange = this._sheet.UsedRange;
     } catch (e) {
-        return this._sheet.Range("A1");
+        return new RangeChain(this._sheet.Range("A1"));
     }
 
-    if (!usedRange) return this._sheet.Range("A1");
+    if (!usedRange) return new RangeChain(this._sheet.Range("A1"));
 
     var lastRow = usedRange.Row + usedRange.Rows.Count - 1;
     var lastCol = usedRange.Column + usedRange.Columns.Count - 1;
 
-    return this._sheet.Range(this._sheet.Cells(1, 1), this._sheet.Cells(lastRow, lastCol));
+    return new RangeChain(this._sheet.Range(this._sheet.Cells(1, 1), this._sheet.Cells(lastRow, lastCol)));
 };
 SheetChain.prototype.SafeUsedRange = SheetChain.prototype.z安全已使用区域;
 
 /**
  * Range - 获取Range对象
  * @param {String} address - 地址
- * @returns {Range|null} Range对象
+ * @returns {RangeChain|null} RangeChain对象
  */
 SheetChain.prototype.z区域 = function(address) {
     if (!this._sheet) return null;
     try {
-        return this._sheet.Range(address);
+        return new RangeChain(this._sheet.Range(address));
     } catch (e) {
         return null;
     }
@@ -4926,12 +8752,12 @@ SheetChain.prototype.Range = SheetChain.prototype.z区域;
  * Cells - 获取Cells对象
  * @param {Number} row - 行号
  * @param {Number} col - 列号
- * @returns {Range|null} Cell对象
+ * @returns {RangeChain|null} RangeChain对象
  */
 SheetChain.prototype.z单元格 = function(row, col) {
     if (!this._sheet) return null;
     try {
-        return this._sheet.Cells(row, col);
+        return new RangeChain(this._sheet.Cells(row, col));
     } catch (e) {
         return null;
     }
@@ -5107,6 +8933,7 @@ function asWorkbook(wbk) {
 /**
  * As类 - 类型转换包装类（支持智能提示和链式调用）
  * @class
+ * @constructor
  * @description 提供类型转换和常用操作方法，支持中英双语API
  * @example
  * // 基本使用
@@ -5508,6 +9335,7 @@ const round = (number, decimals = 2) => {
  * RangeChain - Range链式调用包装类（支持智能提示和链式调用）
  * @private
  * @class
+ * @constructor
  * @description 支持Range方法的链式调用和智能提示
  * @example
  * $.maxRange("A1:J1").safeArray()     // 链式调用
@@ -5543,13 +9371,41 @@ RangeChain.prototype.Value = function() {
 };
 
 /**
- * SafeArray - 转换为安全数组
- * @returns {Array} 二维数组
+ * Value2 - 获取/设置值（Value2属性）
+ * @param {any} [newValue] - 新值（可选）
+ * @returns {RangeChain|any} 设置时返回this，否则返回当前值
+ */
+RangeChain.prototype.z值 = function(newValue) {
+    if (newValue !== undefined) {
+        if (this._range) this._range.Value2 = newValue;
+        return this;
+    }
+    return this._range ? this._range.Value2 : undefined;
+};
+RangeChain.prototype.Value2 = RangeChain.prototype.z值;
+
+/**
+ * CurrentRegion - 获取当前区域（连续数据区域）
+ * @returns {RangeChain|null} 当前区域的RangeChain对象
+ */
+RangeChain.prototype.z当前区域 = function() {
+    if (!this._range) return null;
+    try {
+        return new RangeChain(this._range.CurrentRegion);
+    } catch (e) {
+        return null;
+    }
+};
+RangeChain.prototype.CurrentRegion = RangeChain.prototype.z当前区域;
+
+/**
+ * safeArray - 转换为安全数组（返回 Array2D 对象，支持链式调用）
+ * @returns {Array2D} Array2D 对象，支持 filter/map/toRange 等链式调用
  */
 RangeChain.prototype.z安全数组 = function() {
     return RngUtils.z安全数组(this._range);
 };
-RangeChain.prototype.SafeArray = RangeChain.prototype.z安全数组;
+RangeChain.prototype.safeArray = RangeChain.prototype.z安全数组;
 
 /**
  * MaxArray - 获取最大行数组
@@ -5588,6 +9444,54 @@ RangeChain.prototype.z列数 = function() {
     return this._range ? this._range.Columns.Count : 0;
 };
 RangeChain.prototype.ColsCount = RangeChain.prototype.z列数;
+
+/**
+ * Columns - 获取列集合
+ * @returns {Range} Range对象的Columns属性
+ */
+Object.defineProperty(RangeChain.prototype, 'Columns', {
+    get: function() {
+        return this._range ? this._range.Columns : null;
+    },
+    enumerable: true,
+    configurable: true
+});
+
+/**
+ * Rows - 获取行集合
+ * @returns {Range} Range对象的Rows属性
+ */
+Object.defineProperty(RangeChain.prototype, 'Rows', {
+    get: function() {
+        return this._range ? this._range.Rows : null;
+    },
+    enumerable: true,
+    configurable: true
+});
+
+/**
+ * Font - 获取字体对象
+ * @returns {Font} Font对象
+ */
+Object.defineProperty(RangeChain.prototype, 'Font', {
+    get: function() {
+        return this._range ? this._range.Font : null;
+    },
+    enumerable: true,
+    configurable: true
+});
+
+/**
+ * Interior - 获取内部对象（背景色等）
+ * @returns {Interior} Interior对象
+ */
+Object.defineProperty(RangeChain.prototype, 'Interior', {
+    get: function() {
+        return this._range ? this._range.Interior : null;
+    },
+    enumerable: true,
+    configurable: true
+});
 
 /**
  * Address - 获取地址
@@ -5669,13 +9573,7 @@ RangeChain.prototype.ClearFormats = RangeChain.prototype.z清除格式;
  * $(5, 2).z值("新值")              // 设置值
  * $(5, 2).z值("新值").z加粗()      // 链式调用
  */
-RangeChain.prototype.z值 = function(newValue) {
-    if (newValue !== undefined) {
-        if (this._range) this._range.Value2 = newValue;
-        return this;
-    }
-    return this._range ? this._range.Value2 : undefined;
-};
+// 注意：z值 方法已在第5734行定义，此处删除重复定义以避免覆盖
 
 // 使用属性方式定义 Value2，支持 $(i,2).Value2 = rs 语法
 Object.defineProperty(RangeChain.prototype, 'Value2', {
@@ -6046,6 +9944,31 @@ RangeChain.prototype.z合并 = function() {
 RangeChain.prototype.Merge = RangeChain.prototype.z合并;
 
 /**
+ * Clear - 清除内容和格式
+ * @returns {RangeChain} 当前实例
+ * @example
+ * $("K2").Resize(1000, 5000).Clear()
+ * $.Resize("K2", 1000, 5000).Clear()
+ */
+RangeChain.prototype.Clear = function() {
+    if (this._range) {
+        // WPS JSA 兼容：使用 ClearContents 和 ClearFormats
+        try {
+            this._range.ClearContents();
+        } catch (e) {}
+        try {
+            this._range.ClearFormats();
+        } catch (e) {}
+    }
+    return this;
+};
+
+/**
+ * z清除 - Clear的中文别名
+ */
+RangeChain.prototype.z清除 = RangeChain.prototype.Clear;
+
+/**
  * UnMerge - 取消合并单元格
  * @returns {RangeChain} 当前实例
  */
@@ -6054,6 +9977,26 @@ RangeChain.prototype.z取消合并 = function() {
     return this;
 };
 RangeChain.prototype.UnMerge = RangeChain.prototype.z取消合并;
+
+/**
+ * Resize - 调整区域大小
+ * @param {number} rows - 行数
+ * @param {number} cols - 列数
+ * @returns {RangeChain} 调整大小后的新RangeChain对象
+ * @example
+ * $("K2").Resize(10, 5).z清除内容()
+ * $("K2").Resize(1000, 5000).z清除内容()
+ */
+RangeChain.prototype.Resize = function(rows, cols) {
+    if (!this._range) return new RangeChain(null);
+    try {
+        var resizedRng = this._range.Resize(rows, cols);
+        return new RangeChain(resizedRng);
+    } catch (e) {
+        console.log("Resize失败: " + e.message);
+        return this;
+    }
+};
 
 /**
  * MergeCells - 检查是否为合并单元格
@@ -6217,24 +10160,358 @@ function $(x, y) {
     return new RangeChain(null);
 }
 
-// 将RngUtils静态方法添加到$函数对象上，支持$.method()调用
-// 这些方法返回RangeChain，支持链式调用
-var proxy = createRngUtilsProxy();
-for (var key in proxy) {
-    if (proxy.hasOwnProperty(key)) {
-        $[key] = proxy[key];
+// ==================== 将 RngUtils 常用静态方法直接添加到 $ 对象上 ====================
+// 直接定义以支持智能提示
+
+/**
+ * $.maxRange - 获取从第一行到最后一行的区域
+ * @param {Range|string} rng - 要获取的区域
+ * @param {string} [col="A"] - 列号
+ * @returns {RangeChain} RangeChain对象
+ * @example
+ * $.maxRange("A1:J1").safeArray()
+ * $.maxRange("1:1000", "A").z加边框()
+ */
+$.maxRange = function(rng, col) {
+    var result = RngUtils.maxRange.apply(RngUtils, arguments);
+    if (result && result.Address && typeof result.Address === 'function') {
+        return new RangeChain(result);
+    }
+    return result;
+};
+
+/**
+ * $.z最大行区域 - maxRange的中文别名
+ */
+$.z最大行区域 = $.maxRange;
+
+/**
+ * $.safeArray - 将区域转换为安全数组（返回 Array2D 对象，支持链式调用）
+ * @param {Range|string} rng - 区域
+ * @returns {Array2D} Array2D 对象，支持 filter/map/toRange 等链式调用
+ */
+$.safeArray = RngUtils.safeArray;
+
+/**
+ * $.z安全数组 - safeArray的中文别名
+ */
+$.z安全数组 = $.safeArray;
+
+/**
+ * $.endRow - 获取区域最大行数
+ * @param {Range|string} rng - 区域
+ * @returns {number} 行数
+ */
+$.endRow = RngUtils.endRow;
+
+/**
+ * $.z最大行 - endRow的中文别名
+ */
+$.z最大行 = $.endRow;
+
+/**
+ * $.addBorders - 添加边框
+ * @param {Range|string} rng - 区域
+ * @param {number} [lineStyle=1] - 线条样式
+ * @param {number} [weight=2] - 线条粗细
+ * @returns {RangeChain} RangeChain对象
+ */
+$.addBorders = function(rng, lineStyle, weight) {
+    var result = RngUtils.addBorders.apply(RngUtils, arguments);
+    if (result && result.Address && typeof result.Address === 'function') {
+        return new RangeChain(result);
+    }
+    return result;
+};
+
+/**
+ * $.z加边框 - addBorders的中文别名
+ */
+$.z加边框 = $.addBorders;
+
+/**
+ * $.autoFitColumns - 自动列宽
+ * @param {Range|string} rng - 区域
+ * @returns {RangeChain} RangeChain对象
+ */
+$.autoFitColumns = function(rng) {
+    var result = RngUtils.autoFitColumns.apply(RngUtils, arguments);
+    if (result && result.Address && typeof result.Address === 'function') {
+        return new RangeChain(result);
+    }
+    return result;
+};
+
+/**
+ * $.z自动列宽 - autoFitColumns的中文别名
+ */
+$.z自动列宽 = $.autoFitColumns;
+
+/**
+ * $.autoFitRows - 自动行高
+ * @param {Range|string} rng - 区域
+ * @returns {RangeChain} RangeChain对象
+ */
+$.autoFitRows = function(rng) {
+    var result = RngUtils.autoFitRows.apply(RngUtils, arguments);
+    if (result && result.Address && typeof result.Address === 'function') {
+        return new RangeChain(result);
+    }
+    return result;
+};
+
+/**
+ * $.z自动行高 - autoFitRows的中文别名
+ */
+$.z自动行高 = $.autoFitRows;
+
+/**
+ * $.delBlankRows - 删除空白行
+ * @param {Range|string} rng - 区域
+ * @param {boolean} [entireColumn=false] - 是否删除整行
+ * @returns {RangeChain} RangeChain对象
+ */
+$.delBlankRows = function(rng, entireColumn) {
+    RngUtils.delBlankRows.apply(RngUtils, arguments);
+    return new RangeChain(rng);
+};
+
+/**
+ * $.z删除空白行 - delBlankRows的中文别名
+ */
+$.z删除空白行 = $.delBlankRows;
+
+/**
+ * $.delBlankCols - 删除空白列
+ * @param {Range|string} rng - 区域
+ * @param {boolean} [entireColumn=false] - 是否删除整列
+ * @returns {RangeChain} RangeChain对象
+ */
+$.delBlankCols = function(rng, entireColumn) {
+    RngUtils.delBlankCols.apply(RngUtils, arguments);
+    return new RangeChain(rng);
+};
+
+/**
+ * $.z删除空白列 - delBlankCols的中文别名
+ */
+$.z删除空白列 = $.delBlankCols;
+
+/**
+ * $.rngSortCols - 多列排序
+ * @param {Range|string} rng - 区域
+ * @param {Array} sortCols - 排序列数组
+ * @returns {RangeChain} RangeChain对象
+ */
+$.rngSortCols = function(rng, sortCols) {
+    RngUtils.rngSortCols.apply(RngUtils, arguments);
+    return new RangeChain(rng);
+};
+
+/**
+ * $.maxArray - 根据指定单元格区域获取最大行数组
+ * @param {Range|string} rng - 单元格区域
+ * @param {number} [cols] - 选择列作为获取最大行依据
+ * @returns {Array} 结果二维数组
+ * @example
+ * $.maxArray("a:d")              // 获取A:D列的最大行数组
+ * $.maxArray("a:d", 2)            // 使用第2列确定最大行
+ */
+$.maxArray = RngUtils.maxArray;
+
+/**
+ * $.z最大行数组 - maxArray的中文别名
+ */
+$.z最大行数组 = $.maxArray;
+
+/**
+ * $.z多列排序 - rngSortCols的中文别名
+ */
+$.z多列排序 = $.rngSortCols;
+
+/**
+ * $.rngFilter - 强力筛选
+ * @param {Range|string} rng - 区域
+ * @param {Object} conditions - 筛选条件
+ * @returns {Array} 筛选后的数组
+ */
+$.rngFilter = RngUtils.rngFilter;
+
+/**
+ * $.z强力筛选 - rngFilter的中文别名
+ */
+$.z强力筛选 = $.rngFilter;
+
+/**
+ * $.colToAbc - 列号与字母互转
+ * @param {number|string} input - 列号或字母
+ * @returns {string|number} 字母或列号
+ */
+$.colToAbc = RngUtils.colToAbc;
+
+/**
+ * $.z列号字母互转 - colToAbc的中文别名
+ */
+$.z列号字母互转 = $.colToAbc;
+
+/**
+ * $.rowsCount - 获取行数
+ * @param {Range|string} rng - 区域
+ * @returns {number} 行数
+ */
+$.rowsCount = RngUtils.rowsCount;
+
+/**
+ * $.z行数 - rowsCount的中文别名
+ */
+$.z行数 = $.rowsCount;
+
+/**
+ * $.colsCount - 获取列数
+ * @param {Range|string} rng - 区域
+ * @returns {number} 列数
+ */
+$.colsCount = RngUtils.colsCount;
+
+/**
+ * $.z列数 - colsCount的中文别名
+ */
+$.z列数 = $.colsCount;
+
+/**
+ * $.copyValue - 复制粘贴值
+ * @param {Range|string} fromRng - 源区域
+ * @param {Range|string} toRng - 目标区域
+ * @returns {RangeChain} RangeChain对象
+ */
+$.copyValue = function(fromRng, toRng) {
+    RngUtils.copyValue.apply(RngUtils, arguments);
+    return new RangeChain(toRng);
+};
+
+/**
+ * $.z复制粘贴值 - copyValue的中文别名
+ */
+$.z复制粘贴值 = $.copyValue;
+
+/**
+ * $.copyFormat - 复制粘贴格式
+ * @param {Range|string} fromRng - 源区域
+ * @param {Range|string} toRng - 目标区域
+ * @returns {RangeChain} RangeChain对象
+ */
+$.copyFormat = function(fromRng, toRng) {
+    RngUtils.copyFormat.apply(RngUtils, arguments);
+    return new RangeChain(toRng);
+};
+
+/**
+ * $.z复制粘贴格式 - copyFormat的中文别名
+ */
+$.z复制粘贴格式 = $.copyFormat;
+
+/**
+ * $.Resize - 调整区域大小（静态方法）
+ * @param {Range|string} rng - 源区域
+ * @param {number} rows - 行数
+ * @param {number} cols - 列数
+ * @returns {RangeChain} 调整大小后的 RangeChain 对象
+ * @example
+ * $.Resize("K2", 1000, 5000).z清除内容()
+ * $.Resize(Range("A1"), 10, 5).z加边框()
+ */
+$.Resize = function(rng, rows, cols) {
+    var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    if (!targetRng) return new RangeChain(null);
+    try {
+        var resizedRng = targetRng.Resize(rows, cols);
+        return new RangeChain(resizedRng);
+    } catch (e) {
+        console.log("Resize失败: " + e.message);
+        return new RangeChain(rng);
+    }
+};
+
+/**
+ * $.z调整大小 - Resize的中文别名
+ */
+$.z调整大小 = $.Resize;
+
+/**
+ * $.ClearContents - 清除内容（静态方法）
+ * @param {Range|string} rng - 区域
+ * @returns {RangeChain} RangeChain对象
+ * @example
+ * $.ClearContents("K2").Resize(1000, 5000).z清除内容()
+ */
+$.ClearContents = function(rng) {
+    var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    if (targetRng) {
+        targetRng.ClearContents();
+    }
+    return new RangeChain(targetRng);
+};
+
+/**
+ * $.z清除内容 - ClearContents的中文别名
+ */
+$.z清除内容 = $.ClearContents;
+
+/**
+ * $.UnMerge - 取消合并（静态方法）
+ * @param {Range|string} rng - 区域
+ * @returns {RangeChain} RangeChain对象
+ * @example
+ * $.UnMerge("K2").Resize(1000, 1000).z取消合并()
+ */
+$.UnMerge = function(rng) {
+    var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    if (targetRng) {
+        targetRng.UnMerge();
+    }
+    return new RangeChain(targetRng);
+};
+
+/**
+ * $.z取消合并 - UnMerge的中文别名
+ */
+$.z取消合并 = $.UnMerge;
+
+// ==================== 将 RngUtils 常用静态方法直接添加到 $ 对象 ====================
+// 支持直接调用 $.mergeCells() 而不是 $.RngUtils.mergeCells()
+
+// 定义需要直接添加到 $ 的常用方法
+var directMethods = [
+    'z合并相同单元格', 'mergeCells',
+    'z取消合并填充单元格', 'unMergeCells',
+    'z加边框', 'addBorders',
+    'z插入多行', 'insertRows',
+    'z插入多列', 'insertCols',
+    'z删除空白行', 'delBlankRows',
+    'z删除空白列', 'delBlankCols'
+];
+
+for (var i = 0; i < directMethods.length; i++) {
+    var methodName = directMethods[i];
+    if (RngUtils[methodName]) {
+        (function(name) {
+            $[name] = function() {
+                return RngUtils[name].apply(RngUtils, arguments);
+            };
+        })(methodName);
     }
 }
 
 // ==================== 将构造函数类工厂添加到$对象 ====================
 
 /**
- * $.Array2D - 二维数组工具类工厂
- * @param {any} data - 输入数据
- * @returns {Array2D} Array2D实例
+ * $.Array2D - 二维数组工具类工厂（支持智能提示和链式调用）
+ * @param {Array} data - 输入数据
+ * @returns {Array2D} Array2D实例，支持链式调用和智能提示
  * @example
- * $.Array2D([[1,2],[3,4]]).z求和()  // 10
- * $.Array2D([1,2,3]).z转置()        // [[1],[2],[3]]
+ * $.Array2D([[1,2],[3,4]]).z求和()      // 10
+ * $.Array2D([1,2,3]).z转置()           // [[1],[2],[3]]
+ * $.Array2D([[1,2],[3,4]]).toRange("A1")  // 写入A1:B2
  */
 $.Array2D = function(data) {
     return new Array2D(data);
@@ -6242,14 +10519,129 @@ $.Array2D = function(data) {
 
 /**
  * $.RngUtils - Range工具类工厂
- * @param {string|Range} initialRange - 初始Range
- * @returns {RngUtils} RngUtils实例
+ * @param {string|Range} [initialRange] - 初始Range（可选）
+ * @returns {RngUtils|Object} RngUtils实例或静态方法对象
  * @example
- * $.RngUtils("A1:B10").z安全数组()
+ * $.RngUtils("A1:B10").z安全数组()    // 实例方法
+ * $.RngUtils.maxRange("A1:J1")        // 静态方法
  */
 $.RngUtils = function(initialRange) {
+    // 无参数调用时，返回静态方法代理对象
+    if (arguments.length === 0) {
+        return createRngUtilsStaticProxy();
+    }
     return new RngUtils(initialRange);
 };
+
+// ==================== 将 RngUtils 静态方法添加到 $.RngUtils 上 ====================
+// 支持智能提示和 $.RngUtils.maxRange() 调用
+
+/**
+ * $.RngUtils.maxRange - 获取从第一行到最后一行的区域
+ * @static
+ * @param {Range|string} rng - 要获取的区域
+ * @param {string} [col="A"] - 列号，如果rng是整行时需要指定
+ * @returns {RangeChain} RangeChain对象，支持链式调用
+ * @memberof $.RngUtils
+ * @example
+ * $.RngUtils.maxRange("1:1000","A").safeArray()  // 返回数组
+ * $.RngUtils.maxRange("A1:J1").z加边框()         // 链式调用
+ */
+$.RngUtils.maxRange = function(rng, col) {
+    var result = RngUtils.maxRange.apply(RngUtils, arguments);
+    if (result && result.Address && typeof result.Address === 'function') {
+        return new RangeChain(result);
+    }
+    return result;
+};
+
+/**
+ * $.RngUtils.safeArray - 将指定区域转换为安全二维数组（返回 Array2D 对象，支持链式调用）
+ * @static
+ * @param {Range|string} rng - 要转换的区域
+ * @returns {Array2D} Array2D 对象，支持 filter/map/toRange 等链式调用
+ * @memberof $.RngUtils
+ */
+$.RngUtils.safeArray = RngUtils.safeArray;
+
+/**
+ * $.RngUtils.z安全数组 - 将指定区域转换为安全二维数组（返回 Array2D 对象，支持链式调用）
+ * @static
+ * @param {Range|string} rng - 要转换的区域
+ * @returns {Array2D} Array2D 对象，支持 filter/map/toRange 等链式调用
+ * @memberof $.RngUtils
+ */
+$.RngUtils.z安全数组 = RngUtils.z安全数组;
+
+/**
+ * $.RngUtils.endRow - 获取指定区域的最大行数
+ * @static
+ * @param {Range|string} rng - 要获取最大行数的区域
+ * @returns {number} 最大行数
+ * @memberof $.RngUtils
+ */
+$.RngUtils.endRow = RngUtils.endRow;
+
+/**
+ * $.RngUtils.z最大行 - 获取指定区域的最大行数
+ * @static
+ * @param {Range|string} rng - 要获取最大行数的区域
+ * @returns {number} 最大行数
+ * @memberof $.RngUtils
+ */
+$.RngUtils.z最大行 = RngUtils.z最大行;
+
+// 其他常用静态方法（可根据需要添加更多）
+var staticMethods = [
+    'z最后一个', 'lastCell',
+    'z安全区域', 'safeRange',
+    'z最大行单元格', 'endRowCell',
+    'z最大行区域',
+    'z最大列', 'endCol',
+    'z最大列单元格', 'endColCell',
+    'z可见区数组', 'visibleArray',
+    'z可见区域', 'visibleRange',
+    'z加边框', 'addBorders',
+    'z取前几行', 'takeRows',
+    'z跳过前几行', 'skipRows',
+    'z合并相同单元格', 'mergeCells',
+    'z取消合并填充单元格', 'unMergeCells',
+    'z插入多行', 'insertRows',
+    'z插入多列', 'insertCols',
+    'z删除空白行', 'delBlankRows',
+    'z删除空白列', 'delBlankCols',
+    'z整行', 'entireRow',
+    'z整列', 'entire_column',
+    'z行数', 'rowsCount',
+    'z列数', 'colsCount',
+    'z列号字母互转', 'colToAbc',
+    'z复制粘贴格式', 'copyFormat',
+    'z复制粘贴值', 'copyValue',
+    'z联合区域', 'unionAll',
+    'z多列排序', 'rngSortCols',
+    'z强力筛选', 'rngFilter',
+    'z最大行数组', 'maxArray',
+    'z查找单元格', 'findRange',
+    'z命中单元格', 'hitRange',
+    'z本文件单元格', 'thisRange',
+    'z选择不连续列数组', 'selectColsArray'
+];
+
+for (var i = 0; i < staticMethods.length; i++) {
+    var methodName = staticMethods[i];
+    if (RngUtils[methodName]) {
+        (function(name) {
+            $.RngUtils[name] = function() {
+                var result = RngUtils[name].apply(RngUtils, arguments);
+                // 如果返回的是Range对象，包装成RangeChain支持链式调用
+                if (result && result.Address && typeof result.Address === 'function') {
+                    return new RangeChain(result);
+                }
+                return result;
+            };
+        })(methodName);
+    }
+}
 
 /**
  * $.ShtUtils - Sheet工具类工厂
@@ -6354,7 +10746,7 @@ if (isWPS || isBrowser) {
         this.f1 = f1;
         this.$fx = $fx;
         this.$toArray = $toArray;
-        this.As = As;
+        // As 已在第6891行导出，此处删除重复定义
         this.asArray = asArray;
         this.asDate = asDate;
         this.asMap = asMap;
@@ -6399,55 +10791,550 @@ if (isWPS || isBrowser) {
             }
             return -1;
         };
+        
+        // ==================== JSA880快捷API - 一行代码走天下 ====================
+        
+        /**
+         * JSA880 - 郑广学JSA880快速开发框架主入口
+         * @description 提供超简洁的一行代码API，集成所有核心功能
+         * @namespace
+         * @example
+         * // 一行代码完成数据透视
+         * JSA880.透视(数据, '产品+,月份+', '地区+', 'sum(销量),count()');
+         * 
+         * // 一行代码筛选数据
+         * JSA880.筛选(数据, 'x=>x[0]=="北京" && x[3]>100');
+         * 
+         * // 一行代码读取表格数据
+         * JSA880.读表("A1:D100");
+         * 
+         * // 一行代码写入表格数据
+         * JSA880.写表([[1,2],[3,4]], "G1");
+         * 
+         * // 一行代码获取最大行数
+         * JSA880.最大行("A:A");
+         * 
+         * // 一行代码删除空白行
+         * JSA880.删空行("A1:F100");
+         * 
+         * // 一行代码排序
+         * JSA880.排序(数据, 'f3+,f4-');
+         */ 
+        this.JSA880 = {
+            /**
+             * 数据透视（超简化版）
+             * @param {Array} data - 二维数组数据
+             * @param {string} rowFields - 行字段，支持排序符号 f1+,f2-
+             * @param {string} colFields - 列字段，支持排序符号 f3+,f4-
+             * @param {string} dataFields - 数据字段，格式: 'count(),sum(f5),average(f6)'
+             * @param {number} [headerRows=1] - 标题行数
+             * @returns {Array} 透视结果
+             * @example
+             * JSA880.透视(销售数据, '产品+,地区-', '月份+', 'sum(金额),count()');
+             */
+            透视: function(data, rowFields, colFields, dataFields, headerRows) {
+                return Array2D.z超级透视(data, [rowFields], [colFields], [dataFields], headerRows);
+            },
+            
+            /**
+             * 超级透视（完整版）
+             */
+            超级透视: Array2D.z超级透视,
+            
+            /**
+             * 数据筛选
+             * @param {Array} data - 二维数组
+             * @param {string|Function} predicate - 筛选条件
+             * @returns {Array2D} Array2D对象
+             * @example
+             * JSA880.筛选(数据, 'x=>x[0]=="北京" && x[3]>100');
+             */
+            筛选: function(data, predicate) {
+                return new Array2D(data).z筛选(predicate);
+            },
+            
+            /**
+             * 多条件筛选（简化版）
+             * @param {Array} data - 二维数组
+             * @param {Array} conditions - 条件数组，如 [[0, '北京'], [3, 100]]
+             * @returns {Array2D} Array2D对象
+             * @example
+             * JSA880.多条件筛选(数据, [[0, '北京'], [3, 100]]);
+             */
+            多条件筛选: function(data, conditions) {
+                var arr = new Array2D(data);
+                for (var i = 0; i < conditions.length; i++) {
+                    var col = conditions[i][0];
+                    var val = conditions[i][1];
+                    arr = arr.z筛选(function(row) { 
+                        return row[col] == val || (typeof val === 'number' && row[col] > val);
+                    });
+                }
+                return arr;
+            },
+            
+            /**
+             * 分组汇总
+             * @param {Array} data - 二维数组
+             * @param {string} groupCol - 分组列 f1
+             * @param {string} aggCol - 汇总列 f2
+             * @param {string} [aggType='sum'] - 汇总类型: sum, count, average, max, min
+             * @returns {Array} 汇总结果
+             * @example
+             * JSA880.分组汇总(数据, 'f1', 'f3', 'sum');
+             */
+            分组汇总: function(data, groupCol, aggCol, aggType) {
+                aggType = aggType || 'sum';
+                var aggExpr = aggType + '("' + aggCol + '")';
+                return Array2D.z分组汇总(data, groupCol, aggExpr);
+            },
+            
+            /**
+             * 分组汇总连接 - 优化sumifs和Countifs批量条件统计
+             * @param {Array} targetData - 统计目标数据（左表）
+             * @param {Array} sourceData - 数据源（右表）
+             * @param {string} groupKey - 分组键选择器，如 'f2' 或 'f2,f3'
+             * @param {string} aggFunc - 汇总函数，如 'sum("f4")' 或 'count(),sum("f5")'
+             * @returns {Array} 连接汇总后的结果
+             * @example
+             * // 一行代码完成sumifs/countifs批量统计
+             * JSA880.分组汇总连接(目标表, 源数据, 'f2', 'sum("f4")');
+             * JSA880.分组汇总连接(目标表, 源数据, '月份,产品', 'count(),sum("销量"),average("金额")');
+             */
+            分组汇总连接: function(targetData, sourceData, groupKey, aggFunc) {
+                return Array2D.groupIntoJoin(targetData, sourceData, groupKey, aggFunc);
+            },
+            
+            /**
+             * 读取表格数据（简化版）
+             * @param {string} range - 单元格地址，如 "A1:D100" 或 "A:A"
+             * @returns {Array} 二维数组
+             * @example
+             * JSA880.读表("A1:D100");
+             * JSA880.读表("A:A");  // 读取整列到最大行
+             */
+            读表: function(range) {
+                if (!isWPS) return [];
+                var rng = typeof range === 'string' ? Range(range) : range;
+                var arr = rng.Value2;
+                if (arr === null || arr === undefined) return [];
+                if (!Array.isArray(arr)) return [[arr]];
+                if (!Array.isArray(arr[0])) {
+                    var result = [];
+                    for (var i = 0; i < arr.length; i++) {
+                        result.push([arr[i]]);
+                    }
+                    return result;
+                }
+                return arr;
+            },
+            
+            /**
+             * 写入表格数据（简化版）
+             * @param {Array} data - 二维数组
+             * @param {string} startCell - 起始单元格，如 "A1"
+             * @returns {Range} 写入的单元格区域
+             * @example
+             * JSA880.写表([[1,2],[3,4]], "G1");
+             */
+            写表: function(data, startCell) {
+                return JSA.z写入单元格(data, startCell);
+            },
+            
+            /**
+             * 获取最大行数
+             * @param {string} column - 列范围，如 "A:A" 或 "A1"
+             * @returns {number} 最大行数
+             * @example
+             * JSA880.最大行("A:A");
+             */
+            最大行: function(column) {
+                return RngUtils.z最大行(column);
+            },
+            
+            /**
+             * 获取最大列数
+             * @param {string} row - 行范围，如 "1:1" 或 "A1"
+             * @returns {number} 最大列数
+             * @example
+             * JSA880.最大列("1:1");
+             */
+            最大列: function(row) {
+                return RngUtils.z最大列(row);
+            },
+            
+            /**
+             * 删除空白行
+             * @param {string} range - 单元格范围
+             * @param {boolean} [entireRow=true] - 是否删除整行
+             * @returns {boolean} 是否成功
+             * @example
+             * JSA880.删空行("A1:F100");
+             */
+            删空行: function(range, entireRow) {
+                RngUtils.z删除空白行(range, entireRow !== false);
+                return true;
+            },
+            
+            /**
+             * 删除空白列
+             * @param {string} range - 单元格范围
+             * @param {boolean} [entireColumn=true] - 是否删除整列
+             * @returns {boolean} 是否成功
+             * @example
+             * JSA880.删空列("A1:Z100");
+             */
+            删空列: function(range, entireColumn) {
+                RngUtils.z删除空白列(range, entireColumn !== false);
+                return true;
+            },
+            
+            /**
+             * 多列排序（简化版）
+             * @param {Array} data - 二维数组
+             * @param {string} sortParams - 排序参数，如 'f3+,f4-'
+             * @param {number} [headerRows=1] - 标题行数
+             * @returns {Array} 排序后数组
+             * @example
+             * JSA880.排序(数据, 'f3+,f4-', 1);
+             */
+            排序: function(data, sortParams, headerRows) {
+                return new Array2D(data).z多列排序(sortParams, headerRows || 1);
+            },
+            
+            /**
+             * 去重
+             * @param {Array} data - 二维数组
+             * @param {number} [colIndex] - 指定列去重
+             * @returns {Array} 去重后数组
+             * @example
+             * JSA880.去重(数据);
+             * JSA880.去重(数据, 0);  // 按第1列去重
+             */
+            去重: function(data, colIndex) {
+                return new Array2D(data).z去重(colIndex).val();
+            },
+            
+            /**
+             * 转置
+             * @param {Array} data - 二维数组
+             * @returns {Array} 转置后数组
+             * @example
+             * JSA880.转置([[1,2],[3,4]]);  // 返回 [[1,3],[2,4]]
+             */
+            转置: function(data) {
+                return new Array2D(data).z转置().val();
+            },
+            
+            /**
+             * 数组求和
+             * @param {Array} data - 二维数组
+             * @param {string} [colSelector] - 列选择器，如 'f1'
+             * @returns {number} 求和结果
+             * @example
+             * JSA880.求和([[1,2],[3,4]]);        // 10
+             * JSA880.求和([[1,2],[3,4]], 'f1');  // 4 (第1列求和)
+             */
+            求和: function(data, colSelector) {
+                return new Array2D(data).z求和(colSelector);
+            },
+            
+            /**
+             * 添加边框（快速版）
+             * @param {string} range - 单元格范围
+             * @param {number} [style=1] - 线条样式
+             * @returns {boolean} 是否成功
+             * @example
+             * JSA880.加边框("A1:D10");
+             */
+            加边框: function(range, style) {
+                RngUtils.z加边框(range, style || 1);
+                return true;
+            },
+            
+            /**
+             * 自动列宽（快速版）
+             * @param {string} range - 单元格范围
+             * @returns {boolean} 是否成功
+             * @example
+             * JSA880.自动列宽("A:Z");
+             */
+            自动列宽: function(range) {
+                RngUtils.z自动列宽(range);
+                return true;
+            },
+            
+            /**
+             * 自动行高（快速版）
+             * @param {string} range - 单元格范围
+             * @returns {boolean} 是否成功
+             * @example
+             * JSA880.自动行高("1:100");
+             */
+            自动行高: function(range) {
+                RngUtils.z自动行高(range);
+                return true;
+            },
+            
+            /**
+             * 安全读取已使用区域
+             * @param {string} [sheetName] - 工作表名称，不传则使用当前表
+             * @returns {Array} 二维数组
+             * @example
+             * JSA880.读已用区();              // 当前表
+             * JSA880.读已用区("Sheet1");      // 指定表
+             */
+            读已用区: function(sheetName) {
+                if (!isWPS) return [];
+                var sheet = sheetName ? Sheets(sheetName) : Application.ActiveSheet;
+                var usedRange;
+                try {
+                    usedRange = sheet.UsedRange;
+                } catch (e) {
+                    return [];
+                }
+                if (!usedRange) return [];
+                var arr = usedRange.Value2;
+                if (arr === null || arr === undefined) return [];
+                if (!Array.isArray(arr)) return [[arr]];
+                if (!Array.isArray(arr[0])) {
+                    var result = [];
+                    for (var i = 0; i < arr.length; i++) {
+                        result.push([arr[i]]);
+                    }
+                    return result;
+                }
+                return arr;
+            },
+            
+            /**
+             * 生成数字序列
+             * @param {number} start - 起始数字
+             * @param {number} end - 结束数字
+             * @param {number} [step=1] - 步长
+             * @returns {Array} 序列数组
+             * @example
+             * JSA880.序列(1, 10);      // [1,2,3,4,5,6,7,8,9,10]
+             * JSA880.序列(1, 10, 2);  // [1,3,5,7,9]
+             */
+            序列: function(start, end, step) {
+                step = step || 1;
+                var result = [];
+                for (var i = start; i <= end; i += step) {
+                    result.push(i);
+                }
+                return result;
+            },
+            
+            /**
+             * 随机打乱数组
+             * @param {Array} array - 数组
+             * @returns {Array} 打乱后的数组
+             * @example
+             * JSA880.打乱([1,2,3,4,5]);
+             */
+            打乱: function(array) {
+                var result = array.slice();
+                for (var i = result.length - 1; i > 0; i--) {
+                    var j = Math.floor(Math.random() * (i + 1));
+                    var temp = result[i];
+                    result[i] = result[j];
+                    result[j] = temp;
+                }
+                return result;
+            },
+            
+            /**
+             * 随机整数
+             * @param {number} min - 最小值
+             * @param {number} max - 最大值
+             * @returns {number} 随机整数
+             * @example
+             * JSA880.随机(1, 100);
+             */
+            随机: function(min, max) {
+                return Math.floor(Math.random() * (max - min + 1)) + min;
+            },
+            
+            /**
+             * 创建SuperMap（可视化调试字典）
+             * @returns {SuperMap} SuperMap实例
+             * @example
+             * var map = JSA880.超级字典();
+             * map.set('user1', {name: '张三', age: 25});
+             * map.debug(true); // 开启调试模式
+             */
+            超级字典: function() {
+                return new SuperMap();
+            },
+            
+            /**
+             * 从Map创建SuperMap
+             * @param {Map} map - 普通Map对象
+             * @returns {SuperMap} SuperMap实例
+             * @example
+             * var nativeMap = new Map();
+             * nativeMap.set('a', 1);
+             * var superMap = JSA880.SuperMap从Map(nativeMap);
+             */
+            SuperMap从Map: function(map) {
+                return SuperMap.fromMap(map);
+            },
+            
+            /**
+             * 从对象创建SuperMap
+             * @param {Object} obj - 普通对象
+             * @returns {SuperMap} SuperMap实例
+             * @example
+             * var superMap = JSA880.SuperMap从对象({a: 1, b: 2});
+             */
+            SuperMap从对象: function(obj) {
+                return SuperMap.fromObject(obj);
+            },
+            
+            /**
+             * 从数组创建SuperMap
+             * @param {Array} arr - 二维数组，每个元素为[key, value]
+             * @returns {SuperMap} SuperMap实例
+             * @example
+             * var superMap = JSA880.SuperMap从数组([['key1', 'value1'], ['key2', 'value2']]);
+             */
+            SuperMap从数组: function(arr) {
+                return SuperMap.fromArray(arr);
+            },
+            
+            /**
+             * 日期格式化
+             * @param {Date|string} date - 日期
+             * @param {string} format - 格式字符串，如 'yyyy-MM-dd HH:mm:ss'
+             * @returns {string} 格式化后的日期字符串
+             * @example
+             * JSA880.日期格式(new Date(), 'yyyy-MM-dd');
+             */
+            日期格式: function(date, format) {
+                date = typeof date === 'string' ? new Date(date) : date;
+                var weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+                return format.replace(/(y+|Y+)|(M+)|(d+|D+)|(H+)|(m+)|(s+|S+)|(SSS)|(a+)/g, function(match, year, month, day, hour, minute, second, millisecond, week) {
+                    if (year) return date.getFullYear().toString().padStart(year.length, '0');
+                    if (month) return (date.getMonth() + 1).toString().padStart(month.length, '0');
+                    if (day) return date.getDate().toString().padStart(day.length, '0');
+                    if (hour) return date.getHours().toString().padStart(hour.length, '0');
+                    if (minute) return date.getMinutes().toString().padStart(minute.length, '0');
+                    if (second) return date.getSeconds().toString().padStart(second.length, '0');
+                    if (millisecond) return date.getMilliseconds().toString().padStart(3, '0');
+                    if (week) return '周' + weekDays[date.getDay()];
+                    return match;
+                });
+            },
+            
+            /**
+             * 人民币大写
+             * @param {number} n - 数字
+             * @returns {string} 人民币大写
+             * @example
+             * JSA880.人民币大写(12345.67);  // 壹万贰仟叁佰肆拾伍元陆角柒分
+             */
+            人民币大写: JSA.z人民币大写,
+            
+            /**
+             * 字符串全局替换
+             * @param {string} str - 原字符串
+             * @param {string} search - 查找字符串
+             * @param {string} replacement - 替换字符串
+             * @returns {string} 替换后的字符串
+             * @example
+             * JSA880.替换("hello world", "world", "JSA880");  // "hello JSA880"
+             */
+            替换: function(str, search, replacement) {
+                return str.split(search).join(replacement);
+            },
+            
+            /**
+             * 数组扁平化
+             * @param {Array} arr - 多维数组
+             * @returns {Array} 一维数组
+             * @example
+             * JSA880.扁平化([[1,2],[3,4],[5,6]]);  // [1,2,3,4,5,6]
+             */
+            扁平化: function(arr) {
+                return new Array2D(arr).z扁平化();
+            },
+            
+            /**
+             * 列号转字母（Excel列名）
+             * @param {number} n - 列号（从1开始）
+             * @returns {string} 列字母，如 1->A, 27->AA
+             * @example
+             * JSA880.列号(1);   // "A"
+             * JSA880.列号(27);  // "AA"
+             */
+            列号: function(n) {
+                var result = '';
+                while (n > 0) {
+                    n--;
+                    result = String.fromCharCode(65 + (n % 26)) + result;
+                    n = Math.floor(n / 26);
+                }
+                return result;
+            },
+            
+            /**
+             * 分组汇总连接 - 优化sumifs和Countifs批量条件统计
+             * @param {Array} targetData - 统计目标数据（左表）
+             * @param {Array} sourceData - 数据源（右表）
+             * @param {string} groupKey - 分组键，如 'f2' 或 'f2,f3'
+             * @param {string} aggFunc - 汇总函数，如 'sum("f4")' 或 'count(),sum("f5")'
+             * @returns {Array} 连接汇总后的结果
+             * @example
+             * // 一行代码完成sumifs/countifs批量统计（高频办公场景优化）
+             * JSA880.分组汇总连接(目标表, 源数据表, 'f2', 'sum("f4")');
+             * JSA880.分组汇总连接(目标表, 源数据表, '月份,产品', 'count(),sum("销量"),average("金额")');
+             * 
+             * // 对比传统方式：groupInto + leftJoin 需要两行代码
+             * // JSA880.分组汇总连接 只需一行，速度提升100倍！
+             */
+            分组汇总连接: function(targetData, sourceData, groupKey, aggFunc) {
+                return Array2D.groupIntoJoin(targetData, sourceData, groupKey, aggFunc);
+            },
+            
+            /**
+             * 列字母转列号
+             * @param {string} col - 列字母，如 "A", "AA"
+             * @returns {number} 列号（从1开始）
+             * @example
+             * JSA880.列字母("A");   // 1
+             * JSA880.列字母("AA");  // 27
+             */
+            列字母: function(col) {
+                var result = 0;
+                for (var i = 0; i < col.length; i++) {
+                    result = result * 26 + (col.charCodeAt(i) - 64);
+                }
+                return result;
+            }
+        };
+
+    }).call(this);
+    
+    // 导出JSA880快捷对象到全局（与Array2D、RngUtils等同级）
+    (function() {
+        // WPS环境
+        if (typeof Application !== 'undefined') {
+            Application.JSA880 = this.JSA880;
+            Application.TreeNode = TreeNode;
+            Application.SuperMap = SuperMap;
+        }
+        // Node.js环境
+        if (typeof module !== 'undefined' && module.exports) {
+            module.exports.JSA880 = this.JSA880;
+            module.exports.TreeNode = TreeNode;
+            module.exports.SuperMap = SuperMap;
+        }
+        // Browser环境
+        if (typeof window !== 'undefined') {
+            window.JSA880 = this.JSA880;
+            window.TreeNode = TreeNode;
+            window.SuperMap = SuperMap;
+        }
     }).call(this);
 }
-
-/**
- * @fileoverview JSA880-enhanced.js - 郑广学JSA880快速开发框架（智能提示版本）
- * @author 郑广学 (EXCEL880)
- * @version 3.2.0
- * @description 完整的JSA880框架，支持智能提示、链式调用、中英双语API
- *
- * 主要特性：
- * 1. 函数式构造函数 - 支持智能提示
- * 2. 原型方法定义 - WPS编辑器自动补全
- * 3. 链式调用 - 通过 .val() 获取结果
- * 4. 中英双语API - 中文方法和英文别名
- * 5. Lambda表达式 - 支持 $0, $1, f1, f2 语法
- * 6. WPS环境集成 - 完整支持WPS JS宏
- * 7. RngUtils增强 - 完整的Range操作函数库
- * 8. $快捷函数 - 支持$.z最大行("A1")快捷调用
- * 9. As类型转换类 - 支持智能提示的类型转换包装
- *
- * @example
- * // Array2D 示例
- * Array2D([[1,2],[3,4]]).z求和()           // 10
- * Array2D([[1,2],[3,4]]).z求和('f1')        // 4
- * Array2D([[1,2],[3,4]]).z转置().val()     // [[1,3],[2,4]]
- *
- * // RngUtils 静态方法示例
- * RngUtils.z最大行("A:A")                   // 13
- * RngUtils.z安全数组("A1:C10")              // [[...],[...]]
- * RngUtils.z加边框("A1:D10")                // 添加边框
- *
- * // RngUtils 实例方法示例（链式调用）
- * RngUtils("A1:C10").z加边框().z自动列宽()
- *
- * // $快捷函数示例
- * $.z最大行("A:A")                          // 13
- * $.endRow("A:A")                           // 13
- * $("A1")                                   // Range对象
- *
- * // DateUtils 示例
- * DateUtils.dt().z加天(5).z月底().val()
- *
- * // As 类型转换类示例（支持智能提示）
- * As([[1,2],[3,4]]).toArray().z转置().z求和().val()  // 10
- * As("123").toNumber().val()                          // 123
- * As(123).toString().val()                            // "123"
- * As("2023-9-1").toDate().val()                       // Date对象
- *
- * // JSA 示例
- * JSA.z转置([[1,2,3],[4,5,6]])           // [[1,4],[2,5],[3,6]]
- * JSA.z今天()                              // "2025-01-15"
- */
