@@ -1394,6 +1394,49 @@ Array2D.prototype.shuffle = function() {
 Array2D.prototype.z随机打乱 = Array2D.prototype.shuffle;
 
 /**
+ * 随机一项（random）- 随机选择一组
+ * @param {Number} n - 可选，先打乱全部再取前n个
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([1,2,3,4,5,6]).random()        // 随机返回 Array2D([3])
+ * Array2D([1,2,3,4,5,6]).random(3)       // 先打乱全部，再取前3个，返回 Array2D([2,1,3])
+ * Array2D([[1,2],[3,4]]).random()        // 随机返回 Array2D([[1,2]])
+ */
+Array2D.prototype.random = function(n) {
+    // 检测是否为一维数组
+    var isOneD = this._items.length > 0 && !Array.isArray(this._items[0]);
+
+    if (n !== undefined && n > 0) {
+        // 先打乱整个数组，再取前n个
+        var result = JSON.parse(JSON.stringify(this._items));
+
+        // Fisher-Yates 洗牌整个数组
+        for (var i = result.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+
+        // 取前n个
+        result = result.slice(0, Math.min(n, this._items.length));
+
+        return this._new(result);
+    } else {
+        // 随机选择一项
+        var idx = Math.floor(Math.random() * this._items.length);
+        var item = this._items[idx];
+
+        // 如果是一维数组，包装成二维；二维数组保持二维
+        if (isOneD) {
+            return this._new([[item]]);
+        }
+        return this._new([item]);
+    }
+};
+Array2D.prototype.z随机一项 = Array2D.prototype.random;
+
+/**
  * 跳过前面连续满足（skipWhile）- 跳过前面连续满足条件的元素
  * @param {string|Function} predicate - 条件函数
  * @returns {Array2D} 新实例
@@ -4427,16 +4470,49 @@ Array2D.copyWithin = function(arr, target, start, end) {
 Array2D.z复制到指定位置 = Array2D.copyWithin;
 
 /**
- * 随机一项（random）- 随机选择一行
- * @param {Array} arr - 数组
- * @returns {Array} 随机选择的行
+ * 随机一项（random）- 随机选择一组
+ * @param {Array} arr - 数组（一维或二维）
+ * @param {Number} n - 可选，先打乱全部再取前n个
+ * @returns {Array} 随机选择的项
  * @example
- * Array2D.random([[1,2],[3,4],[5,6]])  // 随机返回一行
+ * Array2D.random([[1,2],[3,4],[5,6]])     // 随机返回 [[1,2]]
+ * Array2D.random([1,2,3,4,5,6])           // 返回 [3]
+ * Array2D.random([1,2,3,4,5,6], 3)        // 先打乱全部，再取前3个，返回 [2,1,3]
  */
-Array2D.random = function(arr) {
+Array2D.random = function(arr, n) {
     if (!arr || !Array.isArray(arr) || arr.length === 0) return undefined;
-    var idx = Math.floor(Math.random() * arr.length);
-    return arr[idx];
+
+    // 检测是否为一维数组
+    var isOneD = arr.length > 0 && !Array.isArray(arr[0]);
+
+    if (n !== undefined && n > 0) {
+        // 先打乱整个数组，再取前n个
+        var result = JSON.parse(JSON.stringify(arr));
+
+        // Fisher-Yates 洗牌整个数组
+        for (var i = result.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var temp = result[i];
+            result[i] = result[j];
+            result[j] = temp;
+        }
+
+        // 取前n个
+        result = result.slice(0, Math.min(n, arr.length));
+
+        // 如果是一维数组，返回一维；二维数组返回二维
+        return result;
+    } else {
+        // 随机选择一项
+        var idx = Math.floor(Math.random() * arr.length);
+        var item = arr[idx];
+
+        // 如果是一维数组，返回单个值；二维数组返回二维格式
+        if (isOneD) {
+            return item;
+        }
+        return [item];
+    }
 };
 Array2D.z随机一项 = Array2D.random;
 
