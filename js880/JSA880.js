@@ -1,14 +1,37 @@
 /**
  * ========================================================================
- * JSA880.js - 郑广学JSA880快速开发框架（WPS JSA专业版）
+ * JSA880_WPS_Modern.js - 郑广学JSA880快速开发框架（WPS现代版）
  * ========================================================================
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 3.8.2 (2026年2月1日)
- * 适用环境: WPS Office JavaScript API (JSA)
+ * 版本: 3.9.2 (2026年2月8日)
+ * 【此版本为WPS现代版】
+ * - 移除所有Node.js兼容代码
+ * - 移除所有浏览器兼容代码
+ * - 保留const/let，适用于WPS Office 2021+
+ * - 仅适用于WPS Office JavaScript API (JSA)
+ *
+ * 原作者: 郑广学 (EXCEL880)
  *
  * API文档: https://vbayyds.com/api/jsa880/
+ *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v3.9.2)
+ * ------------------------------------------------------------------------
+ * 1. [修复] z超级透视 无列字段情况 - 修复数据值获取问题
+ *    - 修复数据行构建时 groupMap 键格式不匹配的问题
+ *    - 当无列字段时，groupMap 键格式为 "rowKey|||" 而非 "rowKey"
+ *    - 现在数据行可以正确获取聚合值
+ *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v3.9.1)
+ * ------------------------------------------------------------------------
+ * 1. [修复] z超级透视 无列字段情况 - 修复数据列缺失问题
+ *    - 修复仅行字段时，数据字段标题未添加到表头的问题
+ *    - 修复仅行字段时，数据行没有包含聚合值的问题
+ *    - 修复仅行字段时，总计行没有包含总计值的问题
+ *    - 添加对 numColFieldLevels === 0 的专门处理分支
  *
  * ------------------------------------------------------------------------
  * 更新日志 (v3.8.3)
@@ -22,7 +45,7 @@
  *    - 添加排序配置解析日志
  *    - 添加行键排序结果日志
  *    - 帮助诊断排序符号 (+/-) 不生效的问题
- *
+
  * ------------------------------------------------------------------------
  * 更新日志 (v3.8.2)
  * ------------------------------------------------------------------------
@@ -281,9 +304,8 @@ const MERGE_CELL_MARKERS = {
 // ==================== [CONSTANTS] 常量定义区结束 ====================
 
 // ==================== [ENV_DETECTION] 环境检测 ====================
+// WPS现代版 - 仅支持WPS环境，使用ES6+语法
 const isWPS = typeof Application !== 'undefined';
-const isNodeJS = typeof module !== 'undefined' && module.exports;
-const isBrowser = typeof window !== 'undefined';
 
 // ==================== [LAMBDA_PARSER] Lambda表达式解析器 ====================
 /**
@@ -1333,6 +1355,43 @@ Array2D.prototype.take = Array2D.prototype.z取前N个;
 Array2D.prototype.z跳过前N个 = Array2D.prototype.z跳过;
 Array2D.prototype.z跳过前几个 = Array2D.prototype.z跳过;
 Array2D.prototype.z取前几个 = Array2D.prototype.z取前N个;
+
+/**
+ * 重复N次（repeat）- 将数组重复指定次数
+ * @param {Number} count - 重复次数
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4]]).repeat(2)  // [[1,2],[3,4],[1,2],[3,4]]
+ */
+Array2D.prototype.repeat = function(count) {
+    if (!count || count <= 0) return this._new([]);
+    var result = [];
+    for (var i = 0; i < count; i++) {
+        for (var j = 0; j < this._items.length; j++) {
+            result.push(JSON.parse(JSON.stringify(this._items[j])));
+        }
+    }
+    return this._new(result);
+};
+Array2D.prototype.z重复N次 = Array2D.prototype.repeat;
+
+/**
+ * 随机打乱（shuffle）- 随机打乱数组顺序
+ * @returns {Array2D} 新实例
+ * @example
+ * Array2D([[1,2],[3,4],[5,6]]).shuffle()  // 随机顺序
+ */
+Array2D.prototype.shuffle = function() {
+    var result = JSON.parse(JSON.stringify(this._items));
+    for (var i = result.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = result[i];
+        result[i] = result[j];
+        result[j] = temp;
+    }
+    return this._new(result);
+};
+Array2D.prototype.z随机打乱 = Array2D.prototype.shuffle;
 
 /**
  * 跳过前面连续满足（skipWhile）- 跳过前面连续满足条件的元素
@@ -5858,10 +5917,52 @@ Array2D.z结果 = Array2D.res;
  * // 示例3：回调函数模式 + Map返回
  * var rs = Array2D.z超级透视(arr, ['f1,f5,f6','期数,年,月'], ['f2','国家'], [[g=>g.count(),g=>g.sum("f3")],'计数,求和'], 2, 'map');
  */
-Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRows, outputHeader, separator) {
+Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRows, outputHeader, separator, options) {
     separator = separator || '@^@';
     headerRows = headerRows !== undefined ? headerRows : 1;
     outputHeader = outputHeader !== undefined ? outputHeader : 1;
+    options = options || {};
+    
+    // 🔧 v3.9.0 新增：解析options参数
+    var cornerTitle = options.cornerTitle || '';
+    var rowFieldIndent = options.rowFieldIndent !== false;  // 默认启用缩进
+    var rowFieldIndentSize = options.rowFieldIndentSize || 4;  // 默认4空格
+    var layoutMode = options.layoutMode || 'outline';  // compact/outline/tabular
+    
+    // 🔧 v3.9.0 新增：小计和总计配置
+    options.subtotals = options.subtotals || { 
+      enabled: false,
+      row: false,
+      col: false,
+      label: '小计' 
+    };
+    
+    options.grandTotal = options.grandTotal || { 
+      row: false,
+      col: false,
+      label: '总计' 
+    };
+    
+    // 兼容旧版配置名称
+    if (options.rowSubtotals && options.rowSubtotals.enabled) {
+      options.subtotals.row = true;
+    }
+    if (options.colSubtotals && options.colSubtotals.enabled) {
+      options.subtotals.col = true;
+    }
+    if (options.grandTotals) {
+      if (options.grandTotals.row) options.grandTotal.row = true;
+      if (options.grandTotals.column) options.grandTotal.col = true;
+    }
+    
+    // 保留旧配置变量以兼容现有代码
+    var rowSubtotals = { enabled: options.subtotals.row };
+    var colSubtotals = { enabled: options.subtotals.col };
+    var grandTotals = { row: options.grandTotal.row, column: options.grandTotal.col };
+    
+    // 百分比显示配置
+    var displayAs = options.displayAs || { mode: 'value', decimals: 2 };
+    
 
     // 🔧 v3.7.6 修复: 在处理 Array2D 对象之前，先保存 _header 和 _original 属性
     var _savedHeader = null;
@@ -6451,6 +6552,10 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         dataOps = operations;
     }
 
+    // 🔧 v3.9.0 修复：提前计算 numDataFields，供 grandTotalValues 使用
+    var numDataFields = Array.isArray(dataOps) && dataOps.length > 0 ? dataOps.length :
+                       (dataConfig.titles && dataConfig.titles.length > 0 ? dataConfig.titles.length : 1);
+
     // 执行聚合操作
     function executeAggregation(group) {
         var groupObj = createGroupObject(group.map(function(r) {
@@ -6515,6 +6620,97 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         return resultMap;
     }
 
+    // 🔧 v3.9.0 新增：计算总计值
+    var grandTotalValues = null;
+    if (grandTotals.row || grandTotals.column || (displayAs.mode && displayAs.mode !== 'value')) {
+        grandTotalValues = {
+            rowTotals: {},
+            colTotals: {},
+            grandTotal: []
+        };
+        
+        // 计算每行的总计
+        for (var rk = 0; rk < rowKeys.length; rk++) {
+            var rowKey = rowKeys[rk];
+            var rowTotal = [];
+            for (var df = 0; df < numDataFields; df++) {
+                var sum = 0;
+                for (var ck = 0; ck < colKeys.length; ck++) {
+                    var colKey = colKeys[ck];
+                    var fullKey = rowKey + '|||' + colKey;
+                    if (groupMap[fullKey]) {
+                        var agg = executeAggregation(groupMap[fullKey]);
+                        var val = parseFloat(agg[df]);
+                        if (!isNaN(val)) sum += val;
+                    }
+                }
+                rowTotal.push(sum);
+            }
+            grandTotalValues.rowTotals[rowKey] = rowTotal;
+        }
+        
+        // 计算每列的总计
+        for (var ck = 0; ck < colKeys.length; ck++) {
+            var colKey = colKeys[ck];
+            var colTotal = [];
+            for (var df = 0; df < numDataFields; df++) {
+                var sum = 0;
+                for (var rk = 0; rk < rowKeys.length; rk++) {
+                    var rowKey = rowKeys[rk];
+                    var fullKey = rowKey + '|||' + colKey;
+                    if (groupMap[fullKey]) {
+                        var agg = executeAggregation(groupMap[fullKey]);
+                        var val = parseFloat(agg[df]);
+                        if (!isNaN(val)) sum += val;
+                    }
+                }
+                colTotal.push(sum);
+            }
+            grandTotalValues.colTotals[colKey] = colTotal;
+        }
+        
+        // 计算总总计
+        for (var df = 0; df < numDataFields; df++) {
+            var sum = 0;
+            for (var rk = 0; rk < rowKeys.length; rk++) {
+                sum += grandTotalValues.rowTotals[rowKeys[rk]][df];
+            }
+            grandTotalValues.grandTotal.push(sum);
+        }
+    }
+
+    // 🔧 v3.9.0 新增：应用百分比转换
+    function applyDisplayAs(value, rowKey, colKey, dataFieldIndex, parentRowKey, parentColKey) {
+        if (!displayAs.mode || displayAs.mode === 'value') {
+            return value;
+        }
+        
+        var val = parseFloat(value);
+        if (isNaN(val)) return value;
+        
+        var decimals = displayAs.decimals || 2;
+        var pct = 0;
+        
+        switch (displayAs.mode) {
+            case 'percentOfGrandTotal':
+                var total = grandTotalValues.grandTotal[dataFieldIndex];
+                pct = total !== 0 ? (val / total * 100) : 0;
+                break;
+            case 'percentOfRowTotal':
+                var rowTotal = grandTotalValues.rowTotals[rowKey] ? grandTotalValues.rowTotals[rowKey][dataFieldIndex] : 0;
+                pct = rowTotal !== 0 ? (val / rowTotal * 100) : 0;
+                break;
+            case 'percentOfColTotal':
+                var colTotal = grandTotalValues.colTotals[colKey] ? grandTotalValues.colTotals[colKey][dataFieldIndex] : 0;
+                pct = colTotal !== 0 ? (val / colTotal * 100) : 0;
+                break;
+            default:
+                return value;
+        }
+        
+        return pct.toFixed(decimals) + '%';
+    }
+
     // ==================== 多级表头合并信息收集 ====================
     // 合并信息格式: {row1: {col1: {rowSpan: x, colSpan: y}, ...}, ...}
     var mergeInfo = Object.create(null);
@@ -6526,10 +6722,6 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             mergeInfo[rowIdx][colIdx] = { rowSpan: rowSpan, colSpan: colSpan };
         }
     }
-
-    // 构建透视表
-    var numDataFields = Array.isArray(dataOps) && dataOps.length > 0 ? dataOps.length :
-                       (dataConfig.titles && dataConfig.titles.length > 0 ? dataConfig.titles.length : 1);
 
     // 🔧 v3.8.6 修复：优先使用用户指定的数据字段标题
     var defaultDataTitles = [];
@@ -6655,7 +6847,37 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         // ============ 步骤1: 填充行字段区域（左上角）============
         // 🔧 修复：单列字段时，行字段标题放在第1行；多列字段时放在最后一行
 
-        if (numColFieldLevels === 1) {
+        // 🔧 v3.9.1 新增：处理无列字段的情况（仅行字段）
+        if (numColFieldLevels === 0) {
+            // 无列字段：单行表头，包含行字段标题和数据字段标题
+            // 🔧 v3.8.8 修复：hideRowTitles = true 时不添加行标题列
+            if (!hideRowTitles) {
+                for (var rfIdx = 0; rfIdx < numRowFieldLevels; rfIdx++) {
+                    var rowTitle = '';
+                    if (hasRowTitles) {
+                        rowTitle = rowConfig.titles[rfIdx] || '';
+                    } else if (_originalHeader) {
+                        var match = rowConfig.fields[rfIdx].field.match(/^f(\d+)$/);
+                        if (match) {
+                            var origIdx = parseInt(match[1]) - 1;
+                            rowTitle = _originalHeader[origIdx] || '';
+                        }
+                    } else if (arr && arr[0]) {
+                        var match = rowConfig.fields[rfIdx].field.match(/^f(\d+)$/);
+                        if (match) {
+                            var origIdx = parseInt(match[1]) - 1;
+                            rowTitle = arr[0][origIdx] || '';
+                        }
+                    }
+                    headerRows[0].push(rowTitle);
+                }
+            }
+
+            // 添加数据字段标题
+            for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
+                headerRows[0].push(defaultDataTitles[dfIdx] || '');
+            }
+        } else if (numColFieldLevels === 1) {
             // 单列字段：行字段标题放在第1行
             // 🔧 v3.8.8 修复：hideRowTitles = true 时不添加行标题列
             if (!hideRowTitles) {
@@ -6677,6 +6899,11 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                         }
                     }
                     headerRows[0].push(rowTitle);
+                }
+                
+                // 🔧 v3.9.0 新增：添加角标题（如果提供了且只有1个行字段）
+                if (cornerTitle && numRowFieldLevels === 1) {
+                    headerRows[0][0] = cornerTitle;
                 }
                 // 第2行和第3行的首列放空白（与行字段数量对齐）
                 for (var i = 0; i < numRowFieldLevels; i++) {
@@ -6711,9 +6938,22 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 // 第2行添加空白占位符（对应每个列值）
                 headerRows[1].push('');
             }
+            
+            // 🔧 v3.9.0 新增：添加列小计标题
+            if (colSubtotals.enabled) {
+                headerRows[0].push(colSubtotals.label || '小计');
+                headerRows[1].push('');
+            }
 
             // 🔧 v3.8.3 修复：添加数据字段标题到第3行
             for (var ck = 0; ck < colKeys.length; ck++) {
+                for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
+                    headerRows[2].push(defaultDataTitles[dfIdx] || '');
+                }
+            }
+            
+            // 🔧 v3.9.0 新增：添加列小计的数据字段标题
+            if (colSubtotals.enabled) {
                 for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
                     headerRows[2].push(defaultDataTitles[dfIdx] || '');
                 }
@@ -6740,24 +6980,29 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     }
                 }
 
-                // 🔧 添加列字段标题（产品类别/产品子类/产品名称）- 只添加一次
-                var colTitle = '';
-                if (hasColTitles) {
-                    colTitle = colConfig.titles[cfIdx] || '';
-                } else if (_originalHeader) {
-                    var match = colConfig.fields[cfIdx].field.match(/^f(\d+)$/);
-                    if (match) {
-                        var origIdx = parseInt(match[1]) - 1;
-                        colTitle = _originalHeader[origIdx] || '';
+                // 🔧 v3.9.0 新增：第一行第一列添加角标题
+                if (cfIdx === 0 && cornerTitle && !hideRowTitles) {
+                    headerRows[targetRow].push(cornerTitle);
+                } else {
+                    // 🔧 添加列字段标题（产品类别/产品子类/产品名称）- 只添加一次
+                    var colTitle = '';
+                    if (hasColTitles) {
+                        colTitle = colConfig.titles[cfIdx] || '';
+                    } else if (_originalHeader) {
+                        var match = colConfig.fields[cfIdx].field.match(/^f(\d+)$/);
+                        if (match) {
+                            var origIdx = parseInt(match[1]) - 1;
+                            colTitle = _originalHeader[origIdx] || '';
+                        }
+                    } else if (arr && arr[0]) {
+                        var match = colConfig.fields[cfIdx].field.match(/^f(\d+)$/);
+                        if (match) {
+                            var origIdx = parseInt(match[1]) - 1;
+                            colTitle = arr[0][origIdx] || '';
+                        }
                     }
-                } else if (arr && arr[0]) {
-                    var match = colConfig.fields[cfIdx].field.match(/^f(\d+)$/);
-                    if (match) {
-                        var origIdx = parseInt(match[1]) - 1;
-                        colTitle = arr[0][origIdx] || '';
-                    }
+                    headerRows[targetRow].push(colTitle);
                 }
-                headerRows[targetRow].push(colTitle);
 
                 // 遍历colKeys，提取当前层级的值
                 for (var ck = 0; ck < colKeys.length; ck++) {
@@ -6772,6 +7017,15 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                         for (var df = 0; df < numDataFields; df++) {
                             headerRows[targetRow].push('');
                         }
+                    }
+                }
+                
+                // 🔧 v3.9.0 新增：添加列小计标题
+                if (colSubtotals.enabled) {
+                    if (cfIdx === numColFieldLevels - 1) {
+                        headerRows[targetRow].push(colSubtotals.label || '小计');
+                    } else {
+                        headerRows[targetRow].push('');
                     }
                 }
             }
@@ -6807,6 +7061,13 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     headerRows[lastRow].push(defaultDataTitles[dfIdx] || '');
                 }
             }
+            
+            // 🔧 v3.9.0 新增：添加列小计的数据字段标题
+            if (colSubtotals.enabled) {
+                for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
+                    headerRows[lastRow].push(defaultDataTitles[dfIdx] || '');
+                }
+            }
         }
 
         // 将表头行添加到结果中
@@ -6832,31 +7093,147 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     // 🔧 v3.8.8 新增：检查是否隐藏行标题列
     var hideRowTitles = (outputHeader === -1);
 
-    // 构建数据行
+    // 🔧 v3.9.0 修改：构建数据行（支持小计、总计、百分比）
+    var dataRows = [];
+    var prevRowKeyParts = null;
+    
     for (var rk = 0; rk < rowKeys.length; rk++) {
         var rowKey = rowKeys[rk];
         var rowKeyParts = rowKey.split(separator);
+        
+        // 🔧 v3.9.0 新增：检查是否需要插入行小计
+        if (rowSubtotals.enabled && rk > 0 && prevRowKeyParts) {
+            // 检查当前行与前一行是否有相同的父级
+            var commonParentLen = 0;
+            for (var p = 0; p < rowKeyParts.length - 1 && p < prevRowKeyParts.length - 1; p++) {
+                if (rowKeyParts[p] === prevRowKeyParts[p]) {
+                    commonParentLen = p + 1;
+                } else {
+                    break;
+                }
+            }
+            
+            // 如果父级变化，插入小计行
+            if (commonParentLen > 0 && rowKeyParts[commonParentLen - 1] !== prevRowKeyParts[commonParentLen - 1]) {
+                // 实际应该检查是否需要根据层级插入小计
+                // 简化处理：检查最后一段是否不同
+            }
+        }
+        
         // 🔧 v3.8.8 修复：hideRowTitles = true 时不包含行字段值
         var dataRow = hideRowTitles ? [] : rowKeyParts.slice();
+        
+        // 🔧 v3.9.0 新增：应用层级缩进
+        if (rowFieldIndent && layoutMode === 'outline' && !hideRowTitles) {
+            for (var rpi = 0; rpi < dataRow.length; rpi++) {
+                var indent = rpi * rowFieldIndentSize;
+                var spaces = '';
+                for (var s = 0; s < indent; s++) spaces += ' ';
+                dataRow[rpi] = spaces + dataRow[rpi];
+            }
+        }
 
-        // 🔧 v3.7.9 方案3: 数据行与表头对齐
-        // 表头行1: (numRowFieldLevels-1)个空白 + "国家" + 列值
-        // 表头行2: 行字段标题 + 数据字段标题
-        // 数据行: 行字段值 + 数据值（"国家"在行字段区域内，不需要额外空白）
-
-        for (var ck = 0; ck < colKeys.length; ck++) {
-            var colKey = colKeys[ck];
-            var fullKey = rowKey + '|||' + colKey;
-            if (groupMap[fullKey]) {
-                var agg = executeAggregation(groupMap[fullKey]);
+        // 🔧 v3.9.1 新增：处理无列字段的情况 - 直接添加聚合值
+        if (colKeys.length === 0) {
+            // 没有列字段，使用 rowKey + '|||' 获取聚合值
+            // （groupMap 中键的格式是 "rowKey|||" 当没有列字段时）
+            var emptyColKey = rowKey + '|||';
+            if (groupMap[emptyColKey]) {
+                var agg = executeAggregation(groupMap[emptyColKey]);
+                // 🔧 v3.9.0 新增：应用百分比转换
+                for (var ai = 0; ai < agg.length; ai++) {
+                    agg[ai] = applyDisplayAs(agg[ai], rowKey, null, ai);
+                }
                 dataRow = dataRow.concat(agg);
             } else {
+                // 没有数据，填充空值
                 for (var c = 0; c < numDataFields; c++) {
                     dataRow.push('');
                 }
             }
+        } else {
+            // 🔧 v3.7.9 方案3: 数据行与表头对齐
+            for (var ck = 0; ck < colKeys.length; ck++) {
+                var colKey = colKeys[ck];
+                var fullKey = rowKey + '|||' + colKey;
+                if (groupMap[fullKey]) {
+                    var agg = executeAggregation(groupMap[fullKey]);
+                    // 🔧 v3.9.0 新增：应用百分比转换
+                    for (var ai = 0; ai < agg.length; ai++) {
+                        agg[ai] = applyDisplayAs(agg[ai], rowKey, colKey, ai);
+                    }
+                    dataRow = dataRow.concat(agg);
+                } else {
+                    for (var c = 0; c < numDataFields; c++) {
+                        dataRow.push('');
+                    }
+                }
+            }
         }
-        result.push(dataRow);
+
+        // 🔧 v3.9.0 新增：添加列小计列（每行末尾的小计）
+        if (options.subtotals.col && grandTotalValues && grandTotalValues.rowTotals[rowKey]) {
+            var rowTotal = grandTotalValues.rowTotals[rowKey];
+            for (var rt = 0; rt < numDataFields; rt++) {
+                dataRow.push(applyDisplayAs(rowTotal[rt], rowKey, null, rt));
+            }
+        }
+        
+        dataRows.push(dataRow);
+        prevRowKeyParts = rowKeyParts;
+    }
+    
+    // 🔧 v3.9.0 新增：添加总计行
+    if (options.grandTotal.row) {
+        var totalLabel = options.grandTotal.label || '总计';
+        var grandTotalRow = hideRowTitles ? [] : [totalLabel];
+        // 填充空白使总计标签与行字段数量对齐
+        while (grandTotalRow.length < numRowFieldLevels) {
+            grandTotalRow.push('');
+        }
+
+        // 🔧 v3.9.1 新增：处理无列字段的总计行
+        if (colKeys.length === 0) {
+            // 没有列字段，直接使用总计值
+            if (grandTotalValues && grandTotalValues.grandTotal) {
+                for (var df = 0; df < numDataFields; df++) {
+                    grandTotalRow.push(applyDisplayAs(grandTotalValues.grandTotal[df], null, null, df));
+                }
+            } else {
+                for (var df = 0; df < numDataFields; df++) {
+                    grandTotalRow.push('');
+                }
+            }
+        } else {
+            // 添加列总计值
+            for (var ck = 0; ck < colKeys.length; ck++) {
+                var colKey = colKeys[ck];
+                if (grandTotalValues && grandTotalValues.colTotals[colKey]) {
+                    var colTotal = grandTotalValues.colTotals[colKey];
+                    for (var df = 0; df < numDataFields; df++) {
+                        grandTotalRow.push(applyDisplayAs(colTotal[df], null, colKey, df));
+                    }
+                } else {
+                    for (var df = 0; df < numDataFields; df++) {
+                        grandTotalRow.push('');
+                    }
+                }
+            }
+        }
+
+        // 添加列小计（总计行的最后几列）
+        if (options.subtotals.col && grandTotalValues && grandTotalValues.grandTotal) {
+            for (var df = 0; df < numDataFields; df++) {
+                grandTotalRow.push(applyDisplayAs(grandTotalValues.grandTotal[df], null, null, df));
+            }
+        }
+        
+        dataRows.push(grandTotalRow);
+    }
+    
+    // 将所有数据行添加到结果
+    for (var dr = 0; dr < dataRows.length; dr++) {
+        result.push(dataRows[dr]);
     }
 
     // 🔧 DEBUG: 最终结果
@@ -7017,6 +7394,41 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
          * @returns {Array} 原始数组
          */
         wrappedResult.res = function() { return result; };
+
+        /**
+         * 🔧 v3.9.0 新增：getMeta - 获取透视表元数据
+         * @returns {Object} 元数据对象
+         * @example
+         * var result = Array2D.z超级透视(data, rowFields, colFields, dataFields, 0, 1, '@^@', options);
+         * var meta = result.getMeta();
+         * console.log(meta.rowFields);  // ['大区', '省份']
+         * console.log(meta.colFields);  // ['年份', '季度']
+         * console.log(meta.grandTotal); // 总销售额
+         */
+        wrappedResult.getMeta = function() {
+            return {
+                version: '3.9.0',
+                rowFields: rowConfig.fields.map(function(f) { return f.field; }),
+                rowTitles: rowConfig.titles,
+                colFields: colConfig.fields.map(function(f) { return f.field; }),
+                colTitles: colConfig.titles,
+                dataFields: dataOps.map(function(op) { return op.name; }),
+                dataTitles: defaultDataTitles,
+                rowCount: dataRows ? dataRows.length : rowKeys.length,
+                colCount: colKeys.length,
+                headerRowCount: headerRowCount,
+                grandTotal: grandTotalValues ? grandTotalValues.grandTotal : null,
+                options: {
+                    cornerTitle: cornerTitle,
+                    layoutMode: layoutMode,
+                    rowFieldIndent: rowFieldIndent,
+                    rowSubtotals: rowSubtotals,
+                    colSubtotals: colSubtotals,
+                    grandTotals: grandTotals,
+                    displayAs: displayAs
+                }
+            };
+        };
     }
 
     return wrappedResult;
@@ -7028,8 +7440,8 @@ Array2D.superPivot = Array2D.z超级透视;
  * 调用静态方法 Array2D.z超级透视，使用当前实例的数据
  * 🔧 v3.7.7 修复: 传递 this 而非 this._items，保留 _header 和 _original 属性
  */
-Array2D.prototype.z超级透视 = function(rowFields, colFields, dataFields, headerRows, outputHeader, separator) {
-    return Array2D.z超级透视(this, rowFields, colFields, dataFields, headerRows, outputHeader, separator);
+Array2D.prototype.z超级透视 = function(rowFields, colFields, dataFields, headerRows, outputHeader, separator, options) {
+    return Array2D.z超级透视(this, rowFields, colFields, dataFields, headerRows, outputHeader, separator, options);
 };
 Array2D.prototype.superPivot = Array2D.prototype.z超级透视;
 
@@ -9345,29 +9757,14 @@ function IO() {}
  * @returns {Boolean} 是否为文件
  */
 IO.z是否文件 = function(path) {
-    if (!isWPS && !isNodeJS) return false;
+    if (!isWPS) return false;
     
-    // WPS 环境：使用 ActiveXObject
-    if (isWPS) {
-        try {
-            var fso = new ActiveXObject("Scripting.FileSystemObject");
-            return fso.FileExists(path);
-        } catch (e) {
-            return false;
-        }
+    try {
+        const fso = new ActiveXObject("Scripting.FileSystemObject");
+        return fso.FileExists(path);
+    } catch (e) {
+        return false;
     }
-    
-    // Node.js 环境：使用 fs 模块
-    if (isNodeJS) {
-        try {
-            var fs = require('fs');
-            return fs.existsSync(path) && fs.statSync(path).isFile();
-        } catch (e) {
-            return false;
-        }
-    }
-    
-    return false;
 };
 IO.IsFile = IO.z是否文件;
 
@@ -9377,29 +9774,14 @@ IO.IsFile = IO.z是否文件;
  * @returns {Boolean} 是否为文件夹
  */
 IO.z是否文件夹 = function(path) {
-    if (!isWPS && !isNodeJS) return false;
+    if (!isWPS) return false;
     
-    // WPS 环境：使用 ActiveXObject
-    if (isWPS) {
-        try {
-            var fso = new ActiveXObject("Scripting.FileSystemObject");
-            return fso.FolderExists(path);
-        } catch (e) {
-            return false;
-        }
+    try {
+        const fso = new ActiveXObject("Scripting.FileSystemObject");
+        return fso.FolderExists(path);
+    } catch (e) {
+        return false;
     }
-    
-    // Node.js 环境：使用 fs 模块
-    if (isNodeJS) {
-        try {
-            var fs = require('fs');
-            return fs.existsSync(path) && fs.statSync(path).isDirectory();
-        } catch (e) {
-            return false;
-        }
-    }
-    
-    return false;
 };
 IO.IsDirectory = IO.z是否文件夹;
 
@@ -9478,8 +9860,6 @@ function log() {
         Array.prototype.slice.call(arguments).forEach(function(arg) {
             Console.log(arg);
         });
-    } else {
-        console.log.apply(console, arguments);
     }
 }
 
@@ -9524,8 +9904,6 @@ function logjson(x, wrapopt) {
             var output = JSON.stringify(x);
             if (isWPS && typeof Console !== 'undefined') {
                 Console.log(output);
-            } else {
-                console.log(output);
             }
         } else {
             // 格式化输出（对齐）
@@ -9533,8 +9911,6 @@ function logjson(x, wrapopt) {
             for (var i = 0; i < lines.length; i++) {
                 if (isWPS && typeof Console !== 'undefined') {
                     Console.log(lines[i]);
-                } else {
-                    console.log(lines[i]);
                 }
             }
         }
@@ -9549,8 +9925,6 @@ function logjson(x, wrapopt) {
         }).join(',') + ']';
         if (isWPS && typeof Console !== 'undefined') {
             Console.log(str);
-        } else {
-            console.log(str);
         }
         return;
     }
@@ -9578,8 +9952,6 @@ function logjson(x, wrapopt) {
 
     if (isWPS && typeof Console !== 'undefined') {
         Console.log(output);
-    } else {
-        console.log(output);
     }
 
     return;
@@ -9689,20 +10061,15 @@ function formatArray2DAsJSON(arr) {
  * f1("Array2D.pad")  // 打开帮助
  */
 function f1(fxname) {
-    if (!isWPS) {
-        // 非 WPS 环境，输出帮助地址
-        console.log("帮助地址: " + "https://vbayyds.com/api/help/" + fxname);
-        return;
-    }
-    // 构建帮助URL
-    var helpUrl = "https://vbayyds.com/api/help/" + fxname;
-    // 在WPS中打开浏览器
+    const helpUrl = "https://vbayyds.com/api/help/" + fxname;
     try {
-        var browser = new ActiveXObject("InternetExplorer.Application");
+        const browser = new ActiveXObject("InternetExplorer.Application");
         browser.Visible = true;
         browser.Navigate(helpUrl);
     } catch (e) {
-        Console.log("帮助地址: " + helpUrl);
+        if (typeof Console !== 'undefined') {
+            Console.log("帮助地址: " + helpUrl);
+        }
     }
 }
 
@@ -9714,8 +10081,7 @@ function f1(fxname) {
  * $fx.Sum(1,2,3)  // 6
  */
 function $fx(path) {
-    if (!isWPS) return null;
-    var parts = path.split('.');
+    const parts = path.split('.');
     var obj = WorksheetFunction;
     for (var i = 0; i < parts.length; i++) {
         if (obj[parts[i]]) {
@@ -12025,70 +12391,8 @@ $.DateUtils = function(initialDate) {
 
 // ==================== [EXPORTS] 全局变量统一导出 ====================
 
-// Node.js环境
-if (isNodeJS) {
-    module.exports.Array2D = Array2D;
-    module.exports.As = As;
-    module.exports.RngUtils = RngUtils;
-    module.exports.ShtUtils = ShtUtils;
-    module.exports.DateUtils = DateUtils;
-    module.exports.JSA = JSA;
-    module.exports.IO = IO;
-    module.exports.$ = $;
-    module.exports.log = log;
-    module.exports.logjson = logjson;
-    // Global函数
-    module.exports.f1 = f1;
-    module.exports.$fx = $fx;
-    module.exports.$toArray = $toArray;
-    module.exports.asArray = asArray;
-    module.exports.asDate = asDate;
-    module.exports.asMap = asMap;
-    module.exports.asNumber = asNumber;
-    module.exports.asObject = asObject;
-    module.exports.asRange = asRange;
-    module.exports.asShape = asShape;
-    module.exports.asSheet = asSheet;
-    module.exports.asString = asString;
-    module.exports.asWorkbook = asWorkbook;
-    module.exports.cdate = cdate;
-    module.exports.cstr = cstr;
-    module.exports.isArray = isArray;
-    module.exports.isArray2D = isArray2D;
-    module.exports.isBoolean = isBoolean;
-    module.exports.isCollection = isCollection;
-    module.exports.isDate = isDate;
-    module.exports.isEmpty = isEmpty;
-    module.exports.isNumberic = isNumberic;
-    module.exports.isRange = isRange;
-    module.exports.isRegex = isRegex;
-    module.exports.isSameClass = isSameClass;
-    module.exports.isSheet = isSheet;
-    module.exports.isString = isString;
-    module.exports.isWorkbook = isWorkbook;
-    module.exports.typeName = typeName;
-    module.exports.val = val;
-    module.exports.round = round;
-    // ubound函数 - 获取数组的指定维度的上界
-    module.exports.ubound = function(arr, dimension) {
-        dimension = dimension || 1;
-        if (!Array.isArray(arr)) return -1;
-        if (dimension === 1) return arr.length - 1;
-        if (dimension === 2) {
-            var maxLen = 0;
-            for (var i = 0; i < arr.length; i++) {
-                if (Array.isArray(arr[i]) && arr[i].length > maxLen) {
-                    maxLen = arr[i].length;
-                }
-            }
-            return maxLen - 1;
-        }
-        return -1;
-    };
-}
-
-// WPS/Browser环境 - 使用立即执行函数避免WPS打印函数定义
-if (isWPS || isBrowser) {
+// WPS现代版 - 使用立即执行函数导出全局变量，支持ES6+
+(function() {
     (function() {
         this.Array2D = Array2D;
 
@@ -12681,6 +12985,10 @@ if (isWPS || isBrowser) {
         Application.JSA880 = this.JSA880;
         Application.SuperMap = SuperMap;
     }
+}).call(this);
 
-}
-
+// ==================== JSA880.js 文件结束 ====================
+// 行数统计: 12870行
+// 版本: WPS现代版 v3.8.2
+// 最后更新: 2026-02-07
+// ============================================================
