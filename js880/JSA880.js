@@ -257,7 +257,9 @@ const LAMBDA_PATTERNS = {
     /** 索引选择器 $0, $1, $2 */
     INDEX_SELECTOR: /\$(\d+)/g,
     /** 列选择器 f1, f2, f3 */
-    COLUMN_SELECTOR: /^f\d+/
+    COLUMN_SELECTOR: /^f\d+/,
+    /** 多列选择器 f1,f2 或 f1, f2, f3 */
+    MULTI_COLUMN: /^f\d+(\s*,\s*f\d+)+$/
 };
 
 /**
@@ -354,7 +356,13 @@ function parseLambda(expr) {
                 fn = new Function('_', 'return ' + expr.replace(LAMBDA_PATTERNS.INDEX_SELECTOR, '_[$1]'));
             }
         }
-        // 处理 f1, f2, f3 列选择器语法 -> 转换为箭头函数
+        // 处理多列选择器 f1,f2 或 f1, f2, f3 -> 返回数组
+        else if (LAMBDA_PATTERNS.MULTI_COLUMN.test(expr)) {
+            // 分割并转换为数组: 'f1,f2' -> '[_[0],_[1]]'
+            const cols = expr.split(/\s*,\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
+            fn = new Function('_', 'return [' + cols + ']');
+        }
+        // 处理 f1, f2, f3 单列选择器语法 -> 转换为箭头函数
         else if (LAMBDA_PATTERNS.COLUMN_SELECTOR.test(expr)) {
             // 转换 f1 -> _[0], f2 -> _[1], etc.
             fn = new Function('_', 'return ' + expr.replace(/f(\d+)/g, '_[$1-1]'));
