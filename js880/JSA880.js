@@ -4089,25 +4089,82 @@ Array2D.rangeForEach = function(arr, start, end, callback) {
 Array2D.z按范围遍历 = Array2D.rangeForEach;
 
 /**
- * 局部映射（rangeMap）- 对指定索引范围的元素进行映射
- * @param {Array} arr - 数组
- * @param {Number} start - 起始索引
- * @param {Number} end - 结束索引
- * @param {string|Function} mapper - 转换函数
- * @returns {Array} 映射后的数组
+ * 局部映射（rangeMap）- 对二维数组指定矩形区域进行映射，返回完整数组（仅指定区域被修改）
+ * @param {Array} arr - 二维数组
+ * @param {Array|string} address - 地址范围，支持：
+ *   - 数组格式：[行起, 列起, 行数, 列数] 如 [0, 0, 3, 2]，默认 [0, 0, Infinity, Infinity]
+ *   - 字符串格式：'a1:b3' 或 'A1:B3'
+ * @param {string|Function} mapper - 映射函数 (当前值, 行号, 列号, 原数组) => 新值
+ * @returns {Array} 映射后的完整二维数组
  * @example
- * Array2D.rangeMap([[1,2],[3,4],[5,6]], 0, 1, 'x=>x[0]*2')  // [[2], [6]]
+ * // 示例1: 3行2列区域添加后缀
+ * var arr = [["A1","B1","C1"],["A2","B2","C2"],["A3","B3","C3"]];
+ * Array2D.rangeMap(arr, [0,0,3,2], x=>x+'**');
+ * // [["A1**","B1**","C1"],["A2**","B2**","C2"],["A3**","B3**","C3"]]
+ *
+ * // 示例2: 字符串格式地址
+ * Array2D.rangeMap(arr, 'a1:b2', (x,i,j,orig)=>`${x}-${i}-${j}`);
+ *
+ * // 示例3: 使用回调访问原数组其他列
+ * Array2D.rangeMap(arr, 'a1:b3', (x,i,j,brr)=>`${x}-${brr[i][j+2]}`);
  */
-Array2D.rangeMap = function(arr, start, end, mapper) {
+Array2D.rangeMap = function(arr, address, mapper) {
     if (!arr || !Array.isArray(arr)) return [];
+    if (!mapper) return arr;
+
     var fn = typeof mapper === 'function' ? mapper : parseLambda(mapper);
-    if (!fn) return [];
-    start = start || 0;
-    end = end !== undefined ? end : arr.length - 1;
-    var result = [];
-    for (var i = start; i <= end && i < arr.length; i++) {
-        result.push(fn(arr[i], i));
+    if (!fn) return arr;
+
+    // 解析地址参数
+    var rowStart = 0, colStart = 0, rowCount = Infinity, colCount = Infinity;
+
+    if (Array.isArray(address)) {
+        // 数组格式: [行起, 列起, 行数, 列数]
+        rowStart = address[0] || 0;
+        colStart = address[1] || 0;
+        rowCount = address[2] !== undefined ? address[2] : Infinity;
+        colCount = address[3] !== undefined ? address[3] : Infinity;
+    } else if (typeof address === 'string') {
+        // 字符串格式: 'a1:b3' 或 'A1:B3'
+        var rangeMatch = address.match(/^([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)$/);
+        if (rangeMatch) {
+            // 列字母转0-based索引
+            var _toColIdx = function(colStr) {
+                var idx = 0;
+                for (var k = 0; k < colStr.length; k++) {
+                    idx = idx * 26 + (colStr.toUpperCase().charCodeAt(k) - 64);
+                }
+                return idx - 1;
+            };
+            var col1 = _toColIdx(rangeMatch[1]);
+            var row1 = parseInt(rangeMatch[2]) - 1;
+            var col2 = _toColIdx(rangeMatch[3]);
+            var row2 = parseInt(rangeMatch[4]) - 1;
+            rowStart = Math.min(row1, row2);
+            colStart = Math.min(col1, col2);
+            rowCount = Math.abs(row2 - row1) + 1;
+            colCount = Math.abs(col2 - col1) + 1;
+        }
     }
+
+    // 深拷贝原数组
+    var result = [];
+    for (var i = 0; i < arr.length; i++) {
+        result[i] = arr[i].slice();
+    }
+
+    // 计算实际范围并映射
+    var rowEnd = Math.min(rowStart + rowCount, arr.length);
+    for (var i = rowStart; i < rowEnd; i++) {
+        if (!arr[i]) continue;
+        var colEnd = Math.min(colStart + colCount, arr[i].length);
+        for (var j = colStart; j < colEnd; j++) {
+            if (j < arr[i].length) {
+                result[i][j] = fn(arr[i][j], i, j, arr);
+            }
+        }
+    }
+
     return result;
 };
 Array2D.z局部映射 = Array2D.rangeMap;
@@ -4276,8 +4333,8 @@ Array2D.groupInto = function(arr, keySelector, valueSelector, separator) {
     // 解析值选择器
     var valueFn;
     if (typeof valueSelector === 'string') {
-        // 检查是否是聚合函数格式
-        var aggMatch = valueSelector.match(/g\.(sum|count|average|max|min)\s*\(\s*["']?f?(\d+)["']?\s*\)/i);
+        // 检查是否是聚合函数格式（g. 前缀可选）
+        var aggMatch = valueSelector.match(/(?:g\.)?(sum|count|average|max|min)\s*\(\s*["']?f?(\d+)["']?\s*\)/i);
         if (aggMatch) {
             var aggFunc = aggMatch[1].toLowerCase();
             var colIdx = parseInt(aggMatch[2]) - 1;
