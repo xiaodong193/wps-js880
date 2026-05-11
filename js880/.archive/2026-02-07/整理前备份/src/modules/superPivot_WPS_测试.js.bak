@@ -1,0 +1,2657 @@
+/**
+ * ========================================================================
+ * superPivot WPS 测试脚本 - 直接在WPS中运行
+ * ========================================================================
+ *
+ * 使用方法:
+ * 1. 打开测试文件: 3.25 superPivot降维打击 实现多层表头交叉透视汇总_副本.xlsm
+ * 2. 按 Alt+F11 打开宏编辑器
+ * 3. 复制此脚本到宏编辑器
+ * 4. 运行 运行所有测试() 函数
+ *
+ * ========================================================================
+ */
+
+// ==================== 测试数据获取 ====================
+
+function 获取测试数据() {
+    var dataSheet = Application.ActiveWorkbook.Worksheets("数据");
+    if (!dataSheet) {
+        throw new Error("找不到'数据'表，请先打开测试文件");
+    }
+
+    var usedRange = dataSheet.UsedRange;
+
+    // 查看数据结构
+    var rowCount = usedRange.Rows.Count;
+    var colCount = usedRange.Columns.Count;
+
+    // 限制数据量 - 最多取500行（含表头）
+    var maxRows = 500;
+    var dataRows = Math.min(rowCount, maxRows);
+
+    // 只读取需要的数据范围
+    var dataRange = dataSheet.Range(usedRange.Cells(1, 1), usedRange.Cells(dataRows, colCount));
+
+    // 转换为 Array2D
+    var arr = RngUtils.safeArray(dataRange);
+
+    return arr;
+}
+
+/**
+ * 通用数据获取函数
+ * @param {string} rangeAddress - Range 地址，如 "数据!A1:Z5001"
+ * @returns {Array} 二维数组
+ */
+function 获取数据(rangeAddress) {
+    var dataSheet = Application.ActiveWorkbook.Worksheets("数据");
+    if (!dataSheet) {
+        throw new Error("找不到'数据'表");
+    }
+
+    var range = dataSheet.Range(rangeAddress.replace("数据!", ""));
+    return RngUtils.safeArray(range);
+}
+
+function 清空测试区域() {
+    var wb = Application.ActiveWorkbook;
+    var ws = null;
+
+    // 尝试获取"测试输出"表
+    try {
+        ws = wb.Worksheets("测试输出");
+        ws.Cells.Clear();
+        console.log("已清空'测试输出'表");
+    } catch (e) {
+        // 工作表不存在，创建新的
+        ws = wb.Worksheets.Add();
+        ws.Name = "测试输出";
+        console.log("已创建'测试输出'表");
+    }
+
+    return ws;
+}
+
+// ==================== 数据生成器 ====================
+
+/**
+ * 测试8: 多行多列自定义标题
+ *
+ * 测试场景：
+ * - 2个行字段：产品、类别
+ * - 2个列字段：年份、月份
+ * - 3个数据字段：订单数、总销量、平均金额
+ * - 所有字段都有自定义标题
+ */
+function 测试8_多行多列标题() {
+    console.log("========== 测试8: 多行多列自定义标题 ==========");
+
+    // 确保测试输出表存在并清空
+    清空测试区域();
+
+    var arr = 获取测试数据();
+    console.log("[步骤1] 获取测试数据完成");
+
+    arr = arr.z跳过(1);
+    console.log("[步骤2] 跳过表头完成");
+
+    // 限制数据量以便快速测试
+    var limit = 200;
+    var dataArr = null;
+    if (arr._items && Array.isArray(arr._items)) {
+        dataArr = arr._items.length > limit ? arr._items.slice(0, limit) : arr._items;
+    } else if (Array.isArray(arr)) {
+        dataArr = arr.length > limit ? arr.slice(0, limit) : arr;
+    } else {
+        dataArr = arr;
+    }
+
+    console.log("[步骤3] 数据准备完成，行数: " + dataArr.length);
+
+    // 显示前几行数据用于调试
+    console.log("[调试] 前3行数据:");
+    for (var i = 0; i < Math.min(3, dataArr.length); i++) {
+        console.log("  行" + i + ": " + dataArr[i].join(" | "));
+    }
+
+    var result = Array2D.z超级透视(
+        dataArr,
+        // 行字段：2个字段，2个自定义标题
+        ['f2,f1', '产品名称,产品类别'],
+        // 列字段：2个字段，2个自定义标题
+        ['f6,f7', '销售年份,销售月份'],
+        // 数据字段：3个聚合，3个自定义标题
+        ['count(),sum("f4"),average("f5")', '订单总数,销售总量,平均单价'],
+        0,      // headerRows: 数据源没有表头行
+        1       // outputHeader: 输出表头
+    );
+
+    console.log("[步骤4] z超级透视完成");
+    console.log("  结果总行数: " + result.z数量());
+    console.log("  结果列数: " + result[0].length);
+
+    // 显示结果前几行
+    console.log("[调试] 结果前3行:");
+    for (var i = 0; i < Math.min(3, result.z数量()); i++) {
+        console.log("  行" + i + ": " + result[i].join(" | "));
+    }
+
+    // 输出到 A1 位置（确保可见）
+    result.toRange("测试输出!A1", false);
+    console.log("[步骤5] 输出到测试输出表完成");
+    console.log("========== 测试8完成! ==========");
+    return result;
+}
+
+/**
+ * 测试9: 标题控制参数测试
+ *
+ * 测试 outputHeader 参数的不同值：
+ * - 1: 输出完整表头（默认）
+ * - 0: 不输出表头
+ * - -1: 输出表头但不包含行标题列
+ */
+function 测试9_标题控制参数() {
+    console.log("========== 测试9: 标题控制参数 ==========");
+
+    var arr = 获取测试数据();
+    arr = arr.z跳过(1);
+
+    // 限制数据量
+    var limit = 50;
+    if (arr._items && Array.isArray(arr._items)) {
+        if (arr._items.length > limit) {
+            arr._items = arr._items.slice(0, limit);
+        }
+    } else if (Array.isArray(arr) && arr.length > limit) {
+        arr = arr.slice(0, limit);
+    }
+
+    // 子测试 9.1: outputHeader = 1 (完整表头)
+    console.log("--- 9.1: outputHeader = 1 (完整表头) ---");
+    var result1 = Array2D.z超级透视(
+        arr,
+        ['f2', '产品'],
+        ['f3', '国家'],
+        ['count(),sum("f4")', '订单数,销量'],
+        0,
+        1
+    );
+    result1.toRange("测试输出!A170", false);
+    console.log("9.1 完成 - 行数: " + result1.z数量() + ", 列数: " + result1[0].length);
+
+    // 子测试 9.2: outputHeader = 0 (无表头)
+    console.log("--- 9.2: outputHeader = 0 (无表头) ---");
+    var result2 = Array2D.z超级透视(
+        arr,
+        ['f2', '产品'],
+        ['f3', '国家'],
+        ['count(),sum("f4")', '订单数,销量'],
+        0,
+        0
+    );
+    result2.toRange("测试输出!A190", false);
+    console.log("9.2 完成 - 行数: " + result2.z数量() + ", 列数: " + result2[0].length);
+
+    // 子测试 9.3: outputHeader = -1 (表头不含行标题)
+    console.log("--- 9.3: outputHeader = -1 (表头不含行标题) ---");
+    var result3 = Array2D.z超级透视(
+        arr,
+        ['f2', '产品'],
+        ['f3', '国家'],
+        ['count(),sum("f4")', '订单数,销量'],
+        0,
+        -1
+    );
+    result3.toRange("测试输出!A210", false);
+    console.log("9.3 完成 - 行数: " + result3.z数量() + ", 列数: " + result3[0].length);
+
+    console.log("测试9完成");
+    return { result1: result1, result2: result2, result3: result3 };
+}
+
+// ==================== 主测试函数 ====================
+
+// ==================== 数据生成器 ====================
+
+/**
+ * 超级数据生成器 - 多列多行测试数据
+ * 支持15个维度的业务数据，用于全面测试 superPivot 功能
+ *
+ * @param {number} 行数 - 生成数据的行数，默认1000
+ * @param {string} 输出位置 - 输出位置，默认"数据!A1"
+ * @returns {Range} 输出的数据范围
+ */
+function 生成超级测试数据(行数, 输出位置) {
+    行数 = 行数 || 1000;
+    输出位置 = 输出位置 || "数据!A1";
+
+    console.log("========== 超级数据生成器 ==========");
+    console.log("生成行数: " + 行数);
+    console.log("输出位置: " + 输出位置);
+
+    // ==================== 定义数据维度 ====================
+
+    // 地理维度 (4层级: 大区 → 省份 → 城市 → 区域)
+    let 大区 = ['华东', '华南', '华北', '西南', '东北'];
+    let 省份 = ['江苏', '浙江', '广东', '北京', '四川', '辽宁'];
+    let 城市 = ['南京', '苏州', '杭州', '广州', '深圳', '北京', '成都', '沈阳'];
+    let 区域 = ['市中心', '开发区', '郊区', '新区'];
+
+    // 组织维度 (3层级: 部门 → 团队 → 员工)
+    let 部门 = ['销售部', '市场部', '技术部', '财务部', '人事部'];
+    let 团队 = ['A组', 'B组', 'C组', 'D组'];
+    let 员工 = ['张三', '李四', '王五', '赵六', '钱七', '孙八', '周九', '吴十'];
+
+    // 产品维度 (3层级: 类别 → 子类 → 产品)
+    let 产品类别 = ['电子产品', '家电', '服装', '食品', '图书'];
+    let 产品子类 = ['手机', '电脑', '冰箱', '洗衣机', '男装', '女装', '零食', '饮料'];
+    let 产品名称 = ['iPhone', '华为', '小米', '联想', '戴尔', '海尔', '美的', '格力', '耐克', '阿迪达斯', '可口可乐', '百事'];
+
+    // 客户维度
+    let 客户等级 = ['VIP', 'A类', 'B类', 'C类'];
+    let 客户类型 = ['企业', '个人', '政府'];
+    let 客户规模 = ['大型', '中型', '小型'];
+
+    // 交易维度
+    let 销售渠道 = ['线上', '线下', '代理商', '直销'];
+    let 支付方式 = ['支付宝', '微信', '银行卡', '现金', '转账'];
+    let 订单状态 = ['完成', '待付款', '已取消', '退款'];
+
+    // 时间维度 (4层级: 年份 → 季度 → 月份 → 日期)
+    let 年份 = ['2020', '2021', '2022', '2023', '2024', '2025'];
+    let 季度 = ['Q1', 'Q2', 'Q3', 'Q4'];
+    let 月份 = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    let 日期 = Array.from({length: 31}, (_, i) => String(i + 1).padStart(2, '0'));
+
+    // 数据维度
+    let 销售数量 = Array.from({length: 100}, (_, i) => i + 1);  // 1-100
+    let 单价 = Array.from({length: 200}, (_, i) => (i + 1) * 10);  // 10-2000
+    let 折扣率 = [1.0, 0.95, 0.9, 0.85, 0.8, 0.75, 0.7];  // 折扣
+    let 成本 = Array.from({length: 100}, (_, i) => (i + 1) * 5);  // 成本
+
+    // ==================== 生成数据 ====================
+
+    var 结果数组 = [];
+
+    // 表头
+    结果数组.push([
+        '序号', '大区', '省份', '城市', '区域',
+        '部门', '团队', '员工',
+        '产品类别', '产品子类', '产品名称',
+        '客户等级', '客户类型', '客户规模',
+        '销售渠道', '支付方式', '订单状态',
+        '年份', '季度', '月份', '日期',
+        '销售数量', '单价', '折扣率', '成本', '销售金额', '利润'
+    ]);
+
+    for (var i = 0; i < 行数; i++) {
+        // 随机索引
+        var 大区索引 = Math.floor(Math.random() * 大区.length);
+        var 省份索引 = Math.floor(Math.random() * 省份.length);
+        var 城市索引 = Math.floor(Math.random() * 城市.length);
+        var 区域索引 = Math.floor(Math.random() * 区域.length);
+
+        var 部门索引 = Math.floor(Math.random() * 部门.length);
+        var 团队索引 = Math.floor(Math.random() * 团队.length);
+        var 员工索引 = Math.floor(Math.random() * 员工.length);
+
+        var 类别索引 = Math.floor(Math.random() * 产品类别.length);
+        var 子类索引 = Math.floor(Math.random() * 产品子类.length);
+        var 产品索引 = Math.floor(Math.random() * 产品名称.length);
+
+        var 客户等级索引 = Math.floor(Math.random() * 客户等级.length);
+        var 客户类型索引 = Math.floor(Math.random() * 客户类型.length);
+        var 客户规模索引 = Math.floor(Math.random() * 客户规模.length);
+
+        var 渠道索引 = Math.floor(Math.random() * 销售渠道.length);
+        var 支付索引 = Math.floor(Math.random() * 支付方式.length);
+        var 状态索引 = Math.floor(Math.random() * 订单状态.length);
+
+        var 年份索引 = Math.floor(Math.random() * 年份.length);
+        var 季度索引 = Math.floor(Math.random() * 季度.length);
+        var 月份索引 = Math.floor(Math.random() * 月份.length);
+        var 日期索引 = Math.floor(Math.random() * 日期.length);
+
+        var 数量索引 = Math.floor(Math.random() * 销售数量.length);
+        var 单价索引 = Math.floor(Math.random() * 单价.length);
+        var 折扣索引 = Math.floor(Math.random() * 折扣率.length);
+        var 成本索引 = Math.floor(Math.random() * 成本.length);
+
+        // 计算字段
+        var 数量 = 销售数量[数量索引];
+        var 单价数值 = 单价[单价索引];
+        var 折扣 = 折扣率[折扣索引];
+        var 成本数值 = 成本[成本索引];
+        var 销售金额 = 数量 * 单价数值 * 折扣;
+        var 总成本 = 数量 * 成本数值;
+        var 利润 = 销售金额 - 总成本;
+
+        结果数组.push([
+            i + 1,  // 序号
+            大区[大区索引], 省份[省份索引], 城市[城市索引], 区域[区域索引],
+            部门[部门索引], 团队[团队索引], 员工[员工索引],
+            产品类别[类别索引], 产品子类[子类索引], 产品名称[产品索引],
+            客户等级[客户等级索引], 客户类型[客户类型索引], 客户规模[客户规模索引],
+            销售渠道[渠道索引], 支付方式[支付索引], 订单状态[状态索引],
+            年份[年份索引], 季度[季度索引], 月份[月份索引], 日期[日期索引],
+            数量, 单价数值, 折扣, 成本数值, 销售金额, 利润
+        ]);
+    }
+
+    console.log("✅ 数据生成完成! 共 " + 结果数组.length + " 行");
+
+    // 输出到指定位置
+    var rng = 结果数组.toRange(输出位置, false);
+    console.log("✅ 已输出到: " + 输出位置);
+
+    return rng;
+}
+
+/**
+ * 快速生成小数据集 - 用于快速测试
+ */
+function 生成快速测试数据() {
+    console.log("========== 快速测试数据生成器 ==========");
+    return 生成超级测试数据(100, "数据!A1");
+}
+
+/**
+ * 生成大数据集 - 用于性能测试
+ */
+function 生成性能测试数据() {
+    console.log("========== 性能测试数据生成器 ==========");
+    return 生成超级测试数据(5000, "数据!A1");
+}
+
+/**
+ * 生成特定维度测试数据 - 用于测试特定场景
+ * @param {string} 场景 - '地理'|'组织'|'产品'|'时间'|'全面'
+ */
+function 生成场景测试数据(场景) {
+    console.log("========== 场景测试数据生成器: " + 场景 + " ==========");
+
+    var 输出位置 = "数据!A1";
+    var 行数 = 500;
+
+    switch (场景) {
+        case '地理':
+            // 地理维度测试: 大区→省份→城市→区域
+            console.log("生成地理维度测试数据...");
+            输出位置 = "地理测试!A1";
+            break;
+        case '组织':
+            // 组织维度测试: 部门→团队→员工
+            console.log("生成组织维度测试数据...");
+            输出位置 = "组织测试!A1";
+            break;
+        case '产品':
+            // 产品维度测试: 类别→子类→产品
+            console.log("生成产品维度测试数据...");
+            输出位置 = "产品测试!A1";
+            break;
+        case '时间':
+            // 时间维度测试: 年份→季度→月份→日期
+            console.log("生成时间维度测试数据...");
+            输出位置 = "时间测试!A1";
+            break;
+        default:
+            // 全面测试
+            console.log("生成全面测试数据...");
+            输出位置 = "全面测试!A1";
+            行数 = 1000;
+    }
+
+    return 生成超级测试数据(行数, 输出位置);
+}
+
+// ==================== 新测试套件 v4.0 - 基于快速测试数据 ====================
+
+/**
+ * 新测试1: 基础单行单列透视
+ * 最简单的透视场景
+ */
+function 新测试1_基础单行单列() {
+
+    // 清空测试区域
+    清空测试区域();
+
+    var t0 = new Date().getTime();
+    var arr = 获取测试数据();
+    arr = arr.z跳过(1);
+
+    // 限制数据量
+    var innerArr = arr._items || arr;
+    if (innerArr.length > 300) {
+        innerArr = innerArr.slice(0, 300);
+    }
+    console.log("数据量: " + innerArr.length + " 行");
+
+    var t1 = new Date().getTime();
+    var result = Array2D.z超级透视(
+        innerArr,
+        ['f2,f1', '产品,类别'],           // 2个行字段
+        ['f3,f6,f7', '国家,年份,月份'],      // 3个列字段
+        ['count(),sum("f4"),average("f5"),max("f4"),min("f5")', '订单数,总销量,平均金额,最高销量,最低金额'],
+        0,
+        1
+    );
+    console.log("透视计算: " + (new Date().getTime() - t1) + " ms");
+    console.log("结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    // 🔧 v3.8.2 诊断：验证数据完整性
+    console.log("=== 数据完整性验证 ===");
+    var expectedCols = 2; // 产品、类别
+    // 统计实际存在的国家-年份-月份组合
+    var actualCombos = {};
+    for (var i = 4; i < result.length; i++) { // 跳过4行表头
+        var row = result[i];
+        if (row.length > 2) {
+            console.log("数据行 " + i + ": " + row[0] + ", " + row[1] + " (共 " + row.length + " 列)");
+            break; // 只检查第一行数据
+        }
+    }
+
+    var t2 = new Date().getTime();
+    result.toRange("测试输出!A1", false);
+    console.log("输出完成: " + (new Date().getTime() - t2) + " ms");
+
+    var totalTime = new Date().getTime() - t0;
+    console.log("✅ 高级测试1完成! 总耗时: " + totalTime + " ms");
+    return result;
+}
+
+/**
+ * 综合测试2: 排序功能测试
+ * 测试场景：按销量降序、按金额升序排列
+ */
+function 高级测试2_排序功能() {
+    console.log("========== 高级测试2: 排序功能 ==========");
+
+    // 清空测试区域
+    清空测试区域();
+
+    var t0 = new Date().getTime();
+    var arr = 获取测试数据();
+    arr = arr.z跳过(1);
+
+    var innerArr = arr._items || arr;
+    if (innerArr.length > 300) {
+        innerArr = innerArr.slice(0, 300);
+    }
+    console.log("数据量: " + innerArr.length + " 行");
+
+    // 测试1：降序排序（产品降序 + 国家）
+    console.log("\n--- 测试1: 产品降序 + 国家 ---");
+    var t1 = new Date().getTime();
+    var result1 = Array2D.z超级透视(
+        innerArr,
+        ['f2-', '产品(降序)'],              // 降序
+        ['f3', '国家'],
+        ['sum("f4")', '总销量'],
+        0,
+        1
+    );
+    console.log("降序透视: " + (new Date().getTime() - t1) + " ms");
+    console.log("结果1: " + result1.z数量() + " 行 × " + (result1[0] ? result1[0].length : 0) + " 列");
+
+    // 验证降序结果
+    console.log("降序结果前5个产品:");
+    for (var i = 0; i < Math.min(5, result1.z数量()); i++) {
+        console.log("  " + (i+1) + ". " + result1[i][0]);
+    }
+
+    // 测试2：升序排序（产品升序 + 年份）
+    console.log("\n--- 测试2: 产品升序 + 年份 ---");
+    var t2 = new Date().getTime();
+    var result2 = Array2D.z超级透视(
+        innerArr,
+        ['f2+', '产品(升序)'],              // 升序
+        ['f6', '年份'],
+        ['average("f5")', '平均金额'],
+        0,
+        1
+    );
+    console.log("升序透视: " + (new Date().getTime() - t2) + " ms");
+    console.log("结果2: " + result2.z数量() + " 行 × " + (result2[0] ? result2[0].length : 0) + " 列");
+
+    // 验证升序结果
+    console.log("升序结果前5个产品:");
+    for (var j = 0; j < Math.min(5, result2.z数量()); j++) {
+        console.log("  " + (j+1) + ". " + result2[j][0]);
+    }
+
+    // 分别输出，避免重叠
+    // 先输出结果1
+    result1.toRange("测试输出!A1", false);
+    console.log("结果1已输出到 A1");
+
+    // 计算结果1的列数，将结果2输出到结果1的右侧
+    var result1Cols = result1[0] ? result1[0].length : 0;
+    var result2StartCol = result1Cols + 2; // 留2列空隙
+    var result2ColLetter = String.fromCharCode(65 + (result2StartCol % 26)); // 简单转换，只支持A-Z
+
+    // 如果超过Z列，使用更复杂的方式
+    if (result2StartCol >= 26) {
+        result2ColLetter = "A" + String.fromCharCode(65 + (result2StartCol - 26));
+    }
+
+    result2.toRange("测试输出!" + result2ColLetter + "1", false);
+    console.log("结果2已输出到 " + result2ColLetter + "1 (列 " + result2StartCol + ")");
+
+    var totalTime = new Date().getTime() - t0;
+    console.log("\n✅ 高级测试2完成! 总耗时: " + totalTime + " ms");
+    return { 降序: result1, 升序: result2 };
+}
+
+/**
+ * 综合测试3: 链式调用复杂场景
+ * 测试场景：筛选 → 排序 → 透视 链式操作
+ */
+function 高级测试3_链式调用() {
+    console.log("========== 高级测试3: 复杂链式调用 ==========");
+
+    // 清空测试区域
+    清空测试区域();
+
+    var t0 = new Date().getTime();
+    var arr = 获取测试数据();
+    arr = arr.z跳过(1);
+
+    var innerArr = arr._items || arr;
+    if (innerArr.length > 300) {
+        innerArr = innerArr.slice(0, 300);
+    }
+    console.log("数据量: " + innerArr.length + " 行");
+
+    var t1 = new Date().getTime();
+    var result = Array2D(innerArr)
+        .z筛选('f4>20')                    // 只看销量>20的记录
+        .z多列排序('f2+,f6+')               // 按产品和年份升序
+        .z超级透视(
+            ['f2', '产品'],
+            ['f3,f6', '国家,年份'],
+            ['count(),sum("f4")', '订单数,总销量'],
+            0,
+            1
+        );
+    console.log("链式调用: " + (new Date().getTime() - t1) + " ms");
+    console.log("结果: " + result.z数量() + " 行");
+
+    var t2 = new Date().getTime();
+    result.toRange("测试输出!A1", false);
+    console.log("输出完成: " + (new Date().getTime() - t2) + " ms");
+
+    var totalTime = new Date().getTime() - t0;
+    console.log("✅ 高级测试3完成! 总耗时: " + totalTime + " ms");
+    return result;
+}
+
+/**
+ * 综合测试4: 四层列字段压力测试
+ * 测试场景：年份→季度→月份→周 的四层透视
+ * 使用合成数据来测试4层标题生成是否正确
+ */
+function 高级测试4_四层列字段() {
+    console.log("========== 高级测试4: 四层列字段 ==========");
+
+    // 清空测试区域
+    清空测试区域();
+
+    console.log("创建4层合成数据...");
+
+    // 创建4层合成数据：年份→季度→月份→周
+    var syntheticData = [
+        ['产品', '年份', '季度', '月份', '周', '销售额']
+    ];
+
+    var products = ['A', 'B'];
+    var years = ['2022', '2023'];
+    var quarters = ['Q1', 'Q2'];
+    var months = ['1月', '2月'];
+    var weeks = ['W1', 'W2'];
+
+    // 生成组合数据
+    for (var y = 0; y < years.length; y++) {
+        for (var q = 0; q < quarters.length; q++) {
+            for (var m = 0; m < months.length; m++) {
+                for (var w = 0; w < weeks.length; w++) {
+                    for (var p = 0; p < products.length; p++) {
+                        syntheticData.push([
+                            products[p],
+                            years[y],
+                            quarters[y * quarters.length + q] || quarters[q],
+                            months[m],
+                            weeks[w],
+                            Math.floor(Math.random() * 1000) + 100
+                        ]);
+                    }
+                }
+            }
+        }
+    }
+
+    console.log("合成数据: " + syntheticData.length + " 行");
+
+    var t0 = new Date().getTime();
+    var arr = Array2D(syntheticData).z跳过(1);
+
+    console.log("测试4层列字段标题生成...");
+    var t1 = new Date().getTime();
+    var result = Array2D.z超级透视(
+        arr,
+        ['f1', '产品'],
+        ['f2,f3,f4,f5', '年份,季度,月份,周'],  // 4层列字段
+        ['sum("f6")', '销售额'],
+        0,
+        1
+    );
+    console.log("透视计算: " + (new Date().getTime() - t1) + " ms");
+
+    var rowCount = result.z数量();
+    var colCount = result[0] ? result[0].length : 0;
+    console.log("结果: " + rowCount + " 行 × " + colCount + " 列");
+
+    // 验证标题行数：4层列字段应该有5行标题
+    var headerRowCount = 5; // 4层列字段 + 1行数据字段标题
+    console.log("预期标题行数: " + headerRowCount);
+    console.log("实际数据行数: " + (rowCount - headerRowCount));
+
+    var t2 = new Date().getTime();
+    result.toRange("测试输出!A1", false);
+    console.log("输出完成: " + (new Date().getTime() - t2) + " ms");
+
+    var totalTime = new Date().getTime() - t0;
+    console.log("✅ 高级测试4完成! 总耗时: " + totalTime + " ms");
+
+    // 输出标题验证信息
+    console.log("=== 标题验证 ===");
+    console.log("第1行(年份层): " + result[0].slice(0, 5).join(", "));
+    if (result[1]) console.log("第2行(季度层): " + result[1].slice(0, 5).join(", "));
+    if (result[2]) console.log("第3行(月份层): " + result[2].slice(0, 5).join(", "));
+    if (result[3]) console.log("第4行(周层): " + result[3].slice(0, 5).join(", "));
+
+    return result;
+}
+
+/**
+ * 综合测试5: 三行三列超大组合
+ * 测试场景：最复杂的行×列组合，测试多行多列标题生成
+ */
+function 高级测试5_三行三列() {
+    console.log("========== 高级测试5: 三行三列组合 ==========");
+
+    // 清空测试区域
+    清空测试区域();
+
+    var t0 = new Date().getTime();
+    var arr = 获取测试数据();
+    arr = arr.z跳过(1);
+
+    // 限制数据量
+    var innerArr = arr._items || arr;
+    if (innerArr.length > 200) {
+        innerArr = innerArr.slice(0, 200);
+    }
+    console.log("数据量: " + innerArr.length + " 行");
+
+    var t1 = new Date().getTime();
+    var result = Array2D.z超级透视(
+        innerArr,
+        ['f1,f2,f3', '类别,产品,国家'],      // 3个行字段
+        ['f6,f7,f3', '年份,月份,国家'],      // 3个列字段
+        ['sum("f4"),sum("f5"),average("f5")', '销量,金额,平均金额'],
+        0,
+        1
+    );
+    console.log("透视计算: " + (new Date().getTime() - t1) + " ms");
+
+    var rowCount = result.z数量();
+    var colCount = result[0] ? result[0].length : 0;
+    console.log("结果: " + rowCount + " 行 × " + colCount + " 列");
+
+    // 验证标题：3列字段应该有4行标题
+    var headerRowCount = 4; // 3层列字段 + 1行数据字段标题
+    console.log("预期标题行数: " + headerRowCount);
+    console.log("实际数据行数: " + (rowCount - headerRowCount));
+
+    var t2 = new Date().getTime();
+    result.toRange("测试输出!A1", false);
+    console.log("输出完成: " + (new Date().getTime() - t2) + " ms");
+
+    var totalTime = new Date().getTime() - t0;
+    console.log("✅ 高级测试5完成! 总耗时: " + totalTime + " ms");
+
+    // 输出标题验证信息
+    console.log("=== 标题验证 ===");
+    console.log("第1行(年份层): " + result[0].slice(0, Math.min(8, result[0].length)).join(", "));
+    if (result[1]) console.log("第2行(月份层): " + result[1].slice(0, Math.min(8, result[1].length)).join(", "));
+    if (result[2]) console.log("第3行(国家层): " + result[2].slice(0, Math.min(8, result[2].length)).join(", "));
+    if (result[3]) console.log("第4行(数据字段): " + result[3].slice(0, Math.min(8, result[3].length)).join(", "));
+
+    return result;
+}
+
+/**
+ * 综合测试6: 边界情况测试
+ * 测试场景：空数据、单行数据、单列数据
+ */
+function 高级测试6_边界情况() {
+    console.log("========== 高级测试6: 边界情况 ==========");
+
+    // 清空测试区域
+    清空测试区域();
+
+    var results = [];
+
+    // 测试1: 小数据集
+    try {
+        var smallData = [
+            ['产品', '国家', '数量', '金额'],
+            ['A', '中国', 10, 100],
+            ['A', '美国', 20, 200],
+            ['B', '中国', 30, 300],
+        ];
+        var result1 = Array2D.z超级透视(
+            Array2D(smallData).z跳过(1),
+            ['f1', '产品'],
+            ['f2', '国家'],
+            ['sum("f3"),sum("f4")', '总量,总金额'],
+            0,
+            1
+        );
+        result1.toRange("测试输出!A1", false);
+        console.log("✓ 小数据集测试通过: " + result1.z数量() + " 行");
+        results.push("小数据集: 通过");
+    } catch (e) {
+        console.log("✗ 小数据集测试失败: " + e.message);
+        results.push("小数据集: 失败");
+    }
+
+    // 测试2: 单值列字段
+    try {
+        var singleColData = [
+            ['产品', '数量'],
+            ['A', 10],
+            ['B', 20],
+            ['A', 30],
+        ];
+        var result2 = Array2D.z超级透视(
+            Array2D(singleColData).z跳过(1),
+            ['f1', '产品'],
+            ['f2', '数量'],
+            ['count()'],
+            0,
+            1
+        );
+        result2.toRange("测试输出!E1", false);
+        console.log("✓ 单值列字段测试通过: " + result2.z数量() + " 行");
+        results.push("单值列字段: 通过");
+    } catch (e) {
+        console.log("✗ 单值列字段测试失败: " + e.message);
+        results.push("单值列字段: 失败");
+    }
+
+    console.log("========== 边界测试汇总 ==========");
+    for (var i = 0; i < results.length; i++) {
+        console.log(results[i]);
+    }
+
+    return results;
+}
+
+/**
+ * 综合测试7: 性能压力测试
+ * 测试场景：不同数据量的性能表现
+ */
+function 高级测试7_性能压力() {
+    console.log("========== 高级测试7: 性能压力测试 ==========");
+
+    // 清空测试区域
+    清空测试区域();
+
+    var dataSizes = [100, 200, 300];
+    var performanceResults = [];
+
+    for (var i = 0; i < dataSizes.length; i++) {
+        var size = dataSizes[i];
+        console.log("\n--- 测试数据量: " + size + " 行 ---");
+
+        var arr = 获取测试数据();
+        arr = arr.z跳过(1);
+
+        var innerArr = arr._items || arr;
+        if (innerArr.length > size) {
+            innerArr = innerArr.slice(0, size);
+        }
+
+        var t0 = new Date().getTime();
+        var result = Array2D.z超级透视(
+            innerArr,
+            ['f2', '产品'],
+            ['f6,f7', '年份,月份'],
+            ['count(),sum("f4"),average("f5")', '订单数,销量,平均金额'],
+            0,
+            1
+        );
+        var pivotTime = new Date().getTime() - t0;
+
+        var t1 = new Date().getTime();
+        result.toRange("测试输出!A1", false);
+        var outputTime = new Date().getTime() - t1;
+
+        var totalTime = pivotTime + outputTime;
+
+        console.log("透视: " + pivotTime + " ms");
+        console.log("输出: " + outputTime + " ms");
+        console.log("总计: " + totalTime + " ms");
+        console.log("结果: " + result.z数量() + " 行");
+
+        performanceResults.push({
+            数据量: size,
+            透视: pivotTime,
+            输出: outputTime,
+            总计: totalTime
+        });
+    }
+
+    console.log("\n========== 性能汇总 ==========");
+    console.log("数据量\t透视\t输出\t总计");
+    for (var j = 0; j < performanceResults.length; j++) {
+        var r = performanceResults[j];
+        console.log(r.数据量 + "\t" + r.透视 + "\t" + r.输出 + "\t" + r.总计);
+    }
+
+    return performanceResults;
+}
+
+/**
+ * 运行所有高级测试
+ */
+function 运行高级测试() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        superPivot 高级综合测试套件 v3.8.1               ║");
+    console.log("║        包含复杂场景、边界情况、性能压力测试             ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    var allResults = [];
+    var startTime = new Date().getTime();
+
+    // 测试1: 复杂聚合
+    try {
+        高级测试1_复杂聚合();
+        allResults.push({ 测试: "复杂多行多列聚合", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试1失败: " + e.message);
+        allResults.push({ 测试: "复杂多行多列聚合", 状态: "失败", 错误: e.message });
+    }
+
+    console.log("\n");
+
+    // 测试2: 排序功能
+    try {
+        高级测试2_排序功能();
+        allResults.push({ 测试: "排序功能", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试2失败: " + e.message);
+        allResults.push({ 测试: "排序功能", 状态: "失败", 错误: e.message });
+    }
+
+    console.log("\n");
+
+    // 测试3: 链式调用
+    try {
+        高级测试3_链式调用();
+        allResults.push({ 测试: "复杂链式调用", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试3失败: " + e.message);
+        allResults.push({ 测试: "复杂链式调用", 状态: "失败", 错误: e.message });
+    }
+
+    console.log("\n");
+
+    // 测试4: 四层列字段
+    try {
+        高级测试4_四层列字段();
+        allResults.push({ 测试: "四层列字段", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试4失败: " + e.message);
+        allResults.push({ 测试: "四层列字段", 状态: "失败", 错误: e.message });
+    }
+
+    console.log("\n");
+
+    // 测试5: 三行三列
+    try {
+        高级测试5_三行三列();
+        allResults.push({ 测试: "三行三列组合", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试5失败: " + e.message);
+        allResults.push({ 测试: "三行三列组合", 状态: "失败", 错误: e.message });
+    }
+
+    console.log("\n");
+
+    // 测试6: 边界情况
+    try {
+        高级测试6_边界情况();
+        allResults.push({ 测试: "边界情况", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试6失败: " + e.message);
+        allResults.push({ 测试: "边界情况", 状态: "失败", 错误: e.message });
+    }
+
+    console.log("\n");
+
+    // 测试7: 性能压力
+    try {
+        高级测试7_性能压力();
+        allResults.push({ 测试: "性能压力测试", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 高级测试7失败: " + e.message);
+        allResults.push({ 测试: "性能压力测试", 状态: "失败", 错误: e.message });
+    }
+
+    var endTime = new Date().getTime();
+
+    // 输出汇总报告
+    console.log("\n\n╔══════════════════════════════════════════════════════╗");
+    console.log("║                   高级测试汇总报告                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+    console.log("");
+    var passCount = 0;
+    for (var i = 0; i < allResults.length; i++) {
+        var status = allResults[i].状态 === "通过" ? "✅" : "❌";
+        console.log(status + " " + allResults[i].测试);
+        if (allResults[i].状态 === "通过") passCount++;
+    }
+
+    console.log("\n总计: " + passCount + "/" + allResults.length + " 通过");
+    console.log("总耗时: " + (endTime - startTime) + " ms");
+    console.log("\n✅ 高级测试完成! 请查看'测试输出'表中的结果。");
+
+    return allResults;
+}
+
+// 快速运行单个高级测试
+function 快速高级测试() {
+    console.log("========== 快速高级测试 ==========");
+    清空测试区域();
+    高级测试1_复杂聚合();
+}
+
+// ==================== 超级性能测试套件 v4.0 ====================
+
+/**
+ * 性能测试1: 数据量对比测试
+ * 测试不同数据量下的性能表现
+ */
+function 性能测试1_数据量对比() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        性能测试1: 数据量对比测试                      ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    // 生成测试数据
+    console.log("📊 生成性能测试数据(5000行)...");
+    生成性能测试数据();
+    var arr = 获取数据("数据!A1:Z5001");
+
+    var testSizes = [100, 500, 1000, 2000, 5000];
+    var results = [];
+
+    console.log("\n┌──────────┬──────────┬──────────┬──────────┬──────────┐");
+    console.log("│ 数据量   │ 透视ms   │ 输出ms   │ 总计ms   │ 结果行数 │");
+    console.log("├──────────┼──────────┼──────────┼──────────┼──────────┤");
+
+    for (var i = 0; i < testSizes.length; i++) {
+        var size = testSizes[i];
+        var testData = arr.slice(0, size + 1); // +1 for header
+
+        var t0 = new Date().getTime();
+        var result = Array2D.z超级透视(
+            testData,
+            ['f2,f3', '大区,省份'],              // 2行字段
+            ['f18,f19,f20', '年份,季度,月份'],    // 3列字段
+            ['count(),sum("f22"),sum("f25"),average("f26")', '订单数,总销量,总金额,平均利润'],
+            1,  // 跳过表头
+            0   // 不显示表头（性能优化）
+        );
+        var pivotTime = new Date().getTime() - t0;
+
+        var t1 = new Date().getTime();
+        result.toRange("测试输出!A1", false);  // 禁用合并
+        var outputTime = new Date().getTime() - t1;
+
+        var totalTime = pivotTime + outputTime;
+        var resultRows = result.z数量();
+
+        console.log("│ " + padLeft(size + "", 8) + " │ " + padLeft(pivotTime + "", 8) + " │ " + padLeft(outputTime + "", 8) + " │ " + padLeft(totalTime + "", 8) + " │ " + padLeft(resultRows + "", 8) + " │");
+
+        results.push({
+            数据量: size,
+            透视: pivotTime,
+            输出: outputTime,
+            总计: totalTime,
+            结果行数: resultRows
+        });
+    }
+
+    console.log("└──────────┴──────────┴──────────┴──────────┴──────────┘");
+
+    // 计算性能指标
+    console.log("\n📈 性能分析:");
+    for (var j = 1; j < results.length; j++) {
+        var prev = results[j - 1];
+        var curr = results[j];
+        var dataRatio = curr.数据量 / prev.数据量;
+        var timeRatio = curr.总计 / prev.总计;
+        var efficiency = (dataRatio / timeRatio * 100).toFixed(1);
+
+        console.log("  " + prev.数据量 + "→" + curr.数据量 + "行: 数据×" + dataRatio.toFixed(1) + ", 时间×" + timeRatio.toFixed(1) + ", 效率 " + efficiency + "%");
+    }
+
+    return results;
+}
+
+/**
+ * 性能测试2: 列字段层数对比测试
+ * 测试不同列字段层数对性能的影响
+ */
+function 性能测试2_列层数对比() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        性能测试2: 列字段层数对比测试                  ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    console.log("📊 生成性能测试数据(2000行)...");
+    生成超级测试数据(2000, "数据!A1");
+    var arr = 获取数据("数据!A1:Z2001");
+
+    var colConfigs = [
+        { name: '1层', fields: 'f18', title: '年份' },
+        { name: '2层', fields: 'f18,f19', title: '年份,季度' },
+        { name: '3层', fields: 'f18,f19,f20', title: '年份,季度,月份' },
+        { name: '4层', fields: 'f18,f19,f20,f21', title: '年份,季度,月份,日期' }
+    ];
+
+    console.log("\n┌──────────┬──────────┬──────────┬──────────┬──────────┐");
+    console.log("│ 列层数   │ 透视ms   │ 输出ms   │ 总计ms   │ 结果列数 │");
+    console.log("├──────────┼──────────┼──────────┼──────────┼──────────┤");
+
+    var results = [];
+
+    for (var i = 0; i < colConfigs.length; i++) {
+        var config = colConfigs[i];
+        清空测试区域();
+
+        var t0 = new Date().getTime();
+        var result = Array2D.z超级透视(
+            arr,
+            ['f2', '大区'],
+            [config.fields, config.title],
+            ['sum("f25")', '销售金额'],
+            1, 0
+        );
+        var pivotTime = new Date().getTime() - t0;
+
+        var t1 = new Date().getTime();
+        result.toRange("测试输出!A1", false);
+        var outputTime = new Date().getTime() - t1;
+
+        var totalTime = pivotTime + outputTime;
+        var resultCols = result[0] ? result[0].length : 0;
+
+        console.log("│ " + padLeft(config.name, 8) + " │ " + padLeft(pivotTime + "", 8) + " │ " + padLeft(outputTime + "", 8) + " │ " + padLeft(totalTime + "", 8) + " │ " + padLeft(resultCols + "", 8) + " │");
+
+        results.push({
+            列层数: config.name,
+            透视: pivotTime,
+            输出: outputTime,
+            总计: totalTime,
+            结果列数: resultCols
+        });
+    }
+
+    console.log("└──────────┴──────────┴──────────┴──────────┴──────────┘");
+
+    return results;
+}
+
+/**
+ * 性能测试3: 行字段数量对比测试
+ * 测试不同行字段数量对性能的影响
+ */
+function 性能测试3_行字段数对比() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        性能测试3: 行字段数量对比测试                  ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    console.log("📊 生成性能测试数据(2000行)...");
+    生成超级测试数据(2000, "数据!A1");
+    var arr = 获取数据("数据!A1:Z2001");
+
+    var rowConfigs = [
+        { name: '1行', fields: 'f2', title: '大区' },
+        { name: '2行', fields: 'f2,f3', title: '大区,省份' },
+        { name: '3行', fields: 'f2,f3,f4', title: '大区,省份,城市' },
+        { name: '4行', fields: 'f2,f3,f4,f5', title: '大区,省份,城市,区域' }
+    ];
+
+    console.log("\n┌──────────┬──────────┬──────────┬──────────┬──────────┐");
+    console.log("│ 行字段数 │ 透视ms   │ 输出ms   │ 总计ms   │ 结果行数 │");
+    console.log("├──────────┼──────────┼──────────┼──────────┼──────────┤");
+
+    var results = [];
+
+    for (var i = 0; i < rowConfigs.length; i++) {
+        var config = rowConfigs[i];
+        清空测试区域();
+
+        var t0 = new Date().getTime();
+        var result = Array2D.z超级透视(
+            arr,
+            [config.fields, config.title],
+            ['f18,f19', '年份,季度'],
+            ['sum("f25")', '销售金额'],
+            1, 0
+        );
+        var pivotTime = new Date().getTime() - t0;
+
+        var t1 = new Date().getTime();
+        result.toRange("测试输出!A1", false);
+        var outputTime = new Date().getTime() - t1;
+
+        var totalTime = pivotTime + outputTime;
+        var resultRows = result.z数量();
+
+        console.log("│ " + padLeft(config.name, 8) + " │ " + padLeft(pivotTime + "", 8) + " │ " + padLeft(outputTime + "", 8) + " │ " + padLeft(totalTime + "", 8) + " │ " + padLeft(resultRows + "", 8) + " │");
+
+        results.push({
+            行字段数: config.name,
+            透视: pivotTime,
+            输出: outputTime,
+            总计: totalTime,
+            结果行数: resultRows
+        });
+    }
+
+    console.log("└──────────┴──────────┴──────────┴──────────┴──────────┘");
+
+    return results;
+}
+
+/**
+ * 性能测试4: 聚合函数数量对比测试
+ * 测试不同聚合函数数量对性能的影响
+ */
+function 性能测试4_聚合函数数对比() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        性能测试4: 聚合函数数量对比测试                ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    console.log("📊 生成性能测试数据(2000行)...");
+    生成超级测试数据(2000, "数据!A1");
+    var arr = 获取数据("数据!A1:Z2001");
+
+    var dataConfigs = [
+        { name: '1聚合', fields: 'sum("f25")', title: '销售金额' },
+        { name: '3聚合', fields: 'count(),sum("f25"),average("f26")', title: '订单数,销售金额,平均利润' },
+        { name: '5聚合', fields: 'count(),sum("f22"),sum("f25"),average("f25"),average("f26")', title: '订单数,总销量,销售金额,平均单价,平均利润' },
+        { name: '7聚合', fields: 'count(),sum("f22"),sum("f25"),average("f22"),average("f25"),max("f25"),min("f25")', title: '订单数,总销量,销售金额,平均销量,平均单价,最高金额,最低金额' }
+    ];
+
+    console.log("\n┌──────────┬──────────┬──────────┬──────────┬──────────┐");
+    console.log("│ 聚合数   │ 透视ms   │ 输出ms   │ 总计ms   │ 结果列数 │");
+    console.log("├──────────┼──────────┼──────────┼──────────┼──────────┤");
+
+    var results = [];
+
+    for (var i = 0; i < dataConfigs.length; i++) {
+        var config = dataConfigs[i];
+        清空测试区域();
+
+        var t0 = new Date().getTime();
+        var result = Array2D.z超级透视(
+            arr,
+            ['f2', '大区'],
+            ['f18', '年份'],
+            [config.fields, config.title],
+            1, 0
+        );
+        var pivotTime = new Date().getTime() - t0;
+
+        var t1 = new Date().getTime();
+        result.toRange("测试输出!A1", false);
+        var outputTime = new Date().getTime() - t1;
+
+        var totalTime = pivotTime + outputTime;
+        var resultCols = result[0] ? result[0].length : 0;
+
+        console.log("│ " + padLeft(config.name, 8) + " │ " + padLeft(pivotTime + "", 8) + " │ " + padLeft(outputTime + "", 8) + " │ " + padLeft(totalTime + "", 8) + " │ " + padLeft(resultCols + "", 8) + " │");
+
+        results.push({
+            聚合数: config.name,
+            透视: pivotTime,
+            输出: outputTime,
+            总计: totalTime,
+            结果列数: resultCols
+        });
+    }
+
+    console.log("└──────────┴──────────┴──────────┴──────────┴──────────┘");
+
+    return results;
+}
+
+/**
+ * 性能测试5: 合并vs不合并对比测试
+ * 测试合并单元格对性能的影响
+ */
+function 性能测试5_合并对比() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        性能测试5: 合并vs不合并对比测试                ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    console.log("📊 生成性能测试数据(1000行)...");
+    生成超级测试数据(1000, "数据!A1");
+    var arr = 获取数据("数据!A1:Z1001");
+
+    console.log("\n┌──────────┬──────────┬──────────┬──────────┐");
+    console.log("│ 合并模式 │ 透视ms   │ 输出ms   │ 总计ms   │");
+    console.log("├──────────┼──────────┼──────────┼──────────┤");
+
+    var results = [];
+
+    // 测试不合并
+    清空测试区域();
+    var t0 = new Date().getTime();
+    var result1 = Array2D.z超级透视(
+        arr,
+        ['f2,f3', '大区,省份'],
+        ['f18,f19,f20', '年份,季度,月份'],
+        ['sum("f25")', '销售金额'],
+        1, 1
+    );
+    var pivotTime1 = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result1.toRange("测试输出!A1", false);  // 不合并
+    var outputTime1 = new Date().getTime() - t1;
+    var totalTime1 = pivotTime1 + outputTime1;
+
+    console.log("│ " + padLeft("不合并", 8) + " │ " + padLeft(pivotTime1 + "", 8) + " │ " + padLeft(outputTime1 + "", 8) + " │ " + padLeft(totalTime1 + "", 8) + " │");
+
+    results.push({ 模式: "不合并", 透视: pivotTime1, 输出: outputTime1, 总计: totalTime1 });
+
+    // 测试合并
+    清空测试区域();
+    var t2 = new Date().getTime();
+    var result2 = Array2D.z超级透视(
+        arr,
+        ['f2,f3', '大区,省份'],
+        ['f18,f19,f20', '年份,季度,月份'],
+        ['sum("f25")', '销售金额'],
+        1, 1
+    );
+    var pivotTime2 = new Date().getTime() - t2;
+
+    var t3 = new Date().getTime();
+    result2.toRange("测试输出!A1", true);  // 合并
+    var outputTime2 = new Date().getTime() - t3;
+    var totalTime2 = pivotTime2 + outputTime2;
+
+    console.log("│ " + padLeft("合并", 8) + " │ " + padLeft(pivotTime2 + "", 8) + " │ " + padLeft(outputTime2 + "", 8) + " │ " + padLeft(totalTime2 + "", 8) + " │");
+
+    results.push({ 模式: "合并", 透视: pivotTime2, 输出: outputTime2, 总计: totalTime2 });
+
+    console.log("└──────────┴──────────┴──────────┴──────────┘");
+
+    // 性能对比
+    var mergeOverhead = totalTime2 - totalTime1;
+    var mergeRatio = (totalTime2 / totalTime1 * 100).toFixed(1);
+
+    console.log("\n📈 性能分析:");
+    console.log("  合并开销: " + mergeOverhead + " ms");
+    console.log("  性能比率: " + mergeRatio + "% (合并/不合并)");
+
+    return results;
+}
+
+/**
+ * 性能测试6: 标准版vs极速版对比测试
+ */
+function 性能测试6_版本对比() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        性能测试6: 标准版vs极速版对比测试              ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    console.log("📊 生成性能测试数据(2000行)...");
+    生成超级测试数据(2000, "数据!A1");
+    var arr = 获取数据("数据!A1:Z2001");
+
+    console.log("\n┌──────────┬──────────┬──────────┬──────────┐");
+    console.log("│ 版本     │ 透视ms   │ 输出ms   │ 总计ms   │");
+    console.log("├──────────┼──────────┼──────────┼──────────┤");
+
+    var results = [];
+
+    // 测试标准版
+    清空测试区域();
+    var t0 = new Date().getTime();
+    var result1 = Array2D.z超级透视(
+        arr,
+        ['f2', '大区'],
+        ['f18,f19,f20', '年份,季度,月份'],
+        ['sum("f25")', '销售金额'],
+        1, 0
+    );
+    var pivotTime1 = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result1.toRange("测试输出!A1", false);
+    var outputTime1 = new Date().getTime() - t1;
+    var totalTime1 = pivotTime1 + outputTime1;
+
+    console.log("│ " + padLeft("标准版", 8) + " │ " + padLeft(pivotTime1 + "", 8) + " │ " + padLeft(outputTime1 + "", 8) + " │ " + padLeft(totalTime1 + "", 8) + " │");
+
+    results.push({ 版本: "标准版", 透视: pivotTime1, 输出: outputTime1, 总计: totalTime1 });
+
+    // 测试极速版（如果存在）
+    if (Array2D.z超级透视_极速版) {
+        清空测试区域();
+        var t2 = new Date().getTime();
+        var result2 = Array2D.z超级透视_极速版(
+            arr,
+            ['f2', '大区'],
+            ['f18,f19,f20', '年份,季度,月份'],
+            ['sum("f25")', '销售金额'],
+            1, 0
+        );
+        var pivotTime2 = new Date().getTime() - t2;
+
+        var t3 = new Date().getTime();
+        result2.toRange("测试输出!A50", false);
+        var outputTime2 = new Date().getTime() - t3;
+        var totalTime2 = pivotTime2 + outputTime2;
+
+        console.log("│ " + padLeft("极速版", 8) + " │ " + padLeft(pivotTime2 + "", 8) + " │ " + padLeft(outputTime2 + "", 8) + " │ " + padLeft(totalTime2 + "", 8) + " │");
+
+        results.push({ 版本: "极速版", 透视: pivotTime2, 输出: outputTime2, 总计: totalTime2 });
+
+        // 性能对比
+        var speedup = (totalTime1 / totalTime2).toFixed(2);
+        var improvement = ((totalTime1 - totalTime2) / totalTime1 * 100).toFixed(1);
+
+        console.log("└──────────┴──────────┴──────────┴──────────┘");
+
+        console.log("\n📈 性能提升:");
+        console.log("  加速倍数: " + speedup + "x");
+        console.log("  性能提升: " + improvement + "%");
+    } else {
+        console.log("│ " + padLeft("极速版", 8) + " │   N/A    │   N/A    │   N/A    │");
+        console.log("└──────────┴──────────┴──────────┴──────────┘");
+        console.log("\n⚠️  极速版不可用");
+    }
+
+    return results;
+}
+
+/**
+ * 运行所有性能测试
+ */
+function 运行性能测试() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        superPivot 超级性能测试套件 v4.0               ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    var allResults = [];
+    var startTime = new Date().getTime();
+
+    // 测试1: 数据量对比
+    console.log("\n");
+    try {
+        allResults.push({ 测试: "数据量对比", 结果: 性能测试1_数据量对比() });
+    } catch (e) {
+        console.log("❌ 性能测试1失败: " + e.message);
+        allResults.push({ 测试: "数据量对比", 错误: e.message });
+    }
+
+    // 测试2: 列层数对比
+    console.log("\n");
+    try {
+        allResults.push({ 测试: "列层数对比", 结果: 性能测试2_列层数对比() });
+    } catch (e) {
+        console.log("❌ 性能测试2失败: " + e.message);
+        allResults.push({ 测试: "列层数对比", 错误: e.message });
+    }
+
+    // 测试3: 行字段数对比
+    console.log("\n");
+    try {
+        allResults.push({ 测试: "行字段数对比", 结果: 性能测试3_行字段数对比() });
+    } catch (e) {
+        console.log("❌ 性能测试3失败: " + e.message);
+        allResults.push({ 测试: "行字段数对比", 错误: e.message });
+    }
+
+    // 测试4: 聚合函数数对比
+    console.log("\n");
+    try {
+        allResults.push({ 测试: "聚合函数数对比", 结果: 性能测试4_聚合函数数对比() });
+    } catch (e) {
+        console.log("❌ 性能测试4失败: " + e.message);
+        allResults.push({ 测试: "聚合函数数对比", 错误: e.message });
+    }
+
+    // 测试5: 合并对比
+    console.log("\n");
+    try {
+        allResults.push({ 测试: "合并对比", 结果: 性能测试5_合并对比() });
+    } catch (e) {
+        console.log("❌ 性能测试5失败: " + e.message);
+        allResults.push({ 测试: "合并对比", 错误: e.message });
+    }
+
+    // 测试6: 版本对比
+    console.log("\n");
+    try {
+        allResults.push({ 测试: "版本对比", 结果: 性能测试6_版本对比() });
+    } catch (e) {
+        console.log("❌ 性能测试6失败: " + e.message);
+        allResults.push({ 测试: "版本对比", 错误: e.message });
+    }
+
+    var endTime = new Date().getTime();
+
+    console.log("\n╔══════════════════════════════════════════════════════╗");
+    console.log("║                    性能测试汇总                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    for (var i = 0; i < allResults.length; i++) {
+        var status = allResults[i].错误 ? "✗" : "✓";
+        console.log(status + " " + allResults[i].测试);
+    }
+
+    console.log("\n总耗时: " + (endTime - startTime) + " ms");
+    console.log("\n✅ 性能测试完成!");
+
+    return allResults;
+}
+
+/**
+ * 快速性能测试 - 只运行核心测试
+ */
+function 快速性能测试() {
+    console.log("========== 快速性能测试 ==========");
+    性能测试1_数据量对比();
+}
+
+// ==================== 超级功能测试套件 v4.0 ====================
+// 基于 生成性能测试数据() 的 5000行×26列数据
+
+/**
+ * 功能测试1: 地理维度4层列字段测试
+ * 测试大区→省份→城市→区域的4层列字段透视
+ */
+function 功能测试1_地理4层列() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试1: 地理维度4层列字段                  ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: 部门 × (大区→省份→城市→区域)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f6', '部门'],                                   // 1个行字段
+        ['f2,f3,f4,f5', '大区,省份,城市,区域'],           // 4个列字段
+        ['sum("f25")', '销售金额'],
+        1,  // 跳过表头
+        1   // 显示表头
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);  // 启用合并
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+    console.log("   表头行数: 5行 (1行标题 + 4层列字段)");
+
+    return result;
+}
+
+/**
+ * 功能测试2: 时间维度4层列字段测试
+ * 测试年份→季度→月份→日期的4层列字段透视
+ */
+function 功能测试2_时间4层列() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试2: 时间维度4层列字段                  ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: 产品类别 × (年份→季度→月份→日期)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9', '产品类别'],
+        ['f18,f19,f20,f21', '年份,季度,月份,日期'],
+        ['count(),sum("f22"),sum("f25")', '订单数,总销量,总金额'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 功能测试3: 组织维度3层行×产品维度3层列
+ * 测试复杂的多行多列交叉透视
+ */
+function 功能测试3_组织3行产品3列() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试3: 组织3行×产品3列交叉               ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: (部门→团队→员工) × (产品类别→产品子类→产品名称)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f6,f7,f8', '部门,团队,员工'],              // 3个行字段
+        ['f9,f10,f11', '产品类别,产品子类,产品名称'], // 3个列字段
+        ['sum("f25"),sum("f26")', '销售金额,利润'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+    console.log("   表头: 4行 (1行标题 + 3层列字段)");
+
+    return result;
+}
+
+/**
+ * 功能测试4: 客户维度多维度分析
+ * 测试客户等级、类型、规模的交叉分析
+ */
+function 功能测试4_客户多维分析() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试4: 客户维度多维度分析                 ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: (客户等级→客户类型→客户规模) × 年份");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f12,f13,f14', '客户等级,客户类型,客户规模'],
+        ['f18', '年份'],
+        ['count(),sum("f25"),average("f25"),average("f26")', '订单数,总金额,平均单价,平均利润'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 功能测试5: 交易维度分析
+ * 测试销售渠道、支付方式、订单状态的综合分析
+ */
+function 功能测试5_交易维度分析() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试5: 交易维度分析                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: 大区 × (销售渠道→支付方式→订单状态)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f2', '大区'],
+        ['f15,f16,f17', '销售渠道,支付方式,订单状态'],
+        ['count(),sum("f25")', '订单数,销售金额'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 功能测试6: 5种聚合函数测试
+ * 测试count/sum/average/max/min等聚合函数
+ */
+function 功能测试6_5种聚合函数() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试6: 5种聚合函数测试                     ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: 产品类别 × 年份 (5种聚合)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9', '产品类别'],
+        ['f18,f19', '年份,季度'],
+        ['count(),sum("f22"),sum("f25"),average("f25"),max("f25"),min("f25")',
+         '订单数,总销量,总金额,平均金额,最高金额,最低金额'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   聚合函数: count, sum, average, max, min");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 功能测试7: 排序功能测试
+ * 测试升序/降序/原始顺序排序
+ */
+function 功能测试7_排序功能() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试7: 排序功能测试                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("\n--- 测试1: 产品类别降序 ---");
+    var t0 = new Date().getTime();
+    var result1 = Array2D.z超级透视(
+        arr,
+        ['f9-', '产品类别'],  // 降序
+        ['f18', '年份'],
+        ['sum("f25")', '销售金额'],
+        1, 0
+    );
+    var time1 = new Date().getTime() - t0;
+    result1.toRange("测试输出!A1", false);
+    console.log("   耗时: " + time1 + " ms, " + result1.z数量() + " 行");
+
+    console.log("\n--- 测试2: 部门升序 ---");
+    var t1 = new Date().getTime();
+    var result2 = Array2D.z超级透视(
+        arr,
+        ['f6+', '部门'],  // 升序
+        ['f2', '大区'],
+        ['count()', '订单数'],
+        1, 0
+    );
+    var time2 = new Date().getTime() - t1;
+    // 计算输出位置
+    var cols1 = result1[0] ? result1[0].length : 0;
+    var startCol2 = cols1 + 2;
+    result2.toRange("测试输出!" + numberToColumn(startCol2) + "1", false);
+    console.log("   耗时: " + time2 + " ms, " + result2.z数量() + " 行");
+
+    console.log("\n--- 测试3: 大区原始顺序(#) ---");
+    var t2 = new Date().getTime();
+    var result3 = Array2D.z超级透视(
+        arr,
+        ['f2#', '大区'],  // 原始顺序
+        ['f6', '部门'],
+        ['sum("f26")', '利润'],
+        1, 0
+    );
+    var time3 = new Date().getTime() - t2;
+    var cols2 = result2[0] ? result2[0].length : 0;
+    var startCol3 = startCol2 + cols2 + 2;
+    result3.toRange("测试输出!" + numberToColumn(startCol3) + "1", false);
+    console.log("   耗时: " + time3 + " ms, " + result3.z数量() + " 行");
+
+    console.log("\n✅ 排序测试完成!");
+    return { 降序: result1, 升序: result2, 原始: result3 };
+}
+
+/**
+ * 功能测试8: 地理×时间×产品综合分析
+ * 测试复杂的多维度业务分析场景
+ */
+function 功能测试8_综合业务分析() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试8: 地理×时间×产品综合分析             ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: (大区→省份) × (年份→季度)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f2,f3', '大区,省份'],              // 2个行字段
+        ['f18,f19', '年份,季度'],            // 2个列字段
+        ['count(),sum("f22"),sum("f25"),sum("f26")', '订单数,总销量,总金额,总利润'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+    console.log("   复杂度: 2行 × 2列 × 4聚合");
+
+    return result;
+}
+
+/**
+ * 功能测试9: 员工业绩分析
+ * 测试员工维度的销售业绩分析
+ */
+function 功能测试9_员工业绩分析() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试9: 员工业绩分析                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: (部门→团队→员工) × (年份→月份)");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f6,f7,f8-', '部门,团队,员工'],  // 3行，员工降序(按销售额)
+        ['f18,f20', '年份,月份'],
+        ['count(),sum("f22"),sum("f25"),sum("f26"),average("f25")', '订单数,总销量,总金额,总利润,平均单价'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 功能测试10: 边界情况测试
+ * 测试各种边界情况
+ */
+function 功能测试10_边界情况() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试10: 边界情况测试                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var fullArr = 获取数据("数据!A1:Z5001");
+
+    var results = [];
+    var outputPos = 1;
+
+    // 测试1: 小数据集(10行)
+    console.log("\n--- 测试1: 小数据集(10行) ---");
+    try {
+        var arr1 = fullArr.slice(0, 11);
+        var result1 = Array2D.z超级透视(
+            arr1,
+            ['f2', '大区'],
+            ['f18', '年份'],
+            ['sum("f25")', '销售金额'],
+            1, 1
+        );
+        result1.toRange("测试输出!A" + outputPos, false);
+        console.log("   ✅ 通过: " + result1.z数量() + " 行");
+        results.push("小数据集: 通过");
+        outputPos += result1.z数量() + 3;
+    } catch (e) {
+        console.log("   ✗ 失败: " + e.message);
+        results.push("小数据集: 失败");
+    }
+
+    // 测试2: 单值列字段
+    console.log("\n--- 测试2: 单值列字段 ---");
+    try {
+        var arr2 = fullArr.slice(0, 101);
+        var result2 = Array2D.z超级透视(
+            arr2,
+            ['f9', '产品类别'],
+            ['f12', '客户等级'],
+            ['count()', '订单数'],
+            1, 1
+        );
+        result2.toRange("测试输出!A" + outputPos, false);
+        console.log("   ✅ 通过: " + result2.z数量() + " 行");
+        results.push("单值列字段: 通过");
+        outputPos += result2.z数量() + 3;
+    } catch (e) {
+        console.log("   ✗ 失败: " + e.message);
+        results.push("单值列字段: 失败");
+    }
+
+    // 测试3: 单行单列
+    console.log("\n--- 测试3: 单行单列 ---");
+    try {
+        var arr3 = fullArr.slice(0, 101);
+        var result3 = Array2D.z超级透视(
+            arr3,
+            ['f6', '部门'],
+            ['f18', '年份'],
+            ['sum("f25")', '销售金额'],
+            1, 1
+        );
+        result3.toRange("测试输出!A" + outputPos, false);
+        console.log("   ✅ 通过: " + result3.z数量() + " 行 × " + (result3[0] ? result3[0].length : 0) + " 列");
+        results.push("单行单列: 通过");
+        outputPos += result3.z数量() + 3;
+    } catch (e) {
+        console.log("   ✗ 失败: " + e.message);
+        results.push("单行单列: 失败");
+    }
+
+    // 测试4: 无表头模式
+    console.log("\n--- 测试4: 无表头模式 ---");
+    try {
+        var arr4 = fullArr.slice(1, 101);
+        var result4 = Array2D.z超级透视(
+            arr4,
+            ['f1', '序号'],
+            ['f2', '大区'],
+            ['count()', '计数'],
+            0, 0
+        );
+        result4.toRange("测试输出!A" + outputPos, false);
+        console.log("   ✅ 通过: " + result4.z数量() + " 行");
+        results.push("无表头模式: 通过");
+    } catch (e) {
+        console.log("   ✗ 失败: " + e.message);
+        results.push("无表头模式: 失败");
+    }
+
+    console.log("\n========== 边界测试汇总 ==========");
+    for (var i = 0; i < results.length; i++) {
+        console.log(results[i]);
+    }
+
+    return results;
+}
+
+/**
+ * 功能测试11: 利润分析
+ * 测试按不同维度的利润分析
+ */
+function 功能测试11_利润分析() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试11: 利润分析                          ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: 产品类别 × (大区→省份) - 利润分析");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9,f10', '产品类别,产品子类'],    // 2行
+        ['f2,f3', '大区,省份'],              // 2列
+        ['sum("f25"),sum("f26"),average("f26"),sum("f26")/sum("f25")*100',
+         '销售金额,总利润,平均利润,利润率'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   分析维度: 销售金额、总利润、平均利润、利润率");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 功能测试12: 超级复杂透视
+ * 测试最大复杂度的透视: 3行×3列×7聚合
+ */
+function 功能测试12_超级复杂透视() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        功能测试12: 超级复杂透视(3×3×7)                ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    清空测试区域();
+
+    console.log("📊 读取数据...");
+    var arr = 获取数据("数据!A1:Z5001");
+
+    console.log("🔄 执行透视: (部门→团队→员工) × (年份→季度→月份) × 7聚合");
+    var t0 = new Date().getTime();
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f6,f7,f8', '部门,团队,员工'],         // 3行
+        ['f18,f19,f20', '年份,季度,月份'],       // 3列
+        ['count(),sum("f22"),sum("f25"),average("f25"),max("f25"),min("f25"),sum("f26")',
+         '订单数,总销量,总金额,平均单价,最高金额,最低金额,总利润'],
+        1, 1
+    );
+
+    var pivotTime = new Date().getTime() - t0;
+
+    var t1 = new Date().getTime();
+    result.toRange("测试输出!A1", true);
+    var outputTime = new Date().getTime() - t1;
+
+    console.log("✅ 完成!");
+    console.log("   透视耗时: " + pivotTime + " ms");
+    console.log("   输出耗时: " + outputTime + " ms");
+    console.log("   复杂度: 3行 × 3列 × 7聚合");
+    console.log("   结果: " + result.z数量() + " 行 × " + (result[0] ? result[0].length : 0) + " 列");
+
+    return result;
+}
+
+/**
+ * 运行所有功能测试
+ */
+function 运行功能测试() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        superPivot 超级功能测试套件 v4.0               ║");
+    console.log("║        基于 生成性能测试数据() 的5000行×26列数据        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    var allResults = [];
+    var startTime = new Date().getTime();
+
+    // 测试1: 地理4层列
+    console.log("\n");
+    try {
+        功能测试1_地理4层列();
+        allResults.push({ 测试: "地理4层列字段", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试1失败: " + e.message);
+        allResults.push({ 测试: "地理4层列字段", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试2: 时间4层列
+    console.log("\n");
+    try {
+        功能测试2_时间4层列();
+        allResults.push({ 测试: "时间4层列字段", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试2失败: " + e.message);
+        allResults.push({ 测试: "时间4层列字段", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试3: 组织3行×产品3列
+    console.log("\n");
+    try {
+        功能测试3_组织3行产品3列();
+        allResults.push({ 测试: "组织3行×产品3列", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试3失败: " + e.message);
+        allResults.push({ 测试: "组织3行×产品3列", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试4: 客户多维分析
+    console.log("\n");
+    try {
+        功能测试4_客户多维分析();
+        allResults.push({ 测试: "客户多维分析", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试4失败: " + e.message);
+        allResults.push({ 测试: "客户多维分析", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试5: 交易维度分析
+    console.log("\n");
+    try {
+        功能测试5_交易维度分析();
+        allResults.push({ 测试: "交易维度分析", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试5失败: " + e.message);
+        allResults.push({ 测试: "交易维度分析", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试6: 5种聚合函数
+    console.log("\n");
+    try {
+        功能测试6_5种聚合函数();
+        allResults.push({ 测试: "5种聚合函数", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试6失败: " + e.message);
+        allResults.push({ 测试: "5种聚合函数", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试7: 排序功能
+    console.log("\n");
+    try {
+        功能测试7_排序功能();
+        allResults.push({ 测试: "排序功能", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试7失败: " + e.message);
+        allResults.push({ 测试: "排序功能", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试8: 综合业务分析
+    console.log("\n");
+    try {
+        功能测试8_综合业务分析();
+        allResults.push({ 测试: "综合业务分析", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试8失败: " + e.message);
+        allResults.push({ 测试: "综合业务分析", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试9: 员工业绩分析
+    console.log("\n");
+    try {
+        功能测试9_员工业绩分析();
+        allResults.push({ 测试: "员工业绩分析", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试9失败: " + e.message);
+        allResults.push({ 测试: "员工业绩分析", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试10: 边界情况
+    console.log("\n");
+    try {
+        功能测试10_边界情况();
+        allResults.push({ 测试: "边界情况", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试10失败: " + e.message);
+        allResults.push({ 测试: "边界情况", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试11: 利润分析
+    console.log("\n");
+    try {
+        功能测试11_利润分析();
+        allResults.push({ 测试: "利润分析", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试11失败: " + e.message);
+        allResults.push({ 测试: "利润分析", 状态: "失败", 错误: e.message });
+    }
+
+    // 测试12: 超级复杂透视
+    console.log("\n");
+    try {
+        功能测试12_超级复杂透视();
+        allResults.push({ 测试: "超级复杂透视", 状态: "通过" });
+    } catch (e) {
+        console.log("❌ 功能测试12失败: " + e.message);
+        allResults.push({ 测试: "超级复杂透视", 状态: "失败", 错误: e.message });
+    }
+
+    var endTime = new Date().getTime();
+
+    console.log("\n╔══════════════════════════════════════════════════════╗");
+    console.log("║                    功能测试汇总                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    var passCount = 0;
+    for (var i = 0; i < allResults.length; i++) {
+        var status = allResults[i].状态 === "通过" ? "✓" : "✗";
+        console.log(status + " " + allResults[i].测试);
+        if (allResults[i].状态 === "通过") passCount++;
+    }
+
+    console.log("\n总计: " + passCount + "/" + allResults.length + " 通过");
+    console.log("总耗时: " + (endTime - startTime) + " ms");
+    console.log("\n✅ 功能测试完成! 请查看'测试输出'表中的结果。");
+
+    return allResults;
+}
+
+/**
+ * 快速功能测试 - 只运行核心测试
+ */
+function 快速功能测试() {
+    console.log("========== 快速功能测试 ==========");
+    console.log("运行核心功能测试...");
+    功能测试1_地理4层列();
+    console.log("\n");
+    功能测试6_5种聚合函数();
+    console.log("\n");
+    功能测试12_超级复杂透视();
+}
+
+// 辅助函数：数字转列号
+function numberToColumn(num) {
+    var result = "";
+    while (num > 0) {
+        num--;
+        result = String.fromCharCode(65 + (num % 26)) + result;
+        num = Math.floor(num / 26);
+    }
+    return result || "A";
+}
+
+// ==================== 新测试套件 v4.0 - 基于快速测试数据 ====================
+
+/**
+ * 新测试1: 基础单行单列透视
+ * 最简单的透视场景
+ */
+function 新测试1_基础单行单列() {
+    console.log("========== 新测试1: 基础单行单列 ==========");
+
+    // 先生成测试数据
+    生成快速测试数据();
+
+    // 获取数据
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);  // 跳过表头
+
+    console.log("🔄 执行透视: 产品类别 × 年份");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9', '产品类别'],           // 1个行字段
+        ['f18', '年份'],               // 1个列字段
+        ['count(),sum("f22"),sum("f26")', '订单数,总销量,总金额'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试2: 地理维度多级透视
+ * 测试4层地理维度
+ */
+function 新测试2_地理4层级() {
+    console.log("========== 新测试2: 地理4层级透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 大区→省份→城市→区域 × 季度→月份");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f2,f3,f4,f5', '大区,省份,城市,区域'],  // 4个行字段
+        ['f19,f20', '季度,月份'],                  // 2个列字段
+        ['count(),sum("f26"),average("f27")', '订单数,总金额,平均利润'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试3: 组织维度透视
+ * 测试部门→团队→员工
+ */
+function 新测试3_组织维度() {
+    console.log("========== 新测试3: 组织维度透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 部门→团队→员工 × 销售渠道");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f6,f7,f8', '部门,团队,员工'],           // 3个行字段
+        ['f15', '销售渠道'],                      // 1个列字段
+        ['count(),sum("f26"),sum("f27")', '订单数,总金额,总利润'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试4: 产品维度透视
+ * 测试产品类别→子类→名称
+ */
+function 新测试4_产品维度() {
+    console.log("========== 新测试4: 产品维度透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 产品类别→子类→名称 × 年份→季度");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9,f10,f11', '产品类别,产品子类,产品名称'],  // 3个行字段
+        ['f18,f19', '年份,季度'],                       // 2个列字段
+        ['count(),sum("f22"),sum("f26")', '订单数,总销量,总金额'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试5: 时间维度4层级
+ * 测试年份→季度→月份→日期
+ */
+function 新测试5_时间4层级() {
+    console.log("========== 新测试5: 时间4层级透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 大区 × 年份→季度→月份→日期");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f2', '大区'],                         // 1个行字段
+        ['f18,f19,f20,f21', '年份,季度,月份,日期'],  // 4个列字段
+        ['count(),sum("f26")', '订单数,总金额'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试6: 客户维度透视
+ * 测试客户等级→类型→规模
+ */
+function 新测试6_客户维度() {
+    console.log("========== 新测试6: 客户维度透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 客户等级→客户类型→客户规模 × 产品类别");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f12,f13,f14', '客户等级,客户类型,客户规模'],  // 3个行字段
+        ['f9', '产品类别'],                            // 1个列字段
+        ['count(),sum("f26"),average("f23")', '订单数,总金额,平均单价'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试7: 交易维度透视
+ * 测试销售渠道、支付方式、订单状态
+ */
+function 新测试7_交易维度() {
+    console.log("========== 新测试7: 交易维度透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 销售渠道→支付方式→订单状态 × 年份");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f15,f16,f17', '销售渠道,支付方式,订单状态'],  // 3个行字段
+        ['f18', '年份'],                               // 1个列字段
+        ['count(),sum("f26"),sum("f27")', '订单数,总金额,总利润'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试8: 复杂综合透视
+ * 地理×时间×产品多维度综合分析
+ */
+function 新测试8_复杂综合() {
+    console.log("========== 新测试8: 复杂综合透视 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 大区→省份 × 年份→季度 × 产品类别");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f2,f3', '大区,省份'],              // 2个行字段
+        ['f18,f19', '年份,季度'],            // 2个列字段
+        ['count(),sum("f22"),sum("f26"),average("f27")', '订单数,总销量,总金额,平均利润'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试9: 标题功能测试
+ * 测试自定义标题和outputHeader参数
+ */
+function 新测试9_标题功能() {
+    console.log("========== 新测试9: 标题功能测试 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    // 子测试9.1: 完整自定义标题
+    console.log("--- 9.1: 完整自定义标题 ---");
+    var result1 = Array2D.z超级透视(
+        arr,
+        ['f2,f3', '销售大区,销售省份'],
+        ['f18,f19', '销售年份,销售季度'],
+        ['count(),sum("f26")', '订单总数,销售总额'],
+        0, 1  // outputHeader = 1
+    );
+
+    清空测试区域();
+    result1.toRange("测试输出!A1", false);
+    console.log("9.1 完成 - " + result1.z数量() + " 行 × " + result1.z列数() + " 列");
+
+    // 子测试9.2: 无标题
+    console.log("--- 9.2: 无标题 (outputHeader=0) ---");
+    var result2 = Array2D.z超级透视(
+        arr,
+        ['f2', '大区'],
+        ['f18', '年份'],
+        ['count(),sum("f26")', '订单数,总金额'],
+        0, 0  // outputHeader = 0
+    );
+    result2.toRange("测试输出!A100", false);
+    console.log("9.2 完成 - " + result2.z数量() + " 行 × " + result2.z列数() + " 列");
+
+    console.log("✅ 标题功能测试完成!");
+    return { result1: result1, result2: result2 };
+}
+
+/**
+ * 新测试10: 多聚合函数测试
+ * 测试多种聚合函数组合
+ */
+function 新测试10_多聚合函数() {
+    console.log("========== 新测试10: 多聚合函数测试 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 产品类别 × 年份 (8种聚合)");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9', '产品类别'],
+        ['f18', '年份'],
+        // 8种不同的聚合函数
+        [
+            'count(),sum("f22"),average("f22"),min("f22"),max("f22"),' +
+            'sum("f26"),average("f26"),sum("f27")'
+        ],
+        [
+            '订单数,总销量,平均销量,最小销量,最大销量,' +
+            '总金额,平均单价,总利润'
+        ],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试11: 员工业绩分析
+ * 部门→团队→员工业绩统计
+ */
+function 新测试11_员工业绩() {
+    console.log("========== 新测试11: 员工业绩分析 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 部门→团队→员工 × 年份");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f6,f7,f8', '部门,团队,员工'],
+        ['f18', '年份'],
+        ['count(),sum("f26"),sum("f27"),average("f27")', '订单数,总金额,总利润,人均利润'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 新测试12: 产品利润分析
+ * 产品类别→子类利润排名
+ */
+function 新测试12_产品利润分析() {
+    console.log("========== 新测试12: 产品利润分析 ==========");
+
+    var arr = 获取数据("数据!A1:AA101");
+    arr = arr.z跳过(1);
+
+    console.log("🔄 执行透视: 产品类别→产品子类 × 年份 (利润分析)");
+
+    var result = Array2D.z超级透视(
+        arr,
+        ['f9,f10', '产品类别,产品子类'],
+        ['f18', '年份'],
+        ['count(),sum("f22"),sum("f25"),sum("f26"),sum("f27")', '订单数,销量,成本,销售额,利润'],
+        0, 1
+    );
+
+    清空测试区域();
+    result.toRange("测试输出!A1", false);
+
+    console.log("✅ 完成! 结果: " + result.z数量() + " 行 × " + result.z列数() + " 列");
+    return result;
+}
+
+/**
+ * 运行所有新测试
+ */
+function 运行所有新测试() {
+    console.log("╔══════════════════════════════════════════════════════╗");
+    console.log("║        新测试套件 v4.0 - 全面测试                      ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    var results = [];
+    var errors = [];
+
+    var tests = [
+        { name: "新测试1: 基础单行单列", func: 新测试1_基础单行单列 },
+        { name: "新测试2: 地理4层级", func: 新测试2_地理4层级 },
+        { name: "新测试3: 组织维度", func: 新测试3_组织维度 },
+        { name: "新测试4: 产品维度", func: 新测试4_产品维度 },
+        { name: "新测试5: 时间4层级", func: 新测试5_时间4层级 },
+        { name: "新测试6: 客户维度", func: 新测试6_客户维度 },
+        { name: "新测试7: 交易维度", func: 新测试7_交易维度 },
+        { name: "新测试8: 复杂综合", func: 新测试8_复杂综合 },
+        { name: "新测试9: 标题功能", func: 新测试9_标题功能 },
+        { name: "新测试10: 多聚合函数", func: 新测试10_多聚合函数 },
+        { name: "新测试11: 员工业绩", func: 新测试11_员工业绩 },
+        { name: "新测试12: 产品利润分析", func: 新测试12_产品利润分析 }
+    ];
+
+    for (var i = 0; i < tests.length; i++) {
+        try {
+            console.log("\n========== 运行 " + tests[i].name + " ==========");
+            tests[i].func();
+            results.push([tests[i].name, "通过"]);
+        } catch (e) {
+            results.push([tests[i].name, "失败: " + e.message]);
+            errors.push(e);
+        }
+    }
+
+    console.log("\n╔══════════════════════════════════════════════════════╗");
+    console.log("║                    测试结果汇总                        ║");
+    console.log("╚══════════════════════════════════════════════════════╝");
+
+    var passCount = 0;
+    for (var i = 0; i < results.length; i++) {
+        var status = results[i][1].indexOf("通过") >= 0 ? "✅" : "❌";
+        console.log(status + " " + results[i][0] + ": " + results[i][1]);
+        if (results[i][1].indexOf("通过") >= 0) passCount++;
+    }
+
+    console.log("\n总计: " + passCount + "/" + results.length + " 通过");
+    console.log("\n✅ 新测试套件完成! 请查看'测试输出'表中的结果。");
+
+    return passCount === results.length;
+}
+
+/**
+ * 快速新测试 - 只运行核心测试
+ */
+function 快速新测试() {
+    console.log("========== 快速新测试 ==========");
+
+    新测试1_基础单行单列();
+    console.log("\n");
+
+    新测试4_产品维度();
+    console.log("\n");
+
+    新测试8_复杂综合();
+    console.log("\n");
+
+    新测试9_标题功能();
+}

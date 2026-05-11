@@ -1,0 +1,354 @@
+{
+  "version": "3.9.3",
+  "generatedAt": "2026-05-03T15:43:16.646Z",
+  "jsa": {
+    "functions": [
+      {
+        "name": "jsaLambda",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "path"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "函数式"
+      }
+    ],
+    "byCategory": {
+      "函数式": [
+        {
+          "name": "jsaLambda",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "path"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "函数式"
+        }
+      ]
+    },
+    "total": 1
+  },
+  "array2d": {
+    "methods": [
+      {
+        "name": "_new",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": []
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      },
+      {
+        "name": "val",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "value"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "基础操作"
+      },
+      {
+        "name": "_colToIndex",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "direction",
+            "rangeAddress",
+            "fillValue"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      },
+      {
+        "name": "toRange",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "row",
+            "col",
+            "value"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "元素访问"
+      },
+      {
+        "name": "repeat",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "count"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      },
+      {
+        "name": "shuffle",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "count"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      },
+      {
+        "name": "random",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": []
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      },
+      {
+        "name": "forEach",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "value"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      },
+      {
+        "name": "where",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": [
+            "column"
+          ]
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "条件筛选"
+      },
+      {
+        "name": "sort",
+        "aliasOf": null,
+        "isAlias": false,
+        "signature": {
+          "params": []
+        },
+        "description": "",
+        "params": [],
+        "returns": null,
+        "examples": [],
+        "category": "其他"
+      }
+    ],
+    "byCategory": {
+      "其他": [
+        {
+          "name": "_new",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": []
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        },
+        {
+          "name": "_colToIndex",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "direction",
+              "rangeAddress",
+              "fillValue"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        },
+        {
+          "name": "repeat",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "count"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        },
+        {
+          "name": "shuffle",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "count"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        },
+        {
+          "name": "random",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": []
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        },
+        {
+          "name": "forEach",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "value"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        },
+        {
+          "name": "sort",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": []
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "其他"
+        }
+      ],
+      "基础操作": [
+        {
+          "name": "val",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "value"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "基础操作"
+        }
+      ],
+      "元素访问": [
+        {
+          "name": "toRange",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "row",
+              "col",
+              "value"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "元素访问"
+        }
+      ],
+      "条件筛选": [
+        {
+          "name": "where",
+          "aliasOf": null,
+          "isAlias": false,
+          "signature": {
+            "params": [
+              "column"
+            ]
+          },
+          "description": "",
+          "params": [],
+          "returns": null,
+          "examples": [],
+          "category": "条件筛选"
+        }
+      ]
+    },
+    "total": 10
+  }
+}

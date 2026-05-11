@@ -1,5 +1,118 @@
 {
   "version": 1,
-  "lastUpdated": 1767107502207,
-  "plugins": []
+  "lastUpdated": 1769241358115,
+  "plugins": [
+    {
+      "filename": "pdf-anthropic",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/document-processing/pdf-anthropic",
+        "filename": "pdf-anthropic",
+        "name": "pdf",
+        "description": "Comprehensive PDF manipulation toolkit for extracting text and tables, creating new PDFs, merging/splitting documents, and handling forms. When Claude needs to fill in a PDF form or programmatically process, generate, or analyze PDF documents at scale.",
+        "category": "skills",
+        "type": "skill",
+        "size": 64296,
+        "contentHash": "38d8559d4899602f82f3560052132aa0c40cfca80203037729756bdb4fb8e0cb",
+        "installedAt": 1769217090740,
+        "updatedAt": 1769217090740
+      }
+    },
+    {
+      "filename": "pdf-processing",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/document-processing/pdf-processing",
+        "filename": "pdf-processing",
+        "name": "PDF Processing",
+        "description": "Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.",
+        "category": "skills",
+        "type": "skill",
+        "size": 6008,
+        "contentHash": "1bbb21910cec7e3190a4c50cca3b699531cc4e82dd02340c2fc0c2e607c3ab70",
+        "installedAt": 1769217091764,
+        "updatedAt": 1769217091764
+      }
+    },
+    {
+      "filename": "xlsx",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/document-processing/xlsx",
+        "filename": "xlsx",
+        "name": "xlsx",
+        "description": "Comprehensive spreadsheet creation, editing, and analysis with support for formulas, formatting, data analysis, and visualization. When Claude needs to work with spreadsheets (.xlsx, .xlsm, .csv, .tsv, etc) for: (1) Creating new spreadsheets with formulas and formatting, (2) Reading or analyzing data, (3) Modify existing spreadsheets while preserving formulas, (4) Data analysis and visualization in spreadsheets, or (5) Recalculating formulas",
+        "category": "skills",
+        "type": "skill",
+        "size": 18507,
+        "contentHash": "020ccdb5932257b66c638ec1157ea248d57fa52c8c01f1f68b559b5970c7df35",
+        "installedAt": 1769217101279,
+        "updatedAt": 1769217101279
+      }
+    },
+    {
+      "filename": "excel-analysis",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/enterprise-communication/excel-analysis",
+        "filename": "excel-analysis",
+        "name": "Excel Analysis",
+        "description": "Analyze Excel spreadsheets, create pivot tables, generate charts, and perform data analysis. Use when analyzing Excel files, spreadsheets, tabular data, or .xlsx files.",
+        "category": "skills",
+        "type": "skill",
+        "size": 5166,
+        "contentHash": "fb681b860b4d3bc20938cfbe490ebdc39d679d1634f1a6c12727bd4ab7ac91d0",
+        "installedAt": 1769217108082,
+        "updatedAt": 1769217108082
+      }
+    },
+    {
+      "filename": "pdf-processing-pro",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/document-processing/pdf-processing-pro",
+        "filename": "pdf-processing-pro",
+        "name": "PDF Processing Pro",
+        "description": "Production-ready PDF processing with forms, tables, OCR, validation, and batch operations. Use when working with complex PDF workflows in production environments, processing large volumes of PDFs, or requiring robust error handling and validation.",
+        "category": "skills",
+        "type": "skill",
+        "size": 47458,
+        "contentHash": "0e07e0c87b7189911b91f35da0b3aaad6678ff2b2781334bfc217a5432a3fe6f",
+        "installedAt": 1769231755661,
+        "updatedAt": 1769231755661
+      }
+    },
+    {
+      "filename": "docx",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/document-processing/docx",
+        "filename": "docx",
+        "name": "docx",
+        "description": "Comprehensive document creation, editing, and analysis with support for tracked changes, comments, formatting preservation, and text extraction. When Claude needs to work with professional documents (.docx files) for: (1) Creating new documents, (2) Modifying or editing content, (3) Working with tracked changes, (4) Adding comments, or any other document tasks",
+        "category": "skills",
+        "type": "skill",
+        "size": 1185916,
+        "contentHash": "0bd90681fcab2e282025ee14acf508b60bbd6c41ac6c3bf83c0dc14d52c37933",
+        "installedAt": 1769241348315,
+        "updatedAt": 1769241348315
+      }
+    },
+    {
+      "filename": "skill-creator",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/development/skill-creator",
+        "filename": "skill-creator",
+        "name": "skill-creator",
+        "description": "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.",
+        "category": "skills",
+        "type": "skill",
+        "size": 39179,
+        "contentHash": "8c0ce23bb87be91f5b0853c2e9815617c3858b63acdddfe5da47d2c2d3a60816",
+        "installedAt": 1769241358115,
+        "updatedAt": 1769241358115
+      }
+    }
+  ]
 }

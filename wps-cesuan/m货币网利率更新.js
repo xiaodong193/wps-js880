@@ -1,4 +1,3 @@
-Attribute Module_Name = "m货币网利率更新"
 /**
  * ============== 模块1：通过中国货币网更新LPR利率 ==============
  * 作者：徐晓冬
@@ -8,9 +7,9 @@ Attribute Module_Name = "m货币网利率更新"
  * ====================================================
  */
 
-class LPRDownloader {
+class clsLPRDownloader {
     constructor() {
-        this.MODULE_NAME = "LPRDownloader";
+        this.MODULE_NAME = "clsLPRDownloader";
         console.log("[" + this.MODULE_NAME + "] 初始化完成");
     }
 
@@ -20,15 +19,15 @@ class LPRDownloader {
      */
     DownloadAndCopyLPRData() {
         try {
-            let wb = null;
-            let ws = null;
-            let targetWs = null;
-            let filePath = "";
-            let url = "";
-            let currentFolder = "";
-            let startDate = "";
-            let endDate = "";
-            let cell = null;
+            var wb = null;
+            var ws = null;
+            var targetWs = null;
+            var filePath = "";
+            var url = "";
+            var currentFolder = "";
+            var startDate = "";
+            var endDate = "";
+            var cell = null;
 
             // 格式化日期
             const today = new Date();
@@ -49,7 +48,7 @@ class LPRDownloader {
                 return false;
             }
             
-            filePath = currentFolder + "\\LPRData.xlsx";
+            filePath = currentFolder + (Application.PathSeparator || "\\") + "LPRData.xlsx";
 
             // 方法1: 直接使用WPS的Workbooks.Open方法打开URL
             if (this.DownloadWithWPSOpen(url, filePath)) {
@@ -76,8 +75,8 @@ class LPRDownloader {
 
                 // 将C3:D14转换为数值格式，保留两位小数
                 const targetRange = targetWs.Range("C3:D14");
-                for (let i = 1; i <= targetRange.Rows.Count; i++) {
-                    for (let j = 1; j <= targetRange.Columns.Count; j++) {
+                for (var i = 1; i <= targetRange.Rows.Count; i++) {
+                    for (var j = 1; j <= targetRange.Columns.Count; j++) {
                         cell = targetRange.Cells(i, j);
                         if (this.IsNumeric(cell.Value)) {
                             cell.NumberFormat = "0.00";
@@ -288,7 +287,7 @@ class LPRDownloader {
 }
 
 // 使用示例：
-// const lprDownloader = new LPRDownloader();
+// const lprDownloader = new clsLPRDownloader();
 // lprDownloader.DownloadAndCopyLPRData();
 
 /**
@@ -296,7 +295,7 @@ class LPRDownloader {
  */
 function 更新LPR利率() {
     try {
-        const lprDownloader = new LPRDownloader();
+        const lprDownloader = new clsLPRDownloader();
         return lprDownloader.DownloadAndCopyLPRData();
     } catch (error) {
         console.log("下载LPR数据错误: " + error.message);

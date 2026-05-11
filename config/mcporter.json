@@ -1,0 +1,27 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "enabled": true,
+      "command": "npx -y @modelcontextprotocol/server-filesystem ~/Desktop",
+      "env": {}
+    },
+    "brave-search": {
+      "enabled": true,
+      "command": "npx -y @modelcontextprotocol/server-brave-search",
+      "env": {
+        "BRAVE_API_KEY": ""
+      }
+    },
+    "fetch": {
+      "enabled": true,
+      "command": "npx -y @modelcontextprotocol/server-fetch",
+      "env": {}
+    },
+    "sqlite": {
+      "enabled": true,
+      "command": "npx -y @modelcontextprotocol/server-sqlite --db-path ./data.db",
+      "env": {}
+    }
+  },
+  "imports": []
+}

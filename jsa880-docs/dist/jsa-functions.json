@@ -1,0 +1,17 @@
+[
+  {
+    "name": "jsaLambda",
+    "aliasOf": null,
+    "isAlias": false,
+    "signature": {
+      "params": [
+        "path"
+      ]
+    },
+    "description": "",
+    "params": [],
+    "returns": null,
+    "examples": [],
+    "category": "函数式"
+  }
+]
