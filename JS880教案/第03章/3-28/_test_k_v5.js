@@ -25,8 +25,40 @@ globalThis.JSA = JSA;
 globalThis.Array2D = Array2D;
 globalThis.Range = Range;
 
-// === 加载要测试的模块 ===
-// 稍后 loadFile('JSA880.js') 或 loadFile('KO_k_udf_v5.js')
+// === 加载真实 JSA880.js(在 Node 下 require 它) ===
+var path = require('path');
+var fs = require('fs');
+
+// 把 JSA880.js 读出来,在我们的模拟环境里 eval
+// (不能直接 require,因为它不是 CommonJS 模块)
+var jsa880Path = path.resolve(__dirname, '../../../js880/JSA880.js');
+var jsa880Code = fs.readFileSync(jsa880Path, 'utf8');
+
+// 模拟 WPS JSA 的全局上下文
+var vm = require('vm');
+var sandbox = {
+    JSA: JSA,
+    Array2D: Array2D,
+    Range: Range,
+    Console: Console,
+    Application: Application,
+    $$: undefined,
+    globalThis: globalThis,
+    console: console
+};
+// 让 $$ 通过 globalThis 引用
+sandbox.globalThis.$$ = undefined;
+
+// eval JSA880.js 在沙箱里
+vm.createContext(sandbox);
+vm.runInContext(jsa880Code, sandbox);
+
+// eval 完后,实际的对象在 sandbox 里
+// 把 Array2D / JSA 拉回到 Node 全局
+JSA = sandbox.JSA;
+Array2D = sandbox.Array2D;
+$$ = sandbox.$$ || sandbox.globalThis.$$;
+globalThis.$$ = $$;
 
 // === 测试运行器 ===
 var tests = [];
