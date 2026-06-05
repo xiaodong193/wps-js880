@@ -2798,6 +2798,29 @@ JSA.z统一路径分隔符 = function(path) {
 JSA.normalPath = JSA.z统一路径分隔符;
 
 /**
+ * [v5.0.0] 链式表达式解析
+ * 把 "$$(...).filter(...).map(...)" 这类链式 lambda 编译成可执行函数
+ * 关键:$$ 作为参数显式传入,保证作用域正确
+ */
+function _kParseChainableExpression(expr) {
+    // 检测是否含链式调用(.filter / .map / .slice / .take / .skip / .sort / .reduce)
+    var isChainable = /\.\s*(filter|map|slice|take|skip|sort|forEach|reduce|find|some|every)\s*\(/.test(expr);
+    if (!isChainable) return null;
+
+    try {
+        // 编译成函数,让 $$ 通过 globalThis 访问
+        var fn = new Function('__args', 'return (function() {' +
+                              '  var $$ = (typeof Array2D !== "undefined") ? Array2D : this.Array2D;' +
+                              '  return ' + expr + ';' +
+                              '}).apply(null, __args)');
+        return fn;
+    } catch (e) {
+        if (typeof Console !== 'undefined') Console.log('parseChainableExpression 失败:' + e.message);
+        return null;
+    }
+}
+
+/**
  * jsaLambda（K函数）- 以字符串形式创建并执行JSA函数 【v4.2.2 增强版】
  *
  * 1) 路径调用：   k("JSA.getIndexs", 1, 10, 2)
@@ -2869,6 +2892,19 @@ JSA.jsaLambda = function(fn, ...args) {
         }
 
         // 3) 解析字符串为可执行函数
+        // [v5.0.0] 链式调用检测
+        if (typeof fn === 'string' && /\.\s*(filter|map|slice|take|skip|sort|forEach|reduce|find|some|every)\s*\(/.test(fn)) {
+            var chainParser = _kParseChainableExpression(fn);
+            if (chainParser) {
+                try {
+                    return chainParser(realArgs);
+                } catch (e) {
+                    if (typeof Console !== 'undefined') Console.log('链式执行失败:' + e.message);
+                    // 继续走原来的解析流程
+                }
+            }
+        }
+
         var func = JSA.z解析函数表达式(fn);
         if (typeof func === 'function') {
             return func.apply(null, realArgs);
