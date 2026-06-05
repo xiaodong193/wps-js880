@@ -18892,23 +18892,21 @@ console.log('========================================');
  * @param {...any} args - 后续参数（range / 数字 / 字符串 / 对象）
  * @returns {*} 函数结果；失败返回 "#K_ERR: 错误信息"
  */
-function k(fn, ...args) {
-    try {
-        // 走 jsaLambda（已包含 6 种语法、缓存、容错、Range 转 Value2 等所有逻辑）
-        // UDF 在 WPS 15990+ 下能直接 spill 一维/二维数组
-        return JSA.jsaLambda(fn, ...args);
-    } catch (e) {
-        // UDF 不能抛错（会显示 #VALUE!），改返回错误字符串
-        return "#K_ERR: " + (e && e.message ? e.message : String(e));
-    }
+/**
+ * [v5.0.0] 顶层 k() UDF — 转发到 JSA.k
+ * WPS 公式引擎只扫 ThisWorkbook 顶层 function 作为 UDF
+ * 实现代码全在 JSA.k(JSA880.js 内),这里只是转发 shim
+ */
+function k(fn) {
+    return JSA.k.apply(null, arguments);
 }
 
 /**
  * jsaLambda 函数 — k() 的全名版本，WPS UDF
  * 单元格公式：=jsaLambda("JSA.getIndexs", 1, 5)
  */
-function jsaLambda(fn, ...args) {
-    return k(fn, ...args);
+function jsaLambda(fn) {
+    return JSA.k.apply(null, arguments);
 }
 
 // ╔════════════════════════════════════════════════════════════════╗
@@ -18933,6 +18931,13 @@ function Workbook_Open() {
         Console.log("   自检：k('JSA.getIndexs', 1, 5, 1) = [" + test.join(",") + "]");
     } catch (e) {
         Console.log("   ⚠️ 自检失败：" + e.message);
+    }
+    // 验证 JSA.k(新的带错误位置化包装)
+    try {
+        var ktest = JSA.k("JSA.getIndexs", 1, 3, 1);
+        Console.log("   JSA.k 自检:[" + ktest.join(",") + "]");
+    } catch (e) {
+        Console.log("   ⚠️ JSA.k 自检失败:" + e.message);
     }
 }
 
