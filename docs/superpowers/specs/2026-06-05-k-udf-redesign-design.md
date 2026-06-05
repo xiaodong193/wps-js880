@@ -4,6 +4,7 @@
 > 目标文件:`js880/JSA880.js`(主改) + `KO一切的k函数.xlsm` 的 ThisWorkbook(3-5 行 wrapper)
 > 数据来源:`KO一切的k函数.xlsm`(9 个测试公式)
 > **v2 修订**:用户要求「重写框架 + 都合并到 jsa880.js」。本次只重写 k() 相关部分(jsaLambda + $$ 路径 + 4 个预处理 + JSA.k),JSA880 其他部分(Array2D 方法 / JSA 命名空间工具 / DateUtils / IO)保持不动。
+> **v3 状态**:✅ 用户已确认结构 / 9 公式覆盖 / 重写范围 / 部署流程,进入 writing-plans 阶段。
 
 ---
 
