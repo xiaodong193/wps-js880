@@ -1,8 +1,9 @@
 # KO k() UDF 重新设计 · 设计文档
 
 > 日期:2026-06-05
-> 目标文件:`JS880教案/第03章/3-28/KO_k_udf_v5.js`
+> 目标文件:`js880/JSA880.js`(主改) + `KO一切的k函数.xlsm` 的 ThisWorkbook(3-5 行 wrapper)
 > 数据来源:`KO一切的k函数.xlsm`(9 个测试公式)
+> **v2 修订**:用户要求「重写框架 + 都合并到 jsa880.js」。本次只重写 k() 相关部分(jsaLambda + $$ 路径 + 4 个预处理 + JSA.k),JSA880 其他部分(Array2D 方法 / JSA 命名空间工具 / DateUtils / IO)保持不动。
 
 ---
 
@@ -10,13 +11,16 @@
 
 ### 1.1 现状
 
-`/第03章/3-28/` 目录里 k() UDF 有 **3 个并存版本**:
+`/第03章/3-28/` 目录里 k() UDF 有 **3 个并存版本** + JSA880 内嵌版,逻辑分散:
 
 | 文件 | 作用 | 问题 |
 |---|---|---|
-| `KO_k_udf.js` | ES5 兜底 | 不在 ThisWorkbook 注册,公式栏认不到 |
+| `KO_k_udf.js` | ES5 兜底 | 单独文件,k() shim 逻辑和 JSA880 分离 |
 | `KO一切的k函数_UDF模块.js` | 走 JSA.jsaLambda 调度 | IIFE 启动副作用 + `...args` 写法 |
-| `JDEData.bin` 内嵌的 v4.2.2 | 在 xlsm 里直接生效 | 无法跨文件复用 |
+| `JDEData.bin` 内嵌的 v4.2.2 | 在 xlsm 里直接生效 | k() 逻辑和 JSA880 框架代码混在一起 |
+| `js880/JSA880.js` v4.2.2 | 主框架,含 jsaLambda | 不导出 `JSA.k`,外部只能粘独立文件 |
+
+**问题**:k() 的实现代码被分散到 4 个地方,改一处必须改多处。
 
 ### 1.2 测试信号(Excel 里的 9 个公式)
 
@@ -35,60 +39,107 @@
 ### 1.3 设计目标
 
 1. **让 9 个公式全部跑通**
-2. **合并 3 个版本为 1 个**
-3. **错误信息带位置 + 类别**
-4. **保留 JSA880 框架依赖**(用户确认)
+2. **k() 实现代码全部合并到 JSA880.js**(`JSA.k` 作为新公共 API)
+3. **ThisWorkbook 只需 3-5 行 wrapper**(`function k() { return JSA.k.apply(null, arguments); }`)
+4. **3 个外部 k() 文件 + JDEData.bin 内嵌版全部消失**
+5. **错误信息带位置 + 类别**
+6. **只重写 k 相关部分**(jsaLambda + $$ 路径 + 4 个预处理 + JSA.k)
 
 ---
 
 ## 2. 架构
 
-### 2.1 总体结构
+### 2.1 总体结构(修订后)
+
+**核心原则**:k() 的实现代码全在 JSA880.js 里,ThisWorkbook 只是个 3-5 行的转发 wrapper。
 
 ```
-KO_k_udf_v5.js  (单文件,~250 行)
-├── 顶部:$$ = Array2D 兜底(~5 行)
-├── k() 主 UDF(~50 行)
-│   ├── _kNormalizeBacktick
-│   ├── _kNormalizeArg
-│   ├── _kNormalizePath(可选)
-│   └── _kWrapError
-├── jsaLambda() 全名别名(~5 行)
-├── k.help() 排错指南(~30 行)
-├── k.test() 自检脚本入口(~50 行)
-└── Workbook_Open 启动验证(~15 行)
+js880/JSA880.js  (单文件,770KB → 771KB,新增约 300 行)
+├── [现有] Array2D.leftjoin / superPivot / distinct / insertCols
+├── [现有] JSA 命名空间工具(text / date / number / vlookup 等)
+├── [现有] JSA.jsaLambda(内部 dispatcher)
+├── [新增] JSA.k(fn, ...args)        ← k() 完整实现(含 4 个预处理)
+├── [新增] $$ = Array2D               ← 顶部自动兜底
+├── [新增] _kNormalizeBacktick       ← 反引号转换
+├── [新增] _kNormalizeArg            ← Range→Value2
+├── [新增] _kNormalizePath           ← $$ 路径解析
+├── [新增] _kWrapError               ← 错误位置化
+└── [新增] _kRunTest                 ← JSA.k.test() 自检入口
+
+KO一切的k函数.xlsm 的 ThisWorkbook 代码模块(3-5 行)
+├── function k(fn) { return JSA.k.apply(null, arguments); }       ← UDF 注册
+└── function jsaLambda(fn) { return JSA.k.apply(null, arguments); }  ← UDF 别名
 ```
 
-### 2.2 数据流
+**为什么 ThisWorkbook 还需要 wrapper**:
+- WPS 公式引擎**只扫描 ThisWorkbook 代码模块的顶层 function** 作为 UDF
+- 加载项(JSA880.js)里的顶层 function 不会被注册
+- 所以 `function k(){}` 必须出现在 ThisWorkbook,但实现逻辑全在 JSA.k
+
+### 2.2 数据流(修订后)
 
 ```
 WPS 公式 =k(fn, arg1, arg2, ...)
     ↓
-k(fn, ...args)
+ThisWorkbook: k(fn, ...args)  (3-5 行 wrapper)
+    ↓
+JSA.k(fn, ...args)  (JSA880.js 内)
     ↓
 1. _kNormalizeBacktick(fn)        ← "sum(`f4`)" → 'sum("f4")'
 2. args.forEach(_kNormalizeArg)    ← Range → Value2; 1x1 → scalar
-3. JSA.jsaLambda(normalizedFn, ...normalizedArgs)
+3. JSA.jsaLambda(normalizedFn, ...normalizedArgs)  (现有 dispatcher)
     ↓
 4. _kWrapError(result)             ← 错误加 pos + kind
     ↓
 返回结果 / "#K_ERR: ..."
 ```
 
-### 2.3 依赖
+### 2.3 依赖(修订后)
 
-- **JSA880 v4.2.2+**(作为 WPS 加载项加载,提供 `JSA` / `Array2D` / `JSA.jsaLambda`)
-- **不依赖** 任何 `KO_k_udf.js` / `KO一切的k函数_UDF模块.js`(这两个被新文件取代)
+- **JSA880.js**(作为 WPS 加载项加载,提供 `JSA.k` / `JSA.jsaLambda` / `Array2D.leftjoin` 等所有 API)
+- **ThisWorkbook 代码模块** 的 3-5 行 wrapper(UDF 注册必需)
+- **不依赖** 任何 `KO_k_udf.js` / `KO一切的k函数_UDF模块.js` / JDEData.bin 内嵌版(全部废弃)
 
 ---
 
 ## 3. API 设计
 
-### 3.1 `k(fn, ...args)` — 主入口
+### 3.1 公式 UDF(在 ThisWorkbook 注册)
+
+#### `k(fn, ...args)` — UDF
 
 **签名**:`k(fn, ...args) → any`
 
-**fn 接受的 6 种语法**(由 `JSA.jsaLambda` 处理,本设计不修改):
+**ThisWorkbook wrapper**(3-5 行):
+```javascript
+function k(fn) { 
+    return JSA.k.apply(null, arguments); 
+}
+```
+
+#### `jsaLambda(fn, ...args)` — UDF 全名别名
+
+**ThisWorkbook wrapper**(3-5 行):
+```javascript
+function jsaLambda(fn) { 
+    return JSA.k.apply(null, arguments); 
+}
+```
+
+### 3.2 内部实现(在 JSA880.js 里,作为 `JSA.k`)
+
+#### `JSA.k(fn, ...args)` — 实际实现
+
+**签名**:`JSA.k(fn, ...args) → any | "#K_ERR: ..."`
+
+**实现流程**:
+1. 调 `_kNormalizeBacktick(fn)` 处理反引号
+2. 遍历 args 调 `_kNormalizeArg(arg)` 处理 Range / 1x1
+3. 调 `JSA.jsaLambda(normalizedFn, ...normalizedArgs)`
+4. 调 `_kWrapError(result)` 处理 null / undefined / 错误
+5. 返回结果 / 错误字符串
+
+**fn 接受的 6 种语法**(由 `JSA.jsaLambda` 处理,本次重写 dispatcher):
 
 1. 路径调用:`k("JSA.getIndexs", 1, 10, 2)`
 2. 路径别名:`k("$$.leftjoin", ...)` ← 自动 fallback 到 `Array2D.leftjoin`
@@ -108,19 +159,13 @@ k(fn, ...args)
 | 数字 / boolean | 原样 |
 | null / undefined | 抛错 `#K_ERR: pos=N, ARG, msg="参数为空"` |
 
-### 3.2 `jsaLambda(fn, ...args)` — k() 的全名别名
+#### `JSA.k.help()` — 排错指南(不是公式)
 
-**签名**:`jsaLambda(fn, ...args) → any`
+JSA 编辑器里手动调 `JSA.k.help()`,控制台打印排错清单。
 
-完全等价于 `k()`,只是名字不同,方便在公式里写全名。
+#### `JSA.k.test()` — 自检脚本(不是公式)
 
-### 3.3 `k.help()` — 排错指南(不是公式)
-
-JSA 编辑器里手动调 `k.help()`,控制台打印排错清单。
-
-### 3.4 `k.test()` — 自检脚本(不是公式)
-
-JSA 编辑器里手动调 `k.test()`,跑 9 个测试公式的 Node 仿真版,打印每条通过 / 失败。
+JSA 编辑器里手动调 `JSA.k.test()`,跑 9 个测试公式的 Node 仿真版,打印每条通过 / 失败。
 
 ---
 
@@ -249,18 +294,22 @@ node _test_k_v5.js
 
 ---
 
-## 7. 部署流程
+## 7. 部署流程(修订后)
 
 ### 7.1 一次性操作(用户)
 
-1. WPS → 选项 → 加载项 → 加载 `js880/JSA880.js`
+1. WPS → 选项 → 加载项 → 加载 `js880/JSA880.js` v5.0(已包含 JSA.k)
 2. 重启 WPS
 
 ### 7.2 每个 xlsm 文件需要做的
 
 1. WPS → 开发工具 → JSA 编辑器
 2. 左侧工程树 → ThisWorkbook
-3. 把 `KO_k_udf_v5.js` 全部内容粘进去
+3. 粘入 **3-5 行 wrapper**:
+   ```javascript
+   function k(fn) { return JSA.k.apply(null, arguments); }
+   function jsaLambda(fn) { return JSA.k.apply(null, arguments); }
+   ```
 4. Ctrl+S 保存
 5. 关闭 JSA 编辑器
 
@@ -270,31 +319,45 @@ node _test_k_v5.js
 
 ---
 
-## 8. 文件清单
+## 8. 文件清单(修订后)
 
-### 8.1 新建
+### 8.1 改动
 
-- `JS880教案/第03章/3-28/KO_k_udf_v5.js`(~250 行,k() 主文件)
+- `js880/JSA880.js` — **v4.2.2 → v5.0**,新增约 300 行:
+  - 顶部:`$$ = Array2D` 兜底
+  - `JSA.k(fn, ...args)` — k() 完整实现
+  - `JSA.k.help()` / `JSA.k.test()`
+  - `_kNormalizeBacktick` / `_kNormalizeArg` / `_kNormalizePath` / `_kWrapError`
+  - 重写 `JSA.jsaLambda` 的 dispatcher(更稳的 ES5 编译)
+  - Console 启动日志加上 `JSA.k` ready 自检
+
+- `KO一切的k函数.xlsm` — **ThisWorkbook 模块**替换为 3-5 行 wrapper
+
+### 8.2 新建
+
 - `JS880教案/第03章/3-28/_test_k_v5.js`(~150 行,Node 仿真测试)
 
-### 8.2 标记废弃(保留作为参考,不动)
+### 8.3 标记废弃(保留作为参考,不动)
 
-- `JS880教案/第03章/3-28/KO_k_udf.js`(v1 ES5 兜底)
-- `JS880教案/第03章/3-28/KO一切的k函数_UDF模块.js`(v2 启动器版本)
-- `JS880教案/第03章/3-28/KO_k_udf.js.bak`(如果有)
+- `JS880教案/第03章/3-28/KO_k_udf.js`(v1 ES5 兜底)→ 文件名加 `[DEPRECATED]` 前缀
+- `JS880教案/第03章/3-28/KO一切的k函数_UDF模块.js`(v2 启动器版本)→ 同上
 
-### 8.3 文档更新
+### 8.4 文档更新
 
 - `JS880教案/第03章/3-28/KO一切的k函数.md`:
-  - 更新"30 秒上手"段,推荐用 `KO_k_udf_v5.js` 替换 `KO一切的k函数_UDF模块.js`
-  - 更新"配套文件"表格
-  - 更新 FAQ 的 Q1 / Q2(指向新文件名)
-  - 添加"v5.0 变更日志"段
+  - 更新"30 秒上手"段:ThisWorkbook 只需 3-5 行 wrapper,k() 实现已并入 JSA880.js
+  - 更新"配套文件"表格(去掉 KO_k_udf.js / UDF模块.js,加上 JSA.k 说明)
+  - 更新 FAQ 的 Q1 / Q2(指向 JSA880.js 加载项)
+  - 添加"v5.0 变更日志"段(说明合并动作)
 
-### 8.4 Excel 文件
+- `js880/JSA880.js` 内部:
+  - 顶部加版本号 `v5.0` 和 changelog 段
+  - JSA.k 段加 docstring
+
+### 8.5 Excel 文件
 
 - `KO一切的k函数.xlsm`:
-  - 替换 ThisWorkbook 模块的代码为 `KO_k_udf_v5.js` 的内容
+  - ThisWorkbook 替换为 3-5 行 wrapper
   - (可选)把 9 个测试公式 cell 的 value 改正确(让用户看到正确结果而非 #NAME?)
 
 ---
@@ -319,12 +382,13 @@ node _test_k_v5.js
 
 ---
 
-## 10. 验收标准
+## 10. 验收标准(修订后)
 
 ✅ 全部满足才算完成:
 
-1. `KO_k_udf_v5.js` 文件存在,~250 行
-2. `_test_k_v5.js` 在 Node 下跑 9 个公式 + 5 个错误注入,**全 PASS**
-3. `KO_k_udf_v5.js` 粘到 `KO一切的k函数.xlsm` 的 ThisWorkbook,9 个公式 cell **不报 #NAME? / #VALUE!**
-4. `KO一切的k函数.md` 文档更新完成
-5. 旧文件 `KO_k_udf.js` / `KO一切的k函数_UDF模块.js` 标记为 `[DEPRECATED]`
+1. `js880/JSA880.js` v5.0 文件存在,Console 启动日志有 `JSA.k ready` 字样
+2. `JSA.k` 包含 4 个预处理 + 错误包装,9 个测试公式在 JSA.k 下不报 `null/undefined` 类错误
+3. `_test_k_v5.js` 在 Node 下跑 9 个公式 + 5 个错误注入,**全 PASS**
+4. `KO一切的k函数.xlsm` 的 ThisWorkbook 粘入 3-5 行 wrapper,9 个公式 cell **不报 #NAME? / #VALUE!**
+5. `KO一切的k函数.md` 文档更新完成,3 个旧 k() 文件标记 `[DEPRECATED]`
+6. JSA880.js v5.0 加载后,`Application.JSA880` / `JSA` / `Array2D` 全部可用,既有功能不退化
