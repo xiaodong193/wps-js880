@@ -2885,8 +2885,69 @@ JSA.jsaLambda = function(fn, ...args) {
         return null;
     }
 };
-/** k 是 jsaLambda 的简短别名（单元格中调用更顺手） */
-JSA.k = JSA.jsaLambda;
+/**
+ * [v5.0.0] JSA.k — k() 的完整实现(shim 给顶层 function k 调)
+ *
+ * 比 jsaLambda 多两层:
+ *   1. fn / args 预处理(其实 jsaLambda 内部已做大部分,这里加保险)
+ *   2. 错误位置化:#K_ERR: pos=N, KIND, msg="..."
+ *
+ * @param {string|Function} fn - 字符串函数表达式 / 路径 / Lambda
+ * @param {...any} args - 后续参数
+ * @returns {*} 函数结果;失败返回 "#K_ERR: ..."
+ */
+JSA.k = function(fn) {
+    var args = [];
+    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+
+    // 0) 必传检查
+    if (typeof fn === 'undefined' || fn === null || fn === '') {
+        return '#K_ERR: pos=0, FN, msg="fn 不能为空"';
+    }
+
+    // 1) 框架未加载?
+    if (typeof JSA.jsaLambda !== 'function') {
+        return '#K_ERR: pos=1, INTERNAL, msg="JSA880 框架未加载,请加载 JSA880.js 加载项"';
+    }
+
+    // 2) 调 jsaLambda(已含反引号转换 / Range 转 Value2 / 1x1 flatten)
+    var result;
+    try {
+        result = JSA.jsaLambda.apply(null, [fn].concat(args));
+    } catch (e) {
+        // 错误位置:pos=0 表示 fn / jsaLambda 自身
+        var kind = (e && e.message && e.message.indexOf('TypeError') !== -1) ? 'TYPE' : 'FN';
+        return '#K_ERR: pos=0, ' + kind + ', msg="' +
+               (e && e.message ? e.message.replace(/"/g, "'") : String(e)) + '"';
+    }
+
+    // 3) null / undefined 兜底
+    if (result === undefined || result === null) {
+        return '#K_ERR: pos=0, FN, msg="jsaLambda 返回 null/undefined,可能 fn 语法错或参数不匹配"';
+    }
+
+    return result;
+};
+
+// 保留兼容:JSA.k 仍可被 jsaLambda 直接调(无包装的版本)
+// 如果需要原始行为,可用 JSA.kRaw = JSA.jsaLambda(本计划不导出,留作未来扩展)
+
+/**
+ * [v5.0.0] JSA.k.help — 排错指南
+ * 在 JSA 编辑器手动调 JSA.k.help() 打印排错清单
+ */
+JSA.k.help = function() {
+    if (typeof Console === 'undefined') return;
+    Console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    Console.log('  k() 公式常见问题排查');
+    Console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    Console.log('❌ #K_ERR: pos=0, FN → fn 字符串解析失败,检查语法');
+    Console.log('❌ #K_ERR: pos=1, INTERNAL → JSA880 框架未加载');
+    Console.log('❌ #K_ERR: pos=0, TYPE → 类型错(传了不该传的对象)');
+    Console.log('❌ #NAME? → ThisWorkbook 没粘 3-5 行 wrapper');
+    Console.log('✅ 自检:在任意单元格 =k("JSA.getIndexs", 1, 5, 1)');
+    Console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+};
 
 /**
  * 【v4.2.2 增强】JSA 命名空间别名注册
