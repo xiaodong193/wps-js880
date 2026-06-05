@@ -180,8 +180,12 @@ test('E2: k("JSA.xxx") 但 JSA880 未加载 → #K_ERR: INTERNAL', function() {
     // 临时把 JSA.jsaLambda 设为 undefined
     var saved = JSA.jsaLambda;
     JSA.jsaLambda = undefined;
-    var result = JSA.k('JSA.getIndexs', 1, 10, 2);
-    JSA.jsaLambda = saved;
+    var result;
+    try {
+        result = JSA.k('JSA.getIndexs', 1, 10, 2);
+    } finally {
+        JSA.jsaLambda = saved;
+    }
     if (typeof result !== 'string' || result.indexOf('INTERNAL') === -1) {
         throw new Error('期望 INTERNAL 错误,实际:' + result);
     }
@@ -201,7 +205,7 @@ test('E4: k("x=>x.b", "abc") 类型错 → 包含 TypeError', function() {
     }
 });
 
-test('E5: k("`a${b}c`", 1) 模板字符串保留 ${}', function() {
+test('E5 (meta): V8 保留模板字符串 ${}, 不依赖 JSA.k', function() {
     // 这是模板字符串场景,期望 #K_ERR(因为 b 未定义),但 ${} 要保留
     // 我们只验证它没被改成双引号
     var errThrown = null;
@@ -214,6 +218,15 @@ test('E5: k("`a${b}c`", 1) 模板字符串保留 ${}', function() {
     }
     if (!errThrown || errThrown.message.indexOf('b is not defined') === -1) {
         throw new Error('模板字符串应被原样保留,实际:' + (errThrown && errThrown.message));
+    }
+});
+
+test('E5b: k("`a${b}c`", 1) → JSA.k 实际调用应保留 ${}', function() {
+    // 真正的 JSA.k 测试:传一个含模板字符串的 fn,期望 #K_ERR(因为 b 未定义),
+    // 但 ${} 必须被保留(没被错误地转成双引号)
+    var result = JSA.k('`a${b}c`', 1);
+    if (typeof result !== 'string' || result.indexOf('b') === -1) {
+        throw new Error('JSA.k 应保留 ${b},实际:' + result);
     }
 });
 
