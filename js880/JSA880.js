@@ -2811,7 +2811,7 @@ function _kParseChainableExpression(expr) {
         // 编译成函数,让 $$ 通过 globalThis 访问
         var fn = new Function('__args', 'return (function() {' +
                               '  var $$ = (typeof Array2D !== "undefined") ? Array2D : this.Array2D;' +
-                              '  return ' + expr + ';' +
+                              '  return (' + expr + ').apply(null, __args);' +
                               '}).apply(null, __args)');
         return fn;
     } catch (e) {

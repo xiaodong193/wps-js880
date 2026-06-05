@@ -186,7 +186,12 @@ test('T8: k("$$.superPivot", arr, "...", "f6", "sum(`f4*f5`)...")', function() {
 // T9: rest + spread + chainable filter
 test('T9: k("(...args)=>$$.superPivot(...args).filter(...)", arr, ..., "", ...)', function() {
     Array2D.superPivot = function() {
-        return [['header'], ['Product1'], ['Product2'], ['Product1']];
+        return [
+            {f2: 'header'},
+            {f2: 'Product1'},
+            {f2: 'Product2'},
+            {f2: 'Product1'}
+        ];
     };
     var result = JSA.k("(...args)=>$$.superPivot(...args).filter((x,i)=>i==0 || x.f2=='Product1')",
                        dataA1H40, 'f3,f2', '', "count(),sum(`f4`),textjoin(`f4`,`+`)");
