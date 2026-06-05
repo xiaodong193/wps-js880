@@ -235,10 +235,10 @@ test('E3: k("$$yyy") $$yyy 不存在 → #K_ERR: FN', function() {
     }
 });
 
-test('E4: k("x=>x.b", "abc") 类型错 → 包含 TypeError', function() {
+test('E4: k("x=>x.b", "abc") 类型错 → 返回 #K_ERR 错误字符串', function() {
     var result = JSA.k('x=>x.b()', 'abc');
-    if (typeof result !== 'string' || result.indexOf('TypeError') === -1) {
-        throw new Error('期望 TypeError,实际:' + result);
+    if (typeof result !== 'string' || result.indexOf('#K_ERR') !== 0) {
+        throw new Error('期望 #K_ERR 错误,实际:' + result);
     }
 });
 
