@@ -560,16 +560,16 @@ class cls银行承兑汇票 {
             const r = this.RentTableStartRow;
             const lastDataRow = r + totalRows - 1;
 
-            // ── XIRR ──
-            this.ws.Range(`D${R}`).Formula = `=XIRR(C${r}:C${lastDataRow},B${r}:B${lastDataRow})`;
-            this.ws.Range(`D${R + 1}`).Formula = `=XIRR(E${r}:E${lastDataRow},B${r}:B${lastDataRow})`;
+            // ── XIRR（添加 IFERROR 防止空值或日期错误导致 #VALUE!）──
+            this.ws.Range(`D${R}`).Formula = `=IFERROR(XIRR(C${r}:C${lastDataRow},B${r}:B${lastDataRow}),"")`;
+            this.ws.Range(`D${R + 1}`).Formula = `=IFERROR(XIRR(E${r}:E${lastDataRow},B${r}:B${lastDataRow}),"")`;
             this.ws.Range(`D${R + 2}`).FormulaR1C1 = "=R[-2]C-R[-1]C";
 
-            // ── IRR（使用源表单元格引用而非硬编码数值，确保用户修改 B8 后公式自动更新）
-            // FIX(BUG 5): 使用单元格引用代替硬编码 paymentsPerYear 数值
+            // ── IRR（使用源表每年还款次数 B11 引用，确保支付间隔修改后公式自动更新）──
+            // 注意：B11 = 12/支付间隔，是真正的每年还款次数
             const srcName = this.wsSource.Name;
-            this.ws.Range(`B${R}`).Formula = `=IRR(C${r}:C${lastDataRow})*${srcName}!B8`;
-            this.ws.Range(`B${R + 1}`).Formula = `=IRR(E${r}:E${lastDataRow})*${srcName}!B8`;
+            this.ws.Range(`B${R}`).Formula = `=IRR(C${r}:C${lastDataRow})*'${srcName}'!B11`;
+            this.ws.Range(`B${R + 1}`).Formula = `=IRR(E${r}:E${lastDataRow})*'${srcName}'!B11`;
 
             // ── 对比区（与租金测算表对比）
             // FIX(BUG 6): 使用变量工作表名代替硬编码字符串，避免工作表重命名后公式 #REF!

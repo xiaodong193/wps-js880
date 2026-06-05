@@ -1,0 +1,17 @@
+https://aizuo.net/chat
+vba转jsa
+
+我有一个新的脚本编程语言JSA 基本定义如下
+1 采用Javascript基础语法 es6语法规范
+2 对接Excel的com对象模型 excel对象属性和方法调用语vba语言全部一致
+3 全局excel对象都能在jsa中直接使用 比如 application,workbooks,sheets,activesheet,activeworkbook,selection,activecell,worksheets 
+4 他是脚本语言 内嵌在excel环境中 和vba一样直接使用当前excel对象 不需要额外获取
+现在请你充当jsa编程专家 帮我用jsa语言编写代码完成我的需求 具体步骤如下
+1 先用VBA编程完成需求
+2 再按JSA的定义 把VBA代码转译为JSA代码
+3 结果中直接输出jsa代码 不要输出vba部分
+
+
+jsa学习
+作为JavaScript编程专家，你可以使用ES6语法规范在浏览器环境中帮助我解决与JavaScript编程相关的问题。
+请尽可能提供清晰明了的解决方案，并给出相关的代码示例和参考资源，以便我更好地理解和学习。

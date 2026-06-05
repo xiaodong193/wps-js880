@@ -251,7 +251,41 @@ var sorted = arr.z降序排序();
 
 ### z超级透视 / superPivot
 
-超级透视表 - 核心功能
+超级透视表 - JSA880 框架最强大的功能，一行代码实现复杂的数据透视汇总。
+
+::: tip 完整文档
+详细使用说明请查看 [superPivot 透视表指南](/guide/super-pivot)
+:::
+
+**f模式（列选择器）**
+
+使用 `f1`, `f2`, `f3` 等表示第1、2、3列，索引从1开始：
+
+```javascript
+['f1']           // 第1列
+['f1,f2']        // 第1列和第2列
+['f1+,f2-']      // 第1列升序，第2列降序
+['f3#']          // 第3列，按原始顺序
+```
+
+| 后缀 | 含义 | 说明 |
+|------|------|------|
+| `+` | 升序 | 数字从小到大，字母A-Z |
+| `-` | 降序 | 数字从大到小，字母Z-A |
+| `#` | 原始顺序 | 保持数据出现的原始顺序 |
+
+**聚合函数**
+
+| 函数 | 说明 | 示例 |
+|------|------|------|
+| `count()` | 计数 | `'count()'` |
+| `sum(col)` | 求和 | `'sum("f3")'` |
+| `average(col)` | 平均值 | `'average("f4")'` |
+| `max(col)` | 最大值 | `'max("f5")'` |
+| `min(col)` | 最小值 | `'min("f5")'` |
+| `countDistinct(col)` | 去重计数 | `'countDistinct("f2")'` |
+
+**基本用法**
 
 ```javascript
 // 基础透视
@@ -269,28 +303,73 @@ var pivot = Array2D.z超级透视(
     ['f3,f4', '年份,季度'],
     ['sum("f7"),count()', '销售额,订单数']
 );
+```
 
-// 带选项
+**高级选项**
+
+```javascript
 var pivot = Array2D.z超级透视(data, ['f1'], ['f2'], ['sum("f3")'], 1, 1, '@^@', {
-    cornerTitle: '销售报表',
-    rowSubtotals: { enabled: true, label: '小计' },
-    grandTotals: { row: true, column: true, label: '总计' }
+    // 角标题
+    cornerTitle: '销售汇总表',
+
+    // 布局模式: 'outline' | 'compact' | 'tabular'
+    layoutMode: 'outline',
+
+    // 小计（v3.9.0+）
+    subtotals: {
+        row: true,               // 启用行小计
+        col: true,               // 启用列小计
+        label: '小计'           // 小计标签
+    },
+
+    // 总计（v3.9.0+）
+    grandTotal: {
+        row: true,              // 启用行总计
+        col: true,              // 启用列总计
+        label: '总计'           // 总计标签
+    },
+
+    // 百分比显示
+    displayAs: {
+        mode: 'percentOfGrandTotal',  // 'value' | 'percentOfGrandTotal' | 'percentOfRowTotal' | 'percentOfColTotal'
+        decimals: 2             // 小数位数
+    },
+
+    // 列筛选
+    filterCols: {
+        f1: ['北京', '上海'],   // 只保留指定值
+        f2: ['2024']
+    },
+
+    // 空值处理: 'zero' | 'keep' | 'null'
+    emptyAs: 'zero'
 });
 ```
 
-**参数:**
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `arr` | Array | 源数据二维数组 |
-| `rowFields` | Array/String | 行字段配置 |
-| `colFields` | Array/String | 列字段配置 |
-| `dataFields` | Array/String | 数据字段配置 |
-| `headerRows` | Number | 源数据表头行数（默认1） |
-| `outputHeader` | Number/String | 输出表头配置（默认1） |
-| `separator` | String | 分隔符（默认'@^@'） |
-| `options` | Object | 高级选项 |
+**参数说明**
 
-**返回:** `Array` 或 `Map` - 透视结果
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `arr` | Array/Array2D | 必填 | 源数据二维数组 |
+| `rowFields` | Array/String | 必填 | 行字段配置，决定垂直方向的分类 |
+| `colFields` | Array/String | 必填 | 列字段配置，决定水平方向的分类 |
+| `dataFields` | Array/String | 必填 | 数据字段配置，指定聚合操作 |
+| `headerRows` | Number | 1 | 源数据表头行数 |
+| `outputHeader` | Number/String | 1 | 输出表头：1=输出, 0=不输出, -1=隐藏行标题, 'map'=返回Map |
+| `separator` | String | '@^@' | 多值键的分隔符 |
+| `options` | Object | {} | 高级选项配置对象 |
+
+**返回:** `Array` 或 `Map` - 透视结果，支持链式调用 `.toRange('A1')`
+
+**兼容性说明**
+
+v3.9.0+ 使用新的配置名（`subtotals`, `grandTotal`），也兼容旧名称：
+
+```javascript
+rowSubtotals: { enabled: true }    // → subtotals: { row: true }
+colSubtotals: { enabled: true }    // → subtotals: { col: true }
+grandTotals: { row: true }         // → grandTotal: { row: true }
+```
 
 ---
 

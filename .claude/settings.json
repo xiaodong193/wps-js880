@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(codexbar cost *)",
+      "Bash(codexbar --version)",
+      "Read(//usr/local/bin/**)",
+      "Read(//opt/homebrew/bin/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/daidai193/.claude"
+    ]
+  }
+}

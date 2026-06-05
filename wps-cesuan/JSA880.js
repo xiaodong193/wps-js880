@@ -382,10 +382,17 @@ function parseLambda(expr) {
 
     let fn;
     try {
-        // 处理箭头函数语法 (ES6)
-        if (LAMBDA_PATTERNS.ARROW_FUNCTION.test(expr)) {
+        // 处理箭头函数语法 (ES6) - 优先处理，避免被其他模式误匹配
+        // 修复：增强检测逻辑，确保箭头函数不被 f1/f2 等列选择器误伤
+        if (LAMBDA_PATTERNS.ARROW_FUNCTION.test(expr) && !LAMBDA_PATTERNS.COLUMN_SELECTOR.test(expr.split('=>')[0])) {
             // 使用箭头函数语法
             fn = eval('(' + expr + ')');
+        }
+        // 处理多列选择器 f1,f2 或 f1, f2, f3 -> 返回数组
+        else if (LAMBDA_PATTERNS.MULTI_COLUMN.test(expr)) {
+            // 分割并转换为数组: 'f1,f2' -> '[_[0],_[1]]'
+            const cols = expr.split(/\s*,\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
+            fn = new Function('_', 'return [' + cols + ']');
         }
         // 处理 $0, $1, $2 索引语法 -> 转换为箭头函数
         else if (expr.includes('$')) {
@@ -401,12 +408,6 @@ function parseLambda(expr) {
                 // 转换为箭头函数: $0 -> _[0], $1 -> _[1]
                 fn = new Function('_', 'return ' + expr.replace(LAMBDA_PATTERNS.INDEX_SELECTOR, '_[$1]'));
             }
-        }
-        // 处理多列选择器 f1,f2 或 f1, f2, f3 -> 返回数组
-        else if (LAMBDA_PATTERNS.MULTI_COLUMN.test(expr)) {
-            // 分割并转换为数组: 'f1,f2' -> '[_[0],_[1]]'
-            const cols = expr.split(/\s*,\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
-            fn = new Function('_', 'return [' + cols + ']');
         }
         // 处理 f1, f2, f3 单列选择器语法 -> 转换为箭头函数
         else if (LAMBDA_PATTERNS.COLUMN_SELECTOR.test(expr)) {
@@ -501,6 +502,9 @@ function Array2D(data) {
     if (data === null || data === undefined) {
         // 空值转为空数组
         items = [];
+    } else if (data instanceof Array2D) {
+        // Array2D 实例：直接提取内部数组
+        items = data._items;
     } else if (Array.isArray(data)) {
         // 数组直接保留
         items = data;
@@ -1213,14 +1217,22 @@ Array2D.prototype.last = Array2D.prototype.z最后一个;
  */
 Array2D.prototype.z转置 = function() {
     if (!this._items || this._items.length === 0) return this._new([]);
+    // 一维数组处理：[1,2,3] → [[1],[2],[3]]
+    if (!Array.isArray(this._items[0])) {
+        var result_1d = [];
+        for (var k = 0; k < this._items.length; k++) {
+            result_1d[k] = [this._items[k]];
+        }
+        return this._new(result_1d);
+    }
     // 🔧 v3.9.4 修复：检查第一行是否存在且为数组
     if (!this._items[0] || !this._items[0].length) return this._new([]);
-    const rows = this._items.length;
-    const cols = this._items[0].length;
-    const result = [];
-    for (let j = 0; j < cols; j++) {
+    var rows = this._items.length;
+    var cols = this._items[0].length;
+    var result = [];
+    for (var j = 0; j < cols; j++) {
         result[j] = [];
-        for (let i = 0; i < rows; i++) {
+        for (var i = 0; i < rows; i++) {
             result[j][i] = this._items[i][j];
         }
     }
@@ -4720,66 +4732,316 @@ Array2D.z笛卡尔积 = Array2D.crossjoin;
 
 /**
  * 分组汇总（groupInto）- 按键分组并进行汇总计算
- * @param {Array} arr - 数组
- * @param {string|Function} keySelector - 分组键选择器
- * @param {string|Function} valueSelector - 值聚合选择器（支持 g.sum(), g.count(), g.average() 等）
+ * @param {Array} arr - 输入数组
+ * @param {string|Function} keySelector - 分组键选择器（'f2,f3' 或函数）
+ * @param {string|Function} valueSelector - 值聚合选择器，支持：
+ *   - 字符串多函数: 'count(),sum("f4"),average("f5"),textjoin("f4","+"),平方和(4)'
+ *   - 回调函数: g => [g.count(), g.sum('f4'), g.平方和(4), g.textjoin("f5","+")]
+ *   - 单函数: 'g=>g.sum("f3")' 或 'sum("f4")'
  * @param {string} [separator='@^@'] - 多列分组时的分隔符
- * @returns {Array} 分组汇总结果（二维数组）
+ * @returns {Array2D} 分组汇总结果（Array2D实例，支持链式调用）
  * @example
- * Array2D.groupInto([[1,'A',10],[2,'B',20],[3,'A',30]], 'f2', 'g=>g.sum("f3")')
+ * // 字符串形式（多聚合函数）
+ * Array2D.groupInto(arr, 'f2,f3', 'count(),sum("f4"),average("f5"),textjoin("f4","+")')
+ * // 函数回调形式
+ * Array2D.groupInto(arr, x=>[x.f2,x.f3], g=>[g.count(), g.sum('f4'), g.平方和(4)])
  */
 Array2D.groupInto = function(arr, keySelector, valueSelector, separator) {
-    if (!arr || !Array.isArray(arr)) return [];
+    // Handle Array2D instances from safeArray() - extract underlying data
+    if (arr && arr._items && !Array.isArray(arr)) {
+        arr = arr._items;
+    }
+    if (!arr || !Array.isArray(arr)) return new Array2D([]);
     separator = separator || '@^@';
-    var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
-    if (!keyFn) return [];
 
-    // 解析值选择器
+    // 将数组行转换为带 f1,f2,... 属性的对象
+    function toObj(row) {
+        if (Array.isArray(row)) {
+            var obj = {};
+            for (var i = 0; i < row.length; i++) {
+                obj['f' + (i + 1)] = row[i];
+            }
+            return obj;
+        }
+        return row; // 已经是对象，直接返回
+    }
+
+    var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
+    if (!keyFn) return new Array2D([]);
+
+    // 如果 keyFn 是 parseLambda 生成的（访问 _[0] 形式），需要包装以支持 proxy 对象
+    if (typeof keySelector === 'string') {
+        var originalKeyFn = keyFn;
+        keyFn = function(row, idx) {
+            // row 可能是 proxy 对象，需要转换为支持 _[n] 访问的形式
+            if (row && typeof row === 'object' && !Array.isArray(row) && 'f1' in row) {
+                var arr = [];
+                for (var k in row) {
+                    if (k.match(/^f\d+$/)) {
+                        var idx = parseInt(k.substring(1)) - 1;
+                        arr[idx] = row[k];
+                    }
+                }
+                return originalKeyFn(arr);
+            }
+            return originalKeyFn(row, idx);
+        };
+    }
+
+    // ===== 解析列参数的通用辅助函数 =====
+    // 支持: 4 (数字), "4" (字符串数字), "f4" (f格式), "f4" (带引号), 4 (无引号数字)
+    function _resolveCol(col) {
+        if (col === undefined || col === null) return -1;
+        if (typeof col === 'number') return col - 1;  // 数字直接转为0-based索引
+        var str = String(col).replace(/^["']|["']$/g, '').replace(/^f/i, ''); // 去除引号和f前缀
+        var idx = parseInt(str, 10);
+        return isNaN(idx) ? -1 : idx - 1;
+    }
+
+    // ===== 创建聚合辅助对象 g（提供 g.xxx() 形式） =====
+    function createAggHelper(rows) {
+        var a2d = new Array2D(rows);
+        return {
+            _arr2d: a2d,
+            _rows: rows,
+            // 计数
+            count: function() { return rows.length; },
+            // 求和: g.sum() / g.sum('f4') / g.sum(4)
+            sum: function(col) {
+                var idx = _resolveCol(col);
+                if (idx >= 0) {
+                    // 直接遍历rows，对数组用索引，对对象用属性名
+                    var total = 0;
+                    for (var i = 0; i < rows.length; i++) {
+                        var r = rows[i];
+                        var v = Array.isArray(r) ? r[idx] : r['f' + (idx + 1)];
+                        var num = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+                        if (!isNaN(num)) total += num;
+                    }
+                    return total;
+                }
+                return a2d.z求和();
+            },
+            // 平均值: g.average('f4') / g.average(4)
+            average: function(col) {
+                var idx = _resolveCol(col);
+                if (idx >= 0) {
+                    var total = 0, cnt = 0;
+                    for (var i = 0; i < rows.length; i++) {
+                        var r = rows[i];
+                        var v = Array.isArray(r) ? r[idx] : r['f' + (idx + 1)];
+                        var num = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+                        if (!isNaN(num)) { total += num; cnt++; }
+                    }
+                    return cnt > 0 ? total / cnt : 0;
+                }
+                return a2d.z平均值();
+            },
+            // 最大值: g.max('f4') / g.max(4)
+            max: function(col) {
+                var idx = _resolveCol(col);
+                if (idx >= 0) {
+                    var maxVal = null;
+                    for (var i = 0; i < rows.length; i++) {
+                        var r = rows[i];
+                        var v = Array.isArray(r) ? r[idx] : r['f' + (idx + 1)];
+                        var num = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+                        if (!isNaN(num)) {
+                            if (maxVal === null || num > maxVal) maxVal = num;
+                        }
+                    }
+                    return maxVal;
+                }
+                return a2d.z最大值();
+            },
+            // 最小值: g.min('f4') / g.min(4)
+            min: function(col) {
+                var idx = _resolveCol(col);
+                if (idx >= 0) {
+                    var minVal = null;
+                    for (var i = 0; i < rows.length; i++) {
+                        var r = rows[i];
+                        var v = Array.isArray(r) ? r[idx] : r['f' + (idx + 1)];
+                        var num = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+                        if (!isNaN(num)) {
+                            if (minVal === null || num < minVal) minVal = num;
+                        }
+                    }
+                    return minVal;
+                }
+                return a2d.z最小值();
+            },
+            // 文本连接: g.textjoin('f5', '+') / g.textjoin(4, '+')
+            textjoin: function(col, sep) {
+                sep = sep !== undefined ? sep : ',';
+                var idx = _resolveCol(col);
+                if (idx < 0) return '';
+                var vals = [];
+                for (var i = 0; i < rows.length; i++) {
+                    var row = rows[i];
+                    var v = Array.isArray(row) ? row[idx] : row['f' + (idx + 1)];
+                    if (v !== null && v !== undefined && String(v) !== '') {
+                        vals.push(v);
+                    }
+                }
+                return vals.join(sep);
+            },
+            // 平方和: g.平方和(4) / g.平方和('f4')
+            平方和: function(col) {
+                var idx = _resolveCol(col);
+                if (idx < 0) return 0;
+                var sum = 0;
+                for (var i = 0; i < rows.length; i++) {
+                    var row = rows[i];
+                    var v = Array.isArray(row) ? row[idx] : row['f' + (idx + 1)];
+                    var num = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+                    if (!isNaN(num)) sum += num * num;
+                }
+                return sum;
+            }
+        };
+    }
+
+    // ===== 解析字符串形式的多聚合函数 =====
+    // 输入: 'count(),sum("f4"),average("f5"),textjoin("f4","+"),平方和(4)'
+    // 输出: [{func:'count',args:[]}, {func:'sum',args:['f4']}, ...]
+    function parseAggString(str) {
+        // 按顶级逗号分割（忽略括号内的逗号）
+        var parts = [];
+        var depth = 0, cur = '';
+        for (var i = 0; i < str.length; i++) {
+            var c = str[i];
+            if (c === '(') depth++;
+            else if (c === ')') depth--;
+            if (c === ',' && depth === 0) {
+                parts.push(cur.trim()); cur = '';
+            } else { cur += c; }
+        }
+        if (cur.trim()) parts.push(cur.trim());
+
+        var defs = [];
+        for (var p = 0; p < parts.length; p++) {
+            var m = parts[p].match(/(sum|count|average|avg|max|min|textjoin|平方和)\s*\(\s*([^)]*)\s*\)/i);
+            if (m) {
+                var fn = m[1].toLowerCase();
+                var argsStr = m[2].trim();
+                var args = [];
+                if (argsStr) {
+                    // 按逗号分割参数（支持引号包围的参数）
+                    var inQ = false, curA = '';
+                    for (var j = 0; j < argsStr.length; j++) {
+                        var ch = argsStr[j];
+                        if (ch === '"' || ch === "'") { inQ = !inQ; }
+                        else if (ch === ',' && !inQ) {
+                            args.push(curA.trim().replace(/^["']|["']$/g, ''));
+                            curA = '';
+                        } else { curA += ch; }
+                    }
+                    if (curA.trim()) args.push(curA.trim().replace(/^["']|["']$/g, ''));
+                }
+                defs.push({ func: fn, args: args });
+            }
+        }
+        return defs;
+    }
+
+    // ===== 构建值聚合函数 =====
     var valueFn;
     if (typeof valueSelector === 'string') {
-        // 检查是否是聚合函数格式（g. 前缀可选）
-        var aggMatch = valueSelector.match(/(?:g\.)?(sum|count|average|max|min)\s*\(\s*(?:["']?f?(\d+)["']?\s*)?\)/i);
-        if (aggMatch) {
-            var aggFunc = aggMatch[1].toLowerCase();
-            var colIdx = aggMatch[2] ? parseInt(aggMatch[2]) - 1 : -1;
-            valueFn = function(group) {
-                var arr2d = new Array2D(group);
-                switch (aggFunc) {
-                    case 'sum': return colIdx >= 0 ? arr2d.z求和(function(r) { return r[colIdx]; }) : arr2d.z求和();
-                    case 'count': return arr2d.z数量();
-                    case 'average': return colIdx >= 0 ? arr2d.z平均值(function(r) { return r[colIdx]; }) : arr2d.z平均值();
-                    case 'max': return colIdx >= 0 ? arr2d.z最大值(function(r) { return r[colIdx]; }) : arr2d.z最大值();
-                    case 'min': return colIdx >= 0 ? arr2d.z最小值(function(r) { return r[colIdx]; }) : arr2d.z最小值();
-                    default: return null;
+        var defs = parseAggString(valueSelector);
+        if (defs.length > 0) {
+            valueFn = function(rows) {
+                var helper = createAggHelper(rows);
+                var results = [];
+                for (var i = 0; i < defs.length; i++) {
+                    var d = defs[i];
+                    switch (d.func) {
+                        case 'sum':
+                            results.push(helper.sum(d.args[0]));
+                            break;
+                        case 'count':
+                            results.push(helper.count());
+                            break;
+                        case 'average':
+                        case 'avg':
+                            results.push(helper.average(d.args[0]));
+                            break;
+                        case 'max':
+                            results.push(helper.max(d.args[0]));
+                            break;
+                        case 'min':
+                            results.push(helper.min(d.args[0]));
+                            break;
+                        case 'textjoin':
+                            results.push(helper.textjoin(d.args[0], d.args[1]));
+                            break;
+                        case '平方和':
+                            results.push(helper.平方和(d.args[0]));
+                            break;
+                        default:
+                            results.push(null);
+                    }
                 }
+                return results.length === 1 ? results[0] : results;
             };
         } else {
-            valueFn = typeof valueSelector === 'function' ? valueSelector : parseLambda(valueSelector);
+            valueFn = parseLambda(valueSelector);
         }
+    } else if (typeof valueSelector === 'function') {
+        // 函数回调：将 group.rows 通过聚合辅助对象包装后传入
+        valueFn = function(rows) {
+            var helper = createAggHelper(rows);
+            return valueSelector(helper);
+        };
     } else {
         valueFn = valueSelector;
     }
 
-    if (!valueFn) return [];
+    if (!valueFn) return new Array2D([]);
 
+    // ===== 创建行代理对象，支持 x.f1 语法 =====
+    // 将普通数组转换为带有 f1, f2, ... 属性的对象
+    function createRowProxy(row) {
+        if (!Array.isArray(row)) return row;
+        // 使用普通对象存储，便于 parseLambda 生成的函数访问
+        var proxy = {};
+        for (var i = 0; i < row.length; i++) {
+            proxy['f' + (i + 1)] = row[i];
+        }
+        return proxy;
+    }
+
+    // ===== 执行分组 =====
     var groups = Object.create(null);
     for (var i = 0; i < arr.length; i++) {
-        var key = keyFn(arr[i], i);
+        if (!arr[i]) continue; // 跳过 null/undefined
+        var proxyRow = createRowProxy(arr[i]);
+        var key = keyFn(proxyRow, i);
         var keyStr = Array.isArray(key) ? key.join(separator) : String(key);
         if (!groups[keyStr]) {
             groups[keyStr] = { key: key, rows: [] };
         }
-        groups[keyStr].rows.push(arr[i]);
+        groups[keyStr].rows.push(arr[i]);  // 原始数组存入 rows
     }
 
+    // ===== 汇总结果 =====
     var result = [];
     for (var key in groups) {
         var group = groups[key];
-        var agg = valueFn(group.rows);
-        var row = Array.isArray(group.key) ? group.key.concat([agg]) : [group.key, agg];
+        // 创建代理数组传给聚合函数
+        var proxyRows = group.rows.map(function(r) { return createRowProxy(r); });
+        var agg = valueFn(proxyRows);
+        var row;
+        if (Array.isArray(group.key)) {
+            // key 是数组: 聚合结果若是数组则拼接到后面
+            row = Array.isArray(agg) ? group.key.concat(agg) : group.key.concat([agg]);
+        } else if (group.key !== null && group.key !== undefined) {
+            row = Array.isArray(agg) ? [group.key].concat(agg) : [group.key, agg];
+        }
         result.push(row);
     }
-    return result;
+    // 返回 Array2D 实例以支持链式 .toRange() 调用
+    return new Array2D(result);
 };
 Array2D.z分组汇总 = Array2D.groupInto;
 
@@ -9902,6 +10164,14 @@ function JSA() {}
  */
 JSA.z转置 = function(arr) {
     if (!arr || arr.length === 0) return [];
+    // 一维数组处理：[1,2,3] → [[1],[2],[3]]
+    if (!Array.isArray(arr[0])) {
+        var result_1d = [];
+        for (var k = 0; k < arr.length; k++) {
+            result_1d[k] = [arr[k]];
+        }
+        return result_1d;
+    }
     var rows = arr.length;
     var cols = arr[0].length;
     var result = [];

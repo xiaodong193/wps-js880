@@ -187,10 +187,21 @@ const isExcelError = v => typeof v === 'number' && v < -2000000000;
 
 // ==================== 辅助函数 ====================
 
-const $ = {
-    pass: (name, ...logs) => (console.log(`✅ ${name}`), logs.forEach(l => console.log(`  ✓ ${l}`)), true),
-    fail: (name, err) => (console.log(`❌ ${name}: ${err.message}`), false),
-    run: (name, fn) => { try { return fn(); } catch (e) { return $.fail(name, e); } }
+var testHelper = {
+    pass: function(name, logs) {
+        console.log("pass " + name);
+        if (logs && logs.length) {
+            logs.forEach(function(l) { console.log("  OK " + l); });
+        }
+        return true;
+    },
+    fail: function(name, err) {
+        console.log("FAIL " + name + ": " + err.message);
+        return false;
+    },
+    run: function(name, fn) {
+        try { return fn(); } catch (e) { return testHelper.fail(name, e); }
+    }
 };
 
 // ==================== 租金测算系统测试套件 ====================

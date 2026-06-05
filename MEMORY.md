@@ -74,3 +74,7 @@ OpenClaw 三层记忆：
 
 ## 技能索引
 见 workspace/.agents/skills/ 目录下的 SKILL.md 文件
+
+## JSA880 经验
+- [WPS JSA IntelliSense 限制](.claude/projects/-Users-daidai193-Library-CloudStorage-SynologyDrive-code/memory/wps-jsa-intellisense.md) — IntelliSense 解析行数限制，namespace 必须在文件前部
+- [JSA880.js 文件结构](.claude/projects/-Users-daidai193-Library-CloudStorage-SynologyDrive-code/memory/jsa880-code-structure.md) — 各 namespace 位置布局

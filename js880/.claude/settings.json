@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(cat)",
+      "Bash(node /tmp/test_groupinto.js)",
+      "Bash(node test_debug.js)",
+      "Bash(unzip -l \"收益测算表开发V4.8.5-wps版本.xlsm\")"
+    ]
+  }
+}

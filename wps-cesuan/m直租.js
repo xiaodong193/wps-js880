@@ -619,14 +619,15 @@ class clsPreLease extends clsRentalCalculation {
 
 
 
-t// ============== 公式生成委托 clsFormulaGenerator（已去重 V2.1） ==============
-t// 等额租金法arr / 等额本息先付arr / 等额本金法按天计息arr / 本金比例法按天计息arr / 本金比例法按期计息arr
-t// 已委托为 this.formulaGenerator.generate*() + setPreLeaseConfig() + setRateReferenceMode("column")
-t// 见 createDataRange() switch-case
-	/**
-	 * 重写租金测算表合计行方法（支持租前期模式）
-	 * 在租前期模式下，合计行位置需要加上租前期行数
-	 */
+// ============== 公式生成委托 clsFormulaGenerator（已去重 V2.1） ==============
+// 等额租金法arr / 等额本息先付arr / 等额本金法按天计息arr / 本金比例法按天计息arr / 本金比例法按期计息arr
+// 已委托为 this.formulaGenerator.generate*() + setPreLeaseConfig() + setRateReferenceMode("column")
+// 见 createDataRange() switch-case
+
+/**
+ * 重写租金测算表合计行方法（支持租前期模式）
+ * 在租前期模式下，合计行位置需要加上租前期行数
+ */
 	租金测算表合计行(startCol = 1, lastCol = 12) {
 		try {
 			// 租前期模式下：合计行位置 = 表头行 + 租前期行数 + 正常期次数

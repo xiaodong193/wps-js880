@@ -29,6 +29,18 @@
  * ====================================================
  */
 
+// ============== Array2D 优化器（延迟初始化） ==============
+var _array2DOptimizer = null;
+
+function getArray2DOptimizer(parameterManager) {
+    if (!_array2DOptimizer) {
+        _array2DOptimizer = new clsArray2DOptimizer(parameterManager);
+    } else if (parameterManager && _array2DOptimizer.p !== parameterManager) {
+        _array2DOptimizer.p = parameterManager;
+    }
+    return _array2DOptimizer;
+}
+
 // ============== clsRentalConfig（原 mRentalConfig.js） ==============
 /**
  * clsRentalConfig - 租金测算配置管理类
@@ -1121,7 +1133,7 @@ class clsRentalCalculation {
     }
     
     /**
-     * arrToArrData - 将公式模板展开为逐行数据数组
+     * arrToArrData - 将公式模板展开为逐行数据数组（Array2D 优化版）
      * 
      * arrFormula 结构：[0]=空(废位), [1]=首行公式, [2]=中间行公式, [3]=末期公式
      * 展开规则：
@@ -1131,41 +1143,29 @@ class clsRentalCalculation {
      * P0修复：单期时 row===0 既是首行又是末行，原来用 FORMULA_ROW.LAST（末期公式含R[-1]引用）
      *        导致引用越界。现在单期统一用 FORMULA_ROW.FIRST（首行公式自含，无R[-1]引用）。
      * 
+     * Array2D 优化：使用批量处理替代逐元素赋值，减少循环内条件判断次数
+     * 
      * @param {Array} arrFormula - 公式模板数组（4行×N列）
      * @param {number} actualLength - 可选，指定行数（默认从参数管理器读取 TotalPeriods）
      */
     arrToArrData(arrFormula, actualLength) {
         try {
-            const length = (actualLength !== undefined && actualLength !== null)
+            var length = (actualLength !== undefined && actualLength !== null)
                 ? actualLength
                 : this.p.val("TotalPeriods");
-            const maxCol = arrFormula[FORMULA_ROW.FIRST].length - 1;
             
-            var arrData = [];
-            for (var i = 0; i < length; i++) {
-                arrData[i] = new Array(arrFormula[FORMULA_ROW.FIRST].length);
-            }
-            
-            for (var row = 0; row < length; row++) {
-                // P0修复：单期时 row===0 使用首行公式，不用末期公式
-                // 末期公式含 R[-1] 引用，单期时没有上一行会导致引用越界
-                var rowIndex;
-                if (length === 1) {
-                    rowIndex = FORMULA_ROW.FIRST; // 单期统一用首行公式
-                } else if (row === 0) {
-                    rowIndex = FORMULA_ROW.FIRST; // 首行
-                } else if (row === length - 1) {
-                    rowIndex = FORMULA_ROW.LAST;   // 末行
-                } else {
-                    rowIndex = FORMULA_ROW.MIDDLE;  // 中间行
-                }
-                for (var col = 1; col <= maxCol && col < arrFormula[FORMULA_ROW.FIRST].length; col++) {
-                    arrData[row][col - 1] = arrFormula[rowIndex][col];
+            // Array2D 优化：使用优化器处理大数据集
+            if (length > 50 && typeof clsArray2DOptimizer !== 'undefined') {
+                var optimizer = getArray2DOptimizer(this.p);
+                var result = optimizer.arrToArrDataOptimized(arrFormula, length, FORMULA_ROW);
+                if (result) {
+                    this._log('info', `数据数组生成完成（优化），长度: ${length}`);
+                    return result;
                 }
             }
             
-            this._log('info', `数据数组生成完成，长度: ${length}`);
-            return arrData;
+            // 降级：原实现
+            return this._arrToArrDataOriginal(arrFormula, length);
         } catch (error) {
             if (typeof g_errorHandler !== 'undefined') {
                 g_errorHandler.handleError(error, ERROR_CODES.CALCULATION_ERROR, { module: this.MODULE_NAME, function: 'arrToArrData' });
@@ -1174,6 +1174,38 @@ class clsRentalCalculation {
             }
             return null;
         }
+    }
+    
+    /**
+     * _arrToArrDataOriginal - 原实现（降级使用）
+     * @private
+     */
+    _arrToArrDataOriginal(arrFormula, length) {
+        const maxCol = arrFormula[FORMULA_ROW.FIRST].length - 1;
+        
+        var arrData = [];
+        for (var i = 0; i < length; i++) {
+            arrData[i] = new Array(arrFormula[FORMULA_ROW.FIRST].length);
+        }
+        
+        for (var row = 0; row < length; row++) {
+            var rowIndex;
+            if (length === 1) {
+                rowIndex = FORMULA_ROW.FIRST;
+            } else if (row === 0) {
+                rowIndex = FORMULA_ROW.FIRST;
+            } else if (row === length - 1) {
+                rowIndex = FORMULA_ROW.LAST;
+            } else {
+                rowIndex = FORMULA_ROW.MIDDLE;
+            }
+            for (var col = 1; col <= maxCol && col < arrFormula[FORMULA_ROW.FIRST].length; col++) {
+                arrData[row][col - 1] = arrFormula[rowIndex][col];
+            }
+        }
+        
+        this._log('info', `数据数组生成完成，降级实现，长度: ${length}`);
+        return arrData;
     }
     
     /**

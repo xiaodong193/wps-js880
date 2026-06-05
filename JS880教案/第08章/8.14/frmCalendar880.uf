@@ -1,0 +1,2686 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<document>
+    <dlgmodule name="frmCalendar880">
+        <control type="form">
+            <property type="facade">
+                <caption>JSA880日历面板</caption>
+                <name>frmCalendar880</name>
+                <back_color>4294506744</back_color>
+                <fore_color>4278190080</fore_color>
+                <border_style>true</border_style>
+                <border_color>4278190080</border_color>
+                <show_modal>false</show_modal>
+                <startup_position>1</startup_position>
+            </property>
+            <property type="geometry">
+                <left>0</left>
+                <top>0</top>
+                <width>2274141</width>
+                <height>2568296</height>
+                <width_policy>1</width_policy>
+                <height_policy>1</height_policy>
+            </property>
+            <property type="layout">
+                <layout_type>1</layout_type>
+            </property>
+            <property type="font">
+                <font>
+                    <family>宋体</family>
+                    <pointsize>10</pointsize>
+                    <weight>50</weight>
+                    <italic>false</italic>
+                    <underline>false</underline>
+                    <strickout>false</strickout>
+                </font>
+            </property>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>true</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>&lt;</caption>
+                    <name>Label79</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>87466</left>
+                    <top>87464</top>
+                    <width>87464</width>
+                    <height>182880</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="commandbutton">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>当前日期</caption>
+                    <name>CommandButton58</name>
+                    <back_color>4292401368</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                </property>
+                <property type="geometry">
+                    <left>63611</left>
+                    <top>2806809</top>
+                    <width>636109</width>
+                    <height>286246</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>true</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>10</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="commandbutton">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>上个月</caption>
+                    <name>CommandButton59</name>
+                    <back_color>4292401368</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                </property>
+                <property type="geometry">
+                    <left>731522</left>
+                    <top>2814760</top>
+                    <width>667912</width>
+                    <height>286246</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>true</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>10</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="commandbutton">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>下个月</caption>
+                    <name>CommandButton60</name>
+                    <back_color>4292401368</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                </property>
+                <property type="geometry">
+                    <left>1423285</left>
+                    <top>2806809</top>
+                    <width>659964</width>
+                    <height>286246</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>true</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>10</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="textedit">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                    <max_length>32767</max_length>
+                </property>
+                <property type="data">
+                    <control_source></control_source>
+                </property>
+                <property type="facade">
+                    <name>TextEdit1</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>true</border_style>
+                    <border_color>4294506744</border_color>
+                    <text>2024</text>
+                    <value>2024</value>
+                    <password_char></password_char>
+                </property>
+                <property type="geometry">
+                    <left>2931823</left>
+                    <top>2272194</top>
+                    <width>381667</width>
+                    <height>214686</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>年</caption>
+                    <name>Label61</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>707667</left>
+                    <top>88900</top>
+                    <width>151078</width>
+                    <height>127223</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="textedit">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>2</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                    <max_length>32767</max_length>
+                </property>
+                <property type="data">
+                    <control_source></control_source>
+                </property>
+                <property type="facade">
+                    <name>TextEdit3</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>true</border_style>
+                    <border_color>4294506744</border_color>
+                    <text>12</text>
+                    <value>12</value>
+                    <password_char></password_char>
+                </property>
+                <property type="geometry">
+                    <left>873206</left>
+                    <top>61733</top>
+                    <width>214694</width>
+                    <height>214686</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>月</caption>
+                    <name>Label62</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>1079500</left>
+                    <top>88900</top>
+                    <width>151078</width>
+                    <height>127223</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>true</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>&lt;</caption>
+                    <name>Label82</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>95417</left>
+                    <top>82384</top>
+                    <width>87464</width>
+                    <height>182880</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>true</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>&lt;</caption>
+                    <name>Label57</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>215900</left>
+                    <top>87464</top>
+                    <width>87464</width>
+                    <height>182880</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>&gt;</caption>
+                    <name>Label83</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>1282701</left>
+                    <top>82384</top>
+                    <width>87465</width>
+                    <height>182880</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>今</caption>
+                    <name>Label13</name>
+                    <back_color>4294309365</back_color>
+                    <fore_color>4278190335</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>1725442</left>
+                    <top>87465</top>
+                    <width>166982</width>
+                    <height>127223</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="textedit">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>2</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                    <max_length>32767</max_length>
+                </property>
+                <property type="data">
+                    <control_source></control_source>
+                </property>
+                <property type="facade">
+                    <name>TextEdit4</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>true</border_style>
+                    <border_color>4294506744</border_color>
+                    <text>2024</text>
+                    <value>2024</value>
+                    <password_char></password_char>
+                </property>
+                <property type="geometry">
+                    <left>326005</left>
+                    <top>66593</top>
+                    <width>373736</width>
+                    <height>174935</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>-1</tab_index>
+                    <tab_stop>true</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="frame">
+                <property type="actions">
+                    <enabled>true</enabled>
+                </property>
+                <property type="facade">
+                    <caption>Frame1</caption>
+                    <name>Frame1</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <border_style>true</border_style>
+                    <border_color>4294506744</border_color>
+                </property>
+                <property type="geometry">
+                    <left>15904</left>
+                    <top>270346</top>
+                    <width>2186610</width>
+                    <height>2313832</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="layout">
+                    <layout_type>1</layout_type>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>true</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>10</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>1</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>&gt;</caption>
+                        <name>Label8</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1486891</left>
+                        <top>721692</top>
+                        <width>151074</width>
+                        <height>214684</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>-1</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label50</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label51</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label52</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label53</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label54</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label55</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label56</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>1986721</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label43</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label44</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label45</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label46</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label47</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label48</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label49</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>1675479</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label36</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label37</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label38</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label39</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label40</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label41</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label42</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>1364237</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label29</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label30</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label31</name>
+                        <back_color>4278255615</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label32</name>
+                        <back_color>4294967040</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label33</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label34</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label35</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>1052995</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label22</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label23</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label24</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label25</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label26</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label27</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label28</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>741753</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>1</caption>
+                        <name>Label15</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4290427578</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>2</caption>
+                        <name>Label16</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>3</caption>
+                        <name>Label17</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>4</caption>
+                        <name>Label18</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>5</caption>
+                        <name>Label19</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>6</caption>
+                        <name>Label20</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>7</caption>
+                        <name>Label21</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>430511</top>
+                        <width>249900</width>
+                        <height>176069</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>一</caption>
+                        <name>Label1</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>71564</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>2</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>二</caption>
+                        <name>Label2</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>377123</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>2</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>三</caption>
+                        <name>Label3</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>682682</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>0</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>四</caption>
+                        <name>Label4</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>988241</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>3</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>五</caption>
+                        <name>Label5</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1293800</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>4</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>六</caption>
+                        <name>Label6</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1599359</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>5</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+                <control type="label">
+                    <property type="actions">
+                        <enabled>true</enabled>
+                        <text_align>2</text_align>
+                        <word_wrap>true</word_wrap>
+                        <auto_size>false</auto_size>
+                    </property>
+                    <property type="facade">
+                        <caption>日</caption>
+                        <name>Label7</name>
+                        <back_color>4294506744</back_color>
+                        <fore_color>4278190080</fore_color>
+                        <visible>true</visible>
+                        <back_style>true</back_style>
+                        <border_style>false</border_style>
+                        <border_color>-16777216</border_color>
+                    </property>
+                    <property type="geometry">
+                        <left>1904918</left>
+                        <top>119269</top>
+                        <width>249900</width>
+                        <height>144265</height>
+                        <width_policy>1</width_policy>
+                        <height_policy>1</height_policy>
+                    </property>
+                    <property type="others">
+                        <tab_index>6</tab_index>
+                        <tab_stop>false</tab_stop>
+                    </property>
+                    <property type="font">
+                        <font>
+                            <family>宋体</family>
+                            <pointsize>11</pointsize>
+                            <weight>50</weight>
+                            <italic>false</italic>
+                            <underline>false</underline>
+                            <strickout>false</strickout>
+                        </font>
+                    </property>
+                </control>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>&gt;</caption>
+                    <name>Label84</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4278190080</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>-16777216</border_color>
+                </property>
+                <property type="geometry">
+                    <left>1397000</left>
+                    <top>82384</top>
+                    <width>151074</width>
+                    <height>182880</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>0</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+            <control type="label">
+                <property type="actions">
+                    <enabled>true</enabled>
+                    <text_align>1</text_align>
+                    <word_wrap>true</word_wrap>
+                    <auto_size>false</auto_size>
+                </property>
+                <property type="facade">
+                    <caption>选</caption>
+                    <name>Label89</name>
+                    <back_color>4294506744</back_color>
+                    <fore_color>4294923647</fore_color>
+                    <visible>true</visible>
+                    <back_style>true</back_style>
+                    <border_style>false</border_style>
+                    <border_color>4294923647</border_color>
+                </property>
+                <property type="geometry">
+                    <left>1971922</left>
+                    <top>95415</top>
+                    <width>166982</width>
+                    <height>127223</height>
+                    <width_policy>1</width_policy>
+                    <height_policy>1</height_policy>
+                </property>
+                <property type="others">
+                    <tab_index>13</tab_index>
+                    <tab_stop>false</tab_stop>
+                </property>
+                <property type="font">
+                    <font>
+                        <family>宋体</family>
+                        <pointsize>11</pointsize>
+                        <weight>50</weight>
+                        <italic>false</italic>
+                        <underline>false</underline>
+                        <strickout>false</strickout>
+                    </font>
+                </property>
+            </control>
+        </control>
+    </dlgmodule>
+</document>

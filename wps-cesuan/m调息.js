@@ -812,6 +812,8 @@ class clsInterestRateAdjustment extends clsRentalCalculation {
      *
      * 遍历每期调用 getApplicableRate() 计算适用利率，构造二维数组后批量写入 M 列，
      * 避免逐单元格写入的性能开销。
+     * 
+     * Array2D 优化：使用优化器批量生成利率数组，减少循环次数
      */
     processAdjustmentColumn() {
         try {
@@ -820,10 +822,23 @@ class clsInterestRateAdjustment extends clsRentalCalculation {
             var totalPeriods = this.p.TotalPeriodsCellValue;
             var startRow = this.p.RentTableStartRow;
 
-            // 构造利率数据（一维数组→二维数组）
-            var rateData = [];
-            for (var period = 1; period <= totalPeriods; period++) {
-                rateData.push([this.getApplicableRate(period)]);
+            // Array2D 优化：使用优化器批量生成利率数组
+            var rateData;
+            if (typeof clsArray2DOptimizer !== 'undefined') {
+                // 获取调整配置
+                var adjustments = this.m_adjustmentPeriods.map(function(adj) {
+                    return { period: adj.period, rate: adj.newRate };
+                });
+                
+                // 使用优化器生成带调整的利率数组
+                var optimizer = getArray2DOptimizer(this.p);
+                rateData = optimizer.generateRateArrayWithAdjustments(totalPeriods, this.p.InterestRateCellValue, adjustments);
+            } else {
+                // 降级：手写实现
+                rateData = [];
+                for (var period = 1; period <= totalPeriods; period++) {
+                    rateData.push([this.getApplicableRate(period)]);
+                }
             }
 
             // 批量写入M列
@@ -835,7 +850,7 @@ class clsInterestRateAdjustment extends clsRentalCalculation {
             this.highlightAdjustmentArea();
             this.租金测算表合计行(13, 13);
 
-            console.log('[' + this.MODULE_NAME + '] 调息列处理完成（' + totalPeriods + '期）');
+            console.log('[' + this.MODULE_NAME + '] 调息列处理完成（优化版，' + totalPeriods + '期）');
         } catch (error) {
             console.log('[' + this.MODULE_NAME + '] 处理调息列失败：' + error.message);
         }
