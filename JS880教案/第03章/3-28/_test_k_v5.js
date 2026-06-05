@@ -100,9 +100,6 @@ test('T3: k("(arr,v)=>arr.map(x=>[x.f2+v])", arr, val)', function() {
 // T4: lambda 调用 $$.distinct
 test('T4: k("arr=>$$.distinct(arr,\'f1\')", arr)', function() {
     Array2D.distinct = function(arr, key) {
-        return Array2D.distinct || [['A'],['B'],['C']];
-    };
-    Array2D.distinct = function(arr, key) {
         // 简单实现:按第 0 列去重
         var seen = {}, result = [];
         for (var i = 0; i < arr.length; i++) {
