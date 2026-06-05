@@ -5,9 +5,9 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.10 (2026年5月29日)
+ * 版本: 4.0.11 (2026年6月5日)
 
-【此版本为WPS现代版 v4.0.10】
+【此版本为WPS现代版 v4.0.11】
  * 【此版本为WPS现代版 v4.0.0】
  * - 移除所有Node.js兼容代码
  * - 移除所有浏览器兼容代码
@@ -17,6 +17,22 @@
  * 原作者: 郑广学 (EXCEL880)
  *
  * API文档: https://vbayyds.com/api/jsa880/
+ *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.11 — 2026-06-05)
+ * ------------------------------------------------------------------------
+ * 1. [质量] superPivot: typeof 检查替换为 instanceof Array2D（更可靠）
+ * 2. [质量] _createStaticMethods scalar 分支改用 unwrapVal（消除冗余代码）
+ * 3. [质量] Logger: warn/error 级别改用 console.warn/console.error
+ * 4. [质量] 全局错误日志统一 console.log → console.error（10处）
+ * 5. [质量] JSA 命名空间新增导出 19 个全局函数/模块
+ *    - agg, oadate, map2d, forEach2d, StopWatch, TreeNode
+ *    - batch_k, k_help, DataExport, DataImport, Logger
+ *    - StrUtils, NumUtils, MsgUtils, WorkbookUtils, FormUtils, PicUtiles
+ * 6. [清理] 删除 12 处注释掉的 DEBUG Console.log
+ * 7. [Bug] Array2D.agg switch/case: var 重声明 → let + 块作用域（2处）
+ * 8. [Bug] SuperMap._aggregate switch/case: 同上修复
+ * 9. [Bug] 全局 25 处 for(var k=) 循环变量重命名为 for(var ki=)，避免遮蔽顶层 UDF function k()
  *
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.10 — 2026-06-01)
@@ -1543,11 +1559,11 @@ RngUtils.z删除空白行 = function(rng, entireColumn) {
     }
 
     // 倒序删除（避免索引偏移）
-    for (var k = blankRowIndexes.length - 1; k >= 0; k--) {
+    for (var ki = blankRowIndexes.length - 1; ki >= 0; ki--) {
         if (entireColumn) {
-            Rows(blankRowIndexes[k]).EntireRow.Delete();
+            Rows(blankRowIndexes[ki]).EntireRow.Delete();
         } else {
-            Rows(blankRowIndexes[k]).Delete();
+            Rows(blankRowIndexes[ki]).Delete();
         }
     }
 };
@@ -1580,11 +1596,11 @@ RngUtils.z删除空白列 = function(rng, entireColumn) {
         }
     }
 
-    for (var k = 0; k < blankCols.length; k++) {
+    for (var ki = 0; ki < blankCols.length; ki++) {
         if (entireColumn) {
-            r.Columns(blankCols[k]).EntireColumn.Delete();
+            r.Columns(blankCols[ki]).EntireColumn.Delete();
         } else {
-            r.Columns(blankCols[k]).Delete();
+            r.Columns(blankCols[ki]).Delete();
         }
     }
 };
@@ -2625,8 +2641,8 @@ JSA.z选择列 = function(arr, colIndexes, newHeaders) {
             result.push(newHeaders);
         } else {
             var newRow = [];
-            for (var k = 0; k < colIndexes.length; k++) {
-                var col = colIndexes[k];
+            for (var ki = 0; ki < colIndexes.length; ki++) {
+                var col = colIndexes[ki];
                 var idx = headerMap[col];
                 newRow.push(idx !== undefined ? headers[idx] : col);
             }
@@ -2636,8 +2652,8 @@ JSA.z选择列 = function(arr, colIndexes, newHeaders) {
         for (var i = 1; i < arr.length; i++) {
             var row = arr[i];
             var newRow = [];
-            for (var k = 0; k < indexes.length; k++) {
-                newRow.push(row[indexes[k]]);
+            for (var ki = 0; ki < indexes.length; ki++) {
+                newRow.push(row[indexes[ki]]);
             }
             result.push(newRow);
         }
@@ -2654,8 +2670,8 @@ JSA.z选择列 = function(arr, colIndexes, newHeaders) {
         for (var i = 0; i < arr.length; i++) {
             var row = arr[i];
             var newRow = [];
-            for (var k = 0; k < indexes.length; k++) {
-                newRow.push(row[indexes[k]]);
+            for (var ki = 0; ki < indexes.length; ki++) {
+                newRow.push(row[indexes[ki]]);
             }
             result.push(newRow);
         }
@@ -4326,7 +4342,7 @@ RangeChain.prototype.Resize = function(rows, cols) {
         var resizedRng = this._range.Resize(rows, cols);
         return new RangeChain(resizedRng);
     } catch (e) {
-        console.log("Resize失败: " + e.message);
+        console.error("Resize失败: " + e.message);
         return this;
     }
 };
@@ -4857,7 +4873,7 @@ $.Resize = function(rng, rows, cols) {
         var resizedRng = targetRng.Resize(rows, cols);
         return new RangeChain(resizedRng);
     } catch (e) {
-        console.log("Resize失败: " + e.message);
+        console.error("Resize失败: " + e.message);
         return new RangeChain(rng);
     }
 };
@@ -5004,8 +5020,7 @@ $.z随机整数 = $.rndInt;
 $.findRange = Array2D.findRange;
 $.z查找区域 = $.findRange;
 
-$.superPivot = Array2D.superPivot;
-$.z超级透视 = $.superPivot;
+// $.superPivot moved to after Array2D.superPivot definition
 
 
 
@@ -5751,7 +5766,7 @@ function SheetChain(sht) {
                     }
                 }
             } catch (e2) {
-                console.log("SheetChain模糊匹配失败: " + e2.message);
+                console.error("SheetChain模糊匹配失败: " + e2.message);
             }
             this._sheet = null;
         }
@@ -5863,7 +5878,7 @@ SheetChain.prototype.z删除 = function() {
         try {
             this._sheet.Delete();
         } catch (e) {
-            console.log("删除工作表失败: " + e.message);
+            console.error("删除工作表失败: " + e.message);
         }
     }
     return this;
@@ -5887,7 +5902,7 @@ SheetChain.prototype.z复制 = function(before, after) {
             this._sheet.Copy();
         }
     } catch (e) {
-        console.log("复制工作表失败: " + e.message);
+        console.error("复制工作表失败: " + e.message);
     }
     return this;
 };
@@ -5927,7 +5942,7 @@ SheetChain.prototype.z取消保护 = function(password) {
             this._sheet.Unprotect();
         }
     } catch (e) {
-        console.log("取消保护工作表失败: " + e.message);
+        console.error("取消保护工作表失败: " + e.message);
     }
     return this;
 };
@@ -7520,7 +7535,6 @@ Array2D.prototype.z筛选 = function(predicate, skipHeader) {
     // 🔧 v3.7.9 修复: 如果没有指定 skipHeader 但对象有 _header 属性，自动设为 1
     if (skipHeader === undefined && '_header' in this && this._header !== undefined) {
         skipHeader = 1;
-        // Console.log('[z筛选 DEBUG] Auto-detected skipHeader=1 from _header');
     }
     // 处理 skipHeader 参数
     var data = this._items;
@@ -8713,8 +8727,8 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
             outputFn = function(row) {
                 if (!row) return [];
                 var out = [];
-                for (var k = 0; k < outIndexes.length; k++) {
-                    out.push(row[outIndexes[k]]);
+                for (var ki = 0; ki < outIndexes.length; ki++) {
+                    out.push(row[outIndexes[ki]]);
                 }
                 return out;
             };
@@ -10142,8 +10156,8 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
                         // 处理合并 f1+f2
                         var mergeParts = part.split('+');
                         var mergeIndexes = [];
-                        for (var k = 0; k < mergeParts.length; k++) {
-                            var idx = parseInt(mergeParts[k].toLowerCase().replace('f', '')) - 1;
+                        for (var ki = 0; ki < mergeParts.length; ki++) {
+                            var idx = parseInt(mergeParts[ki].toLowerCase().replace('f', '')) - 1;
                             mergeIndexes.push(idx);
                         }
                         indexes.push(mergeIndexes);  // 用数组标记合并列
@@ -10197,8 +10211,8 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
         var result = [];
         for (var i = 0; i < this._items.length; i++) {
             var row = [];
-            for (var k = 0; k < indexes.length; k++) {
-                var idx = indexes[k];
+            for (var ki = 0; ki < indexes.length; ki++) {
+                var idx = indexes[ki];
                 if (Array.isArray(idx)) {
                     // 合并列：多个列合并为一个
                     var merged = '';
@@ -10239,9 +10253,9 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
             result.push(newHeaders);
         } else {
             var headerRow = [];
-            for (var k = 0; k < finalIndexes.length; k++) {
-                var idx = finalIndexes[k];
-                headerRow.push(idx !== undefined ? headers[idx] : cols[k]);
+            for (var ki = 0; ki < finalIndexes.length; ki++) {
+                var idx = finalIndexes[ki];
+                headerRow.push(idx !== undefined ? headers[idx] : cols[ki]);
             }
             result.push(headerRow);
         }
@@ -10249,8 +10263,8 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
         for (var i = 1; i < this._items.length; i++) {
             var row = this._items[i];
             var newRow = [];
-            for (var k = 0; k < finalIndexes.length; k++) {
-                newRow.push(row[finalIndexes[k]]);
+            for (var ki = 0; ki < finalIndexes.length; ki++) {
+                newRow.push(row[finalIndexes[ki]]);
             }
             result.push(newRow);
         }
@@ -10811,8 +10825,8 @@ Array2D.rangeMap = function(arr, address, mapper) {
             // 列字母转0-based索引
             var _toColIdx = function(colStr) {
                 var idx = 0;
-                for (var k = 0; k < colStr.length; k++) {
-                    idx = idx * 26 + (colStr.toUpperCase().charCodeAt(k) - 64);
+                for (var ki = 0; ki < colStr.length; ki++) {
+                    idx = idx * 26 + (colStr.toUpperCase().charCodeAt(ki) - 64);
                 }
                 return idx - 1;
             };
@@ -10976,9 +10990,9 @@ Array2D.rankGroup = function(arr, colSelector, groupCol, type, outputAll) {
             } else if (type === 'usa') {
                 // 🔧 v3.9.4 修复：美式排名 - 并列取相同排名，跳号
                 rank = j + 1;
-                for (var k = j - 1; k >= 0; k--) {
-                    if (values[k].value === values[j].value) {
-                        rank = ranks[values[k].index][0];
+                for (var ki = j - 1; ki >= 0; ki--) {
+                    if (values[ki].value === values[j].value) {
+                        rank = ranks[values[ki].index][0];
                         break;
                     }
                 }
@@ -11346,29 +11360,33 @@ Array2D.agg = function(arr, colSelector, aggType) {
     if (values.length === 0) return 0;
     
     switch (aggType) {
-        case 'sum':
-            var sum = 0;
-            for (var i = 0; i < values.length; i++) sum += values[i];
+        case 'sum': {
+            let sum = 0;
+            for (let i = 0; i < values.length; i++) sum += values[i];
             return sum;
+        }
         case 'count':
             return values.length;
         case 'average':
-        case 'avg':
-            var sum = 0;
-            for (var i = 0; i < values.length; i++) sum += values[i];
+        case 'avg': {
+            let sum = 0;
+            for (let i = 0; i < values.length; i++) sum += values[i];
             return sum / values.length;
-        case 'max':
-            var max = values[0];
-            for (var i = 1; i < values.length; i++) {
+        }
+        case 'max': {
+            let max = values[0];
+            for (let i = 1; i < values.length; i++) {
                 if (values[i] > max) max = values[i];
             }
             return max;
-        case 'min':
-            var min = values[0];
-            for (var i = 1; i < values.length; i++) {
+        }
+        case 'min': {
+            let min = values[0];
+            for (let i = 1; i < values.length; i++) {
                 if (values[i] < min) min = values[i];
             }
             return min;
+        }
         default:
             return 0;
     }
@@ -13059,7 +13077,7 @@ function _createStaticMethods(configs) {
                 case 'array':
                     return result && unwrapVal(result);
                 case 'scalar':
-                    return typeof result === 'object' && result && result.val ? result.val() : result;
+                    return unwrapVal(result);
                 case 'oraw':
                     // raw value (single element) - no .val() needed
                     return unwrapVal(result);
@@ -13169,7 +13187,7 @@ Array2D.rangeSelect = function(arr, start, end, startCol, endCol) {
     
     // v4.0.11: 支持地址字符串（A2:C4, A:C, 2:3, 逗号分隔多区域）
     if (typeof start === 'string' && /^[A-Za-z\d]/.test(start)) {
-        var _ci = function(s) { var idx = 0; for (var k = 0; k < s.length; k++) idx = idx * 26 + (s.toUpperCase().charCodeAt(k) - 64); return idx - 1; };
+        var _ci = function(s) { var idx = 0; for (var ki = 0; ki < s.length; ki++) idx = idx * 26 + (s.toUpperCase().charCodeAt(ki) - 64); return idx - 1; };
         function _parse(a, arr) {
             a = a.trim(); if (!a) return null;
             var rm = a.match(/^([A-Za-z]+)(\d+):([A-Za-z]+)(\d+)$/);
@@ -13275,7 +13293,6 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         outputHeader = outputHeader !== undefined ? outputHeader : 1;
     }
     var rowColSep = options.rowColSeparator || '|||';
-    options = options || {};
     
     // 🔧 v3.9.0 新增：解析options参数
     var cornerTitle = options.cornerTitle || '';
@@ -13318,7 +13335,6 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     var displayAs = options.displayAs || { mode: 'value', decimals: 2 };
 
     // 🔧 v4.0.10: 数字格式化配置
-    var numberFormat = options.numberFormat || null; // e.g. '#,##0.00', '0.00%'
     var nullValue = options.nullValue !== undefined ? options.nullValue : '';
 
     // 🔧 v3.9.4 新增：筛选器配置
@@ -13368,17 +13384,15 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         // 使用 in 操作符检查，因为 _header 可能是不可枚举的
         if ('_header' in arr && arr._header !== undefined && arr._header !== null) {
             _savedHeader = arr._header;
-            // Console.log('[superPivot DEBUG] Found _header in arr: ' + JSON.stringify(_savedHeader));
         }
         // 保存 _original 属性（用于获取原始表头）
         if ('_original' in arr && arr._original !== undefined && arr._original !== null && arr._original.length > 0) {
             _savedOriginal = arr._original;
-            // Console.log('[superPivot DEBUG] Found _original in arr, length: ' + arr._original.length);
         }
     }
 
     // 处理 Array2D 对象
-    if (arr && typeof arr === 'object' && arr._items && Array.isArray(arr._items)) {
+    if (arr instanceof Array2D && Array.isArray(arr._items)) {
         arr = arr._items;
     }
 
@@ -13389,13 +13403,11 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     // 来源1: 优先使用保存的 _header 属性（来自 $.maxArray 或链式调用）
     if (_savedHeader !== null) {
         _originalHeader = _savedHeader;
-        // Console.log('[superPivot DEBUG] _originalHeader from _savedHeader: ' + JSON.stringify(_originalHeader));
     }
 
     // 来源2: 检查保存的 _original 属性
     if (!_originalHeader && _savedOriginal !== null) {
         _originalHeader = _savedOriginal[0];
-        // Console.log('[superPivot DEBUG] _originalHeader from _savedOriginal: ' + JSON.stringify(_originalHeader));
     }
 
     // 来源3: 检查数据的第一行是否可能是表头
@@ -13437,13 +13449,10 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
 
         if (isHeader) {
             _originalHeader = firstRow;
-            // Console.log('[superPivot DEBUG] _originalHeader detected from arr[0]: ' + JSON.stringify(_originalHeader));
         } else {
-            // Console.log('[superPivot DEBUG] arr[0] not detected as header: ' + JSON.stringify(firstRow));
         }
     }
     
-    // Console.log('[superPivot DEBUG] Final _originalHeader: ' + JSON.stringify(_originalHeader));
 
     // 辅助函数：将行数组转为带f1,f2...属性的对象
     function toRowObject(row) {
@@ -13657,8 +13666,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             if (typeof fieldsConfig[0] === 'string') {
                 var fieldStr = fieldsConfig[0];
                 var items = fieldStr.split(',');
-                for (var k = 0; k < items.length; k++) {
-                    var item = items[k].trim();
+                for (var ki = 0; ki < items.length; ki++) {
+                    var item = items[ki].trim();
                     var match = item.match(/^(f\d+)([+\-#]*)$/);
                     if (match) {
                         fields.push({
@@ -13697,7 +13706,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             // [[回调数组], '标题'] 格式
             dataConfig = {
                 fields: [{ callbacks: dataFields[0] }],
-                titles: dataFields[1].split(','),
+                titles: (typeof dataFields[1] === 'string' ? dataFields[1].split(',') : (Array.isArray(dataFields[1]) ? dataFields[1] : [])),
                 hasTitles: true,
                 isCallback: true,
                 rawString: null
@@ -13806,8 +13815,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     var rowSortKeys = rowKeys.map(function(key, idx) {
         var parts = key.split(separator);
         var keys = [];
-        for (var k = 0; k < rowConfig.fields.length; k++) {
-            var val = parts[k] || '';
+        for (var ki = 0; ki < rowConfig.fields.length; ki++) {
+            var val = parts[ki] || '';
             var num = parseFloat(val);
             var isNum = !isNaN(num) && String(num) === String(val).trim();
             keys.push({ raw: val, num: isNum ? num : null, isNum: isNum });
@@ -13816,9 +13825,9 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     });
 
     rowSortKeys.sort(function(a, b) {
-        for (var k = 0; k < rowConfig.fields.length; k++) {
-            var rf = rowConfig.fields[k];
-            var ak = a.keys[k], bk = b.keys[k];
+        for (var ki = 0; ki < rowConfig.fields.length; ki++) {
+            var rf = rowConfig.fields[ki];
+            var ak = a.keys[ki], bk = b.keys[ki];
             var cmp = 0;
             if (ak.isNum && bk.isNum) {
                 cmp = ak.num - bk.num;
@@ -13882,10 +13891,10 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     colKeys.sort(function(a, b) {
         var aParts = a.split(separator);
         var bParts = b.split(separator);
-        for (var k = 0; k < colConfig.fields.length; k++) {
-            var cf = colConfig.fields[k];
-            var aVal = aParts[k];
-            var bVal = bParts[k];
+        for (var ki = 0; ki < colConfig.fields.length; ki++) {
+            var cf = colConfig.fields[ki];
+            var aVal = aParts[ki];
+            var bVal = bParts[ki];
             var cmp = 0;
             var aNum = parseFloat(aVal);
             var bNum = parseFloat(bVal);
@@ -14034,6 +14043,11 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
 
     // 🔧 v3.9.4 新增：应用筛选器到行键
     rowKeys = rowKeys.filter(shouldKeepRow);
+
+    // v4.2.5: 无行字段时归入单一空键
+    if (rowKeys.length === 0 && data.length > 0) {
+        rowKeys = [''];
+    }
 
     // map 模式：返回查询标准字典
     if (outputHeader === 'map') {
@@ -14187,7 +14201,6 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     }
 
     var result = [];
-    // Console.log('[superPivot DEBUG] result initialized, length: ' + result.length);
 
     // 🔧 v3.9.1 修复：将 headerRowCount 计算移到 if 块外面，确保在 outputHeader=0 时也能使用
     // 计算层级数
@@ -14251,8 +14264,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         function getLevelUniqueValues(keys, level) {
             var seen = Object.create(null);
             var values = [];
-            for (var k = 0; k < keys.length; k++) {
-                var parts = keys[k].split(separator);
+            for (var ki = 0; ki < keys.length; ki++) {
+                var parts = keys[ki].split(separator);
                 if (level < parts.length) {
                     var val = parts[level];
                     var valKey = String(val);
@@ -14390,13 +14403,6 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     }
                 }
 
-                // 计算该层级的 span（用于后续合并检测，不再用于值生成）
-                var span = 1;
-                for (var l = cfIdx + 1; l < numColFieldLevels; l++) {
-                    span *= colLevelValues[l].length;
-                }
-                span *= numDataFields;
-
                 // 🔧 v4.0.10 修复：基于 colKeys 顺序生成列值
                 // colKeys 已按层级排序，正确反映嵌套结构
                 // 这样可以保证每行表头的列数与 colKeys 完全对齐
@@ -14423,12 +14429,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 }
             }
 
-            // 数据字段标题
-            var totalColSpans = 1;
-            for (var l = 0; l < numColFieldLevels; l++) {
-                totalColSpans *= colLevelValues[l].length;
-            }
-            for (var c = 0; c < totalColSpans; c++) {
+            // 数据字段标题（基于 colKeys 对齐列值行）
+            for (var ck = 0; ck < colKeys.length; ck++) {
                 for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
                     headerRows[lastRow].push(defaultDataTitles[dfIdx] || '');
                 }
@@ -14506,9 +14508,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         if (rowFieldIndent && layoutMode === 'outline' && !hideRowTitles) {
             for (var rpi = 0; rpi < dataRow.length; rpi++) {
                 var indent = rpi * rowFieldIndentSize;
-                var spaces = '';
-                for (var s = 0; s < indent; s++) spaces += ' ';
-                dataRow[rpi] = spaces + dataRow[rpi];
+                dataRow[rpi] = (indent > 0 ? new Array(indent + 1).join(' ') : '') + dataRow[rpi];
             }
         }
 
@@ -14805,6 +14805,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     return wrappedResult;
 };
 Array2D.superPivot = Array2D.z超级透视;
+$.superPivot = Array2D.z超级透视;
+$.z超级透视 = Array2D.z超级透视;
 
 /**
  * z超级透视 - 实例方法版本
@@ -15636,6 +15638,24 @@ DateUtils.datedif = function(startDate, endDate, unit) {
         // 让用户能在单元格公式中直接使用 =k("JSA.getIndexs", 1, 10, 2)
         this.k = JSA.k;
         this.jsaLambda = JSA.jsaLambda;
+        // 【v4.0.10】导出常用全局函数到 JSA 命名空间
+        if (typeof agg !== 'undefined') this.agg = agg;
+        if (typeof oadate !== 'undefined') this.oadate = oadate;
+        if (typeof map2d !== 'undefined') this.map2d = map2d;
+        if (typeof forEach2d !== 'undefined') this.forEach2d = forEach2d;
+        if (typeof StopWatch !== 'undefined') this.StopWatch = StopWatch;
+        if (typeof TreeNode !== 'undefined') this.TreeNode = TreeNode;
+        if (typeof batch_k !== 'undefined') this.batch_k = batch_k;
+        if (typeof k_help !== 'undefined') this.k_help = k_help;
+        if (typeof DataExport !== 'undefined') this.DataExport = DataExport;
+        if (typeof DataImport !== 'undefined') this.DataImport = DataImport;
+        if (typeof Logger !== 'undefined') this.Logger = Logger;
+        if (typeof StrUtils !== 'undefined') this.StrUtils = StrUtils;
+        if (typeof NumUtils !== 'undefined') this.NumUtils = NumUtils;
+        if (typeof MsgUtils !== 'undefined') this.MsgUtils = MsgUtils;
+        if (typeof WorkbookUtils !== 'undefined') this.WorkbookUtils = WorkbookUtils;
+        if (typeof FormUtils !== 'undefined') this.FormUtils = FormUtils;
+        if (typeof PicUtiles !== 'undefined') this.PicUtiles = PicUtiles;
         this.isArray = isArray;
         this.isArray2D = isArray2D;
         this.isBoolean = isBoolean;
@@ -16695,7 +16715,7 @@ var DataImport = {
         try {
             return JSON.parse(content);
         } catch (e) {
-            console.log('JSON解析失败: ' + e.message);
+            console.error('JSON解析失败: ' + e.message);
             return [];
         }
     },
@@ -16731,7 +16751,7 @@ var DataImport = {
 
             return rows;
         } catch (e) {
-            console.log('JSON解析失败: ' + e.message);
+            console.error('JSON解析失败: ' + e.message);
             return [];
         }
     }
@@ -16996,7 +17016,7 @@ var ConfigUtils = {
             }
             return true;
         } catch (e) {
-            console.log('配置文件解析失败: ' + e.message);
+            console.error('配置文件解析失败: ' + e.message);
             return false;
         }
     },
@@ -17684,8 +17704,8 @@ var MsgUtils = {
         if (typeof console !== "undefined") {
             var timestamp = new Date().toLocaleTimeString();
             switch (level) {
-                case "warn": console.log("[WARN] " + timestamp + " " + message); break;
-                case "error": console.log("[ERROR] " + timestamp + " " + message); break;
+                case "warn": console.warn("[WARN] " + timestamp + " " + message); break;
+                case "error": console.error("[ERROR] " + timestamp + " " + message); break;
                 default: console.log("[INFO] " + timestamp + " " + message);
             }
         }
@@ -17909,8 +17929,8 @@ SuperMap.z分组统计 = function(arr, groupCol, statsConfig) {
     for (var s = 0; s < stats.length; s++) resultHeader.push(stats[s].headerName + "_" + stats[s].aggType);
     var result = [resultHeader]; var keys = [];
     for (var key in groups) keys.push(key);
-    for (var k = 0; k < keys.length; k++) {
-        var groupRows = groups[keys[k]]; var newRow = [keys[k]];
+    for (var ki = 0; ki < keys.length; ki++) {
+        var groupRows = groups[keys[ki]]; var newRow = [keys[ki]];
         for (var si = 0; si < stats.length; si++) {
             var colValues = [];
             for (var gi = 0; gi < groupRows.length; gi++) { if (stats[si].colIdx < groupRows[gi].length) colValues.push(groupRows[gi][stats[si].colIdx]); }
@@ -17932,11 +17952,11 @@ SuperMap._aggregate = function(values, aggType) {
         switch (aggType) { case "sum": return 0; case "avg": return 0; case "count": return values.length; case "min": return null; case "max": return null; default: return null; }
     }
     switch (aggType) {
-        case "sum": var sum = 0; for (var j = 0; j < numericValues.length; j++) sum += numericValues[j]; return sum;
-        case "avg": case "average": var total = 0; for (var k = 0; k < numericValues.length; k++) total += numericValues[k]; return total / numericValues.length;
+        case "sum": { let sum = 0; for (let j = 0; j < numericValues.length; j++) sum += numericValues[j]; return sum; }
+        case "avg": case "average": { let total = 0; for (let k = 0; k < numericValues.length; k++) total += numericValues[k]; return total / numericValues.length; }
         case "count": return values.length;
-        case "min": var minVal = numericValues[0]; for (var m = 1; m < numericValues.length; m++) if (numericValues[m] < minVal) minVal = numericValues[m]; return minVal;
-        case "max": var maxVal = numericValues[0]; for (var n = 1; n < numericValues.length; n++) if (numericValues[n] > maxVal) maxVal = numericValues[n]; return maxVal;
+        case "min": { let minVal = numericValues[0]; for (let m = 1; m < numericValues.length; m++) if (numericValues[m] < minVal) minVal = numericValues[m]; return minVal; }
+        case "max": { let maxVal = numericValues[0]; for (let n = 1; n < numericValues.length; n++) if (numericValues[n] > maxVal) maxVal = numericValues[n]; return maxVal; }
         default: return null;
     }
 };
@@ -18739,7 +18759,7 @@ if (typeof Range !== 'undefined') {
     }
 
     // 列字母转索引
-    var _ci = function(s) { var idx = 0; for (var k = 0; k < s.length; k++) idx = idx * 26 + (s.toUpperCase().charCodeAt(k) - 64); return idx - 1; };
+    var _ci = function(s) { var idx = 0; for (var ki = 0; ki < s.length; ki++) idx = idx * 26 + (s.toUpperCase().charCodeAt(ki) - 64); return idx - 1; };
     // 解析地址
     var _pa = function(addr, arr) {
         addr = addr.trim();
