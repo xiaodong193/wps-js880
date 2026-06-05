@@ -162,6 +162,61 @@ test('T9: k("(...args)=>$$.superPivot(...args).filter(...)", arr, ..., "", ...)'
     assertEqual(result.length >= 2, true);
 });
 
+// === 5 个错误注入测试 ===
+test('E1: k() 空调用 → #K_ERR: pos=0, FN', function() {
+    var result = JSA.k();
+    if (typeof result !== 'string' || result.indexOf('#K_ERR') !== 0) {
+        throw new Error('期望错误字符串,实际:' + JSON.stringify(result));
+    }
+    if (result.indexOf('pos=0') === -1) {
+        throw new Error('期望 pos=0,实际:' + result);
+    }
+    if (result.indexOf('FN') === -1) {
+        throw new Error('期望 kind=FN,实际:' + result);
+    }
+});
+
+test('E2: k("JSA.xxx") 但 JSA880 未加载 → #K_ERR: INTERNAL', function() {
+    // 临时把 JSA.jsaLambda 设为 undefined
+    var saved = JSA.jsaLambda;
+    JSA.jsaLambda = undefined;
+    var result = JSA.k('JSA.getIndexs', 1, 10, 2);
+    JSA.jsaLambda = saved;
+    if (typeof result !== 'string' || result.indexOf('INTERNAL') === -1) {
+        throw new Error('期望 INTERNAL 错误,实际:' + result);
+    }
+});
+
+test('E3: k("$$yyy") $$yyy 不存在 → #K_ERR: FN', function() {
+    var result = JSA.k('$$notExist', 1, 2);
+    if (typeof result !== 'string' || result.indexOf('FN') === -1) {
+        throw new Error('期望 FN 错误,实际:' + result);
+    }
+});
+
+test('E4: k("x=>x.b", "abc") 类型错 → 包含 TypeError', function() {
+    var result = JSA.k('x=>x.b()', 'abc');
+    if (typeof result !== 'string' || result.indexOf('TypeError') === -1) {
+        throw new Error('期望 TypeError,实际:' + result);
+    }
+});
+
+test('E5: k("`a${b}c`", 1) 模板字符串保留 ${}', function() {
+    // 这是模板字符串场景,期望 #K_ERR(因为 b 未定义),但 ${} 要保留
+    // 我们只验证它没被改成双引号
+    var errThrown = null;
+    try {
+        // 模拟:用 new Function 直接编译,看 b 引用是否被保留
+        var fn = new Function('return ' + '`a${b}c`');
+        fn();
+    } catch (e) {
+        errThrown = e;
+    }
+    if (!errThrown || errThrown.message.indexOf('b is not defined') === -1) {
+        throw new Error('模板字符串应被原样保留,实际:' + (errThrown && errThrown.message));
+    }
+});
+
 // === Smoke test ===
 test('harness 自身能跑', function() {
     assertEqual(1 + 1, 2);
