@@ -122,8 +122,8 @@ test('T2: k("(a,v)=>a.filter(x=>x[1]>v)", arr, val)', function() {
 });
 
 // T3: lambda 返回 1D 数组
-test('T3: k("(arr,v)=>arr.map(x=>[x.f2+v])", arr, val)', function() {
-    var result = JSA.k('(arr,v)=>arr.map(x=>[x.f2+v])', dataA2B7, 100);
+test('T3: k("(arr,v)=>arr.map(x=>[x[1]+v])", arr, val)', function() {
+    var result = JSA.k('(arr,v)=>arr.map(x=>[x[1]+v])', dataA2B7, 100);
     // 期望:每行第 2 列 + 100,包成 1 元素数组
     var expected = dataA2B7.map(function(x) { return [x[1] + 100]; });
     assertEqual(result, expected);
@@ -144,8 +144,8 @@ test('T4: k("arr=>$$.distinct(arr,\'f1\')", arr)', function() {
 });
 
 // T5: lambda 返回 2D 数组
-test('T5: k("(arr,v)=>arr.map(x=>[x.f1,x.f2+v])", arr, val)', function() {
-    var result = JSA.k('(arr,v)=>arr.map(x=>[x.f1,x.f2+v])', dataA2B7, 10);
+test('T5: k("(arr,v)=>arr.map(x=>[x[0],x[1]+v])", arr, val)', function() {
+    var result = JSA.k('(arr,v)=>arr.map(x=>[x[0],x[1]+v])', dataA2B7, 10);
     var expected = dataA2B7.map(function(x) { return [x[0], x[1] + 10]; });
     assertEqual(result, expected);
 });
