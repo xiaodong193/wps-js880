@@ -5,9 +5,9 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.34 (2026年6月7日)
+ * 版本: 4.0.36 (2026年6月7日)
 
-【此版本为WPS现代版 v4.0.34】
+【此版本为WPS现代版 v4.0.36】
  * 【此版本为WPS现代版 v4.0.13】
  * 【此版本为WPS现代版 v4.0.12】
  * 【此版本为WPS现代版 v4.0.11】
@@ -21,6 +21,22 @@
  *
  * API文档: https://vbayyds.com/api/jsa880/
  *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.36 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] superPivot 单列字段表头行 1 col 字段标题位置不 push (避免 dataField 重复)
+ *    - 根因: v4.0.32 在行 1 col 字段标题位置 push defaultDataTitles[0]='计数',但行 0 col 字段标题是 '年' 不是 dataField
+ *      重复 1 个 dataField 标题导致行 1 多 1 cell (15 列 vs 14 列 ideal)
+ *    - 修法: 行 1 col 字段标题位置不 push,让行 0/1 都在 col 字段标题位置对齐
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.35 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] superPivot 单列字段表头行 0 row 字段位置只 push 1 次 (合并跨 numRowFieldLevels 列)
+ *    - 根因: 之前 v4.0.32 给 row 字段空 cell 重复 numRowFieldLevels 次,表头 15 列 (2 row + 1 col 标题 + 4 年 × 3 data)
+ *      但用户 ideal 只有 14 列 (1 row merged + 1 col 标题 + 4 年 × 3 data)
+ *    - 修法: 行 0 row 字段位置只 push 1 个空 cell,recordMerge 合并跨 numRowFieldLevels 列
+ *           行 1 仍按 numRowFieldLevels push row 字段标题 (国家, 产品)
+ *    - 受益: 3.28 节 KO一切的k函数.xlsm 多层透视 J1 表头匹配用户理想 (14 列)
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.34 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -14912,25 +14928,33 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
 
         } else if (numColFieldLevels === 1) {
             // ========== 单列字段：2行表头 ==========
-            // 行0: [空白] [col 字段标题(年)] [col 字段值 × numDataFields 重复]
-            // 行1: [行字段标题] [dataField 标题 × numColKeys 重复]
+            // 行0: [空白(merged 跨 numRowFieldLevels 列)] [col 字段标题(年)] [col 字段值 × numDataFields 重复]
+            // 行1: [行字段标题 1 / 2 / ...] [dataField 标题 × numColKeys 重复]
             //   例: rowFields=[国家,产品] colFields=[年] dataFields=[count,sum,textjoin] 4 年
-            //     行0: ["","", "年", "2021","2021","2021","2022","2022","2022","2023","2023","2023","2024","2024","2024"]
-            //     行1: ["国家","产品", "计数","求和","连接","计数","求和","连接",...]
+            //     行0: ["", "年", "2021","2021","2021","2022","2022","2022","2023","2023","2023","2024","2024","2024"]  (14)
+            //     行1: ["国家","产品", "计数","求和","连接","计数","求和","连接",...]  (14)
+            // 🔧 v4.0.35: 之前 v4.0.32 给 row 字段空 cell 重复 numRowFieldLevels 次,导致表头 15 列多 1
+            //   修法: 行 0 row 字段位置只 push 1 次空 cell(用 recordMerge 跨 numRowFieldLevels 列合并)
+            //        行 1 row 字段标题仍按 numRowFieldLevels push
 
-            // 行0 左侧: 行字段位置用空(因为行字段标题在行1 底部)
+            // 行0 左侧: 行字段位置只 push 1 个空 cell (用合并跨 numRowFieldLevels 列)
             if (!hideRowTitles) {
+                headerRows[0].push('');
+                // 合并 numRowFieldLevels 列
+                if (numRowFieldLevels > 1) {
+                    recordMerge(0, 0, numRowFieldLevels, 1);
+                }
+                // 行1: 仍然按 numRowFieldLevels push row 字段标题
                 for (var rfIdx = 0; rfIdx < numRowFieldLevels; rfIdx++) {
-                    headerRows[0].push('');
                     headerRows[1].push(getFieldTitle(rowConfig.fields[rfIdx], rfIdx, 'row'));
                 }
             }
 
             // 行0 中间: col 字段标题(年)
             headerRows[0].push(getFieldTitle(colConfig.fields[0], 0, 'col'));
-            // 行1 中间: 第一个 dataField 标题(对应 col 字段标题"年"在行 0)
-            // 🔧 v4.0.34 修复: 之前 push '',ideal 应是 defaultDataTitles[0] (例如 "计数")
-            headerRows[1].push(defaultDataTitles[0] || '');
+            // 行1 中间: 不 push (与行 0 col 字段标题位置对齐,因为 col 字段标题"年"是 col 字段本身)
+            // 🔧 v4.0.36 修复: 之前 push defaultDataTitles[0]='计数' 重复,行 1 多了 1 个 cell
+            // headerRows[1].push(defaultDataTitles[0] || '');  // 删
 
             // 行0 右侧: col 字段值(2021/2022/...)每个 × numDataFields 重复
             for (var ck = 0; ck < colKeys.length; ck++) {
