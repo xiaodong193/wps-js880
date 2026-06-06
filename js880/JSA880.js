@@ -5,9 +5,9 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.31 (2026年6月7日)
+ * 版本: 4.0.33 (2026年6月7日)
 
-【此版本为WPS现代版 v4.0.31】
+【此版本为WPS现代版 v4.0.33】
  * 【此版本为WPS现代版 v4.0.13】
  * 【此版本为WPS现代版 v4.0.12】
  * 【此版本为WPS现代版 v4.0.11】
@@ -21,6 +21,22 @@
  *
  * API文档: https://vbayyds.com/api/jsa880/
  *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.33 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] val() 补空 cell 用空字符串 '' 而非 null — WPS spill null 显 0
+ *    - 根因: v4.0.20 注释说 "WPS spill null 显空白",实际是错的,WPS spill null 也显 0
+ *      导致多层透视 J1 第 0 行 col 0-1 显 0,理想是 (空)
+ *    - 修法: 补 undefined/缺列 时用 '' (WPS spill '' 显空白)
+ *    - 受益场景: 3.28 节 KO一切的k函数.xlsm '多层透视' J1 第 0 行 (空) (空) 年 ...
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.32 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] superPivot 单列字段 numColFieldLevels===1 表头改为 2 行
+ *    - 根因: 之前 headerRowCount=3,行字段在顶部,不符合用户预期
+ *    - 用户期望: 行0=[空,空,年,2021×3,2022×3,2023×3,2024×3],行1=[国家,产品,计数,求和,连接,...]
+ *    - 修法: headerRowCount 改为 2,行 0 = col 标题 + col 值(×numDataFields),行 1 = row 字段 + dataField 标题
+ *    - 行字段标题移到表头底部(行 1)
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.31 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -14766,7 +14782,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     var numColFieldLevels = colConfig.fields.length;
     var numRowFieldLevels = rowConfig.fields.length;
     // 🔧 修复：单列字段时需要3行表头，多列时需要 numColFieldLevels + 1 行
-    var headerRowCount = (numColFieldLevels === 1) ? 3 : numColFieldLevels + 1;
+    var headerRowCount = (numColFieldLevels === 1) ? 2 : numColFieldLevels + 1;
 
     // 构建表头
     if (outputHeader === 1 || outputHeader === true || outputHeader === -1) {
@@ -14889,39 +14905,33 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             }
 
         } else if (numColFieldLevels === 1) {
-            // ========== 单列字段：3行表头 ==========
-            // 行1: [行字段标题...] [列值1] [列值2] ... [小计]
-            // 行2: [空白(纵向合并)] [空白] [空白] ... [空白]
-            // 行3: [空白(纵向合并)] [数据标题] [数据标题] ...
+            // ========== 单列字段：2行表头 ==========
+            // 行0: [空白] [col 字段标题(年)] [col 字段值 × numDataFields 重复]
+            // 行1: [行字段标题] [dataField 标题 × numColKeys 重复]
+            //   例: rowFields=[国家,产品] colFields=[年] dataFields=[count,sum,textjoin] 4 年
+            //     行0: ["","", "年", "2021","2021","2021","2022","2022","2022","2023","2023","2023","2024","2024","2024"]
+            //     行1: ["国家","产品", "计数","求和","连接","计数","求和","连接",...]
 
+            // 行0 左侧: 行字段位置用空(因为行字段标题在行1 底部)
             if (!hideRowTitles) {
                 for (var rfIdx = 0; rfIdx < numRowFieldLevels; rfIdx++) {
-                    var title = getFieldTitle(rowConfig.fields[rfIdx], rfIdx, 'row');
-                    headerRows[0].push(title);
-                    headerRows[1].push('');
-                    headerRows[2].push('');
-                    // 纵向合并：行字段标题跨3行
-                    recordMerge(0, rfIdx, headerRowCount, 1);
-                }
-                // 角标题覆盖
-                if (cornerTitle && numRowFieldLevels === 1) {
-                    headerRows[0][0] = cornerTitle;
+                    headerRows[0].push('');
+                    headerRows[1].push(getFieldTitle(rowConfig.fields[rfIdx], rfIdx, 'row'));
                 }
             }
 
-            // 行2: 列字段标题
-            headerRows[1].push(getFieldTitle(colConfig.fields[0], 0, 'col'));
+            // 行0 中间: col 字段标题(年)
+            headerRows[0].push(getFieldTitle(colConfig.fields[0], 0, 'col'));
+            // 行1 中间: dataField 标题(只 1 个,占用 col 字段标题的"垂直"位置)
+            headerRows[1].push('');
 
-            // 行1: 列字段值
-            // 🔧 v4.0.31 修复: 行0 和 行1 也要按 numDataFields 重复 push
-            //   根因: 之前每个 colKey 只 push 1 次,导致行0/行1 列数 = numColKeys,行2 列数 = numColKeys × numDataFields
-            //         val() 后续 jagged 对齐补 null,但 superPivot 内部已不一致
-            //   修法: 行0 push colKeyParts[0] × numDataFields,行1 push '' × numDataFields
+            // 行0 右侧: col 字段值(2021/2022/...)每个 × numDataFields 重复
             for (var ck = 0; ck < colKeys.length; ck++) {
                 var colKeyParts = colKeys[ck].split(separator);
                 for (var __dfCk = 0; __dfCk < numDataFields; __dfCk++) {
                     headerRows[0].push(colKeyParts[0]);
-                    headerRows[1].push('');
+                    // 行1 同步 dataField 标题
+                    headerRows[1].push(defaultDataTitles[__dfCk] || '');
                 }
             }
 
@@ -14929,19 +14939,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             if (colSubtotals.enabled) {
                 for (var __dfSt = 0; __dfSt < numDataFields; __dfSt++) {
                     headerRows[0].push(colSubtotals.label || '小计');
-                    headerRows[1].push('');
-                }
-            }
-
-            // 行3: 数据字段标题
-            for (var ck = 0; ck < colKeys.length; ck++) {
-                for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
-                    headerRows[2].push(defaultDataTitles[dfIdx] || '');
-                }
-            }
-            if (colSubtotals.enabled) {
-                for (var dfIdx = 0; dfIdx < numDataFields; dfIdx++) {
-                    headerRows[2].push(defaultDataTitles[dfIdx] || '');
+                    headerRows[1].push(defaultDataTitles[__dfSt] || '');
                 }
             }
 
@@ -15327,7 +15325,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
          */
         wrappedResult.val = function() {
             // 🔧 v4.0.20: 多层表头各行长短不一,jagged 数组在 WPS spill 时空 cell 会显 0
-            //   修法: 找到 maxLen,每行补齐到 maxLen,空 cell 用 null(WPS spill null 显空白)
+            //   修法: 找到 maxLen,每行补齐到 maxLen,空 cell 用空字符串 '' (WPS spill '' 显空白)
+            // 🔧 v4.0.33 修正: 之前补 null 错了 — WPS spill null 也显 0
             if (!Array.isArray(result) || result.length === 0) return result;
             var __maxLen = 0;
             for (var __i = 0; __i < result.length; __i++) {
@@ -15342,10 +15341,10 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 for (var __k = 0; __k < __maxLen; __k++) {
                     if (__k < __row.length) {
                         var __v = __row[__k];
-                        // 空字符串转 null(避免 WPS spill 显 0)
-                        __copy[__k] = (__v === '' || __v === undefined) ? null : __v;
+                        // undefined 转空字符串(避免 WPS spill 显 0)
+                        __copy[__k] = (__v === undefined) ? '' : __v;
                     } else {
-                        __copy[__k] = null;
+                        __copy[__k] = '';
                     }
                 }
                 __aligned.push(__copy);
