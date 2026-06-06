@@ -5,9 +5,9 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.30 (2026年6月7日)
+ * 版本: 4.0.31 (2026年6月7日)
 
-【此版本为WPS现代版 v4.0.30】
+【此版本为WPS现代版 v4.0.31】
  * 【此版本为WPS现代版 v4.0.13】
  * 【此版本为WPS现代版 v4.0.12】
  * 【此版本为WPS现代版 v4.0.11】
@@ -21,6 +21,17 @@
  *
  * API文档: https://vbayyds.com/api/jsa880/
  *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.31 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] superPivot 单列字段(numColFieldLevels===1)表头生成: 行0/行1 每个 colKey 重复 numDataFields 次
+ *    - 根因: 之前每个 colKey 只 push 1 次到行0/行1,但行2 是 colKey × numDataFields 推
+ *      导致行0/行1 列数 = numColKeys,行2 列数 = numColKeys × numDataFields,val() 补 null 变 0
+ *      例如 colKeys=4 年,numDataFields=3,行0=4 列(应为 12),行1=4 列(应为 12),行2=12 列 ✓
+ *    - 修法: 行0/行1 套 for df in numDataFields 循环,与行2 对齐
+ *    - 列小计同样修复(每个小计占 numDataFields 列)
+ *    - 多列字段分支(>1)已有正确逻辑,不动
+ *    - 受益场景: 3.28 节 KO一切的k函数.xlsm "多层透视" J1 表头后 9 列不再显 0
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.30 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -14902,16 +14913,24 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             headerRows[1].push(getFieldTitle(colConfig.fields[0], 0, 'col'));
 
             // 行1: 列字段值
+            // 🔧 v4.0.31 修复: 行0 和 行1 也要按 numDataFields 重复 push
+            //   根因: 之前每个 colKey 只 push 1 次,导致行0/行1 列数 = numColKeys,行2 列数 = numColKeys × numDataFields
+            //         val() 后续 jagged 对齐补 null,但 superPivot 内部已不一致
+            //   修法: 行0 push colKeyParts[0] × numDataFields,行1 push '' × numDataFields
             for (var ck = 0; ck < colKeys.length; ck++) {
                 var colKeyParts = colKeys[ck].split(separator);
-                headerRows[0].push(colKeyParts[0]);
-                headerRows[1].push('');
+                for (var __dfCk = 0; __dfCk < numDataFields; __dfCk++) {
+                    headerRows[0].push(colKeyParts[0]);
+                    headerRows[1].push('');
+                }
             }
 
             // 列小计
             if (colSubtotals.enabled) {
-                headerRows[0].push(colSubtotals.label || '小计');
-                headerRows[1].push('');
+                for (var __dfSt = 0; __dfSt < numDataFields; __dfSt++) {
+                    headerRows[0].push(colSubtotals.label || '小计');
+                    headerRows[1].push('');
+                }
             }
 
             // 行3: 数据字段标题
