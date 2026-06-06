@@ -5,9 +5,9 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.33 (2026年6月7日)
+ * 版本: 4.0.34 (2026年6月7日)
 
-【此版本为WPS现代版 v4.0.33】
+【此版本为WPS现代版 v4.0.34】
  * 【此版本为WPS现代版 v4.0.13】
  * 【此版本为WPS现代版 v4.0.12】
  * 【此版本为WPS现代版 v4.0.11】
@@ -21,6 +21,12 @@
  *
  * API文档: https://vbayyds.com/api/jsa880/
  *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.34 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] superPivot 没数据时默认 nullValue 从 '' 改为 0(让 WPS 显 0 匹配用户 ideal)
+ * 2. [修复] 单列字段表头第 1 行 col 字段标题位置从 '' 改为 defaultDataTitles[0]
+ * 3. [诊断] dataRow 长度 + 内容日志
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.33 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -14922,8 +14928,9 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
 
             // 行0 中间: col 字段标题(年)
             headerRows[0].push(getFieldTitle(colConfig.fields[0], 0, 'col'));
-            // 行1 中间: dataField 标题(只 1 个,占用 col 字段标题的"垂直"位置)
-            headerRows[1].push('');
+            // 行1 中间: 第一个 dataField 标题(对应 col 字段标题"年"在行 0)
+            // 🔧 v4.0.34 修复: 之前 push '',ideal 应是 defaultDataTitles[0] (例如 "计数")
+            headerRows[1].push(defaultDataTitles[0] || '');
 
             // 行0 右侧: col 字段值(2021/2022/...)每个 × numDataFields 重复
             for (var ck = 0; ck < colKeys.length; ck++) {
@@ -15109,7 +15116,9 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     dataRow = dataRow.concat(agg);
                 } else {
                     for (var c = 0; c < numDataFields; c++) {
-                        dataRow.push(options.nullValue !== undefined ? options.nullValue : '');
+                        // 🔧 v4.0.34 修复: 默认 nullValue 从 '' 改为 0
+                        //   根因: 之前用 '' 让 val() 补空白,WPS spill 显空;用户 ideal 是显 0
+                        dataRow.push(options.nullValue !== undefined ? options.nullValue : 0);
                     }
                 }
             }
@@ -15124,6 +15133,12 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         }
         
         dataRows.push(dataRow);
+        // 🔧 v4.0.34 诊断: 打印前 3 行 dataRow 长度 + 内容
+        if (typeof Console !== 'undefined' && rk < 3) {
+            try {
+                Console.log('[k/v4.0.34] dataRow[' + rk + '].len=' + dataRow.length + ', content=' + JSON.stringify(dataRow).slice(0, 200));
+            } catch (__) {}
+        }
         prevRowKeyParts = rowKeyParts;
     }
     
