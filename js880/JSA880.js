@@ -5,9 +5,12 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.11 (2026年6月5日)
+ * 版本: 4.0.30 (2026年6月7日)
 
-【此版本为WPS现代版 v4.0.11】
+【此版本为WPS现代版 v4.0.30】
+ * 【此版本为WPS现代版 v4.0.13】
+ * 【此版本为WPS现代版 v4.0.12】
+ * 【此版本为WPS现代版 v4.0.11】
  * 【此版本为WPS现代版 v4.0.0】
  * - 移除所有Node.js兼容代码
  * - 移除所有浏览器兼容代码
@@ -18,6 +21,102 @@
  *
  * API文档: https://vbayyds.com/api/jsa880/
  *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.30 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] z筛选 字符串 fN 代理自动 trim — 修 superPivot 输出 f2 列带前导空格导致 .filter 失败
+ *    - 根因: superPivot row[3] 输出 f2="    Product1"(前导 4 空格),用户 .filter(x=>x.f2=='Product1')
+ *      严格相等匹配失败,所有数据行被过滤掉,只保留 i==0 表头 → val() 返回 1 行
+ *    - 修法: z筛选 构造 proxy 时,字符串自动 trim 后赋给 x.fN(原 __proxy[i] 保留未 trim 值)
+ *    - 受益场景: 3.28 节 KO一切的k函数.xlsm "多层透视 (2)" J1
+ *      =k("__KJ_ARGS__=...filter((x,i)=>i==0 || x.f2=='Product1')...",A1:H40,"count()")
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.29 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [诊断] z筛选 入口 + 每行判定日志 — 调试 (.filter((x,i)=>x.f2=='P1')) 只 1 行
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.28 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] __KJ_ARGS__ 宽松解析: 保护引号内逗号,避免 "f3,f2" 被切成 "f3" + "f2"
+ *    - 根因: v4.0.27 按外层 , 切键值对,值内含逗号(如 "f3,f2")被破坏
+ *      rowFields 被错误解析为 "f3" 而不是 "f3,f2",superPivot 收到不完整字段
+ *    - 修法: 切之前先把 "..." 内的 , 替换为占位符 __KJ_PLACEHOLDER__,切完还原
+ *    - 测试: T1-T6 全过(6/6)
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.27 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] __KJ_ARGS__ 严格 JSON.parse 失败时降级到宽松解析
+ *    - 根因: WPS 公式字符串 "" 配对吃引号,实际进 jsaLambda 的 __KJ_ARGS__ 形如
+ *      {rowFields:"f3,f2",colFields:"f6"} (字段名无引号),严格 JSON 要求字段名必须有引号
+ *    - 修法: 严格失败后,自己按 , 切键值对、按 : 切 key/value,自动去字段名/值的引号
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.26 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] __KJ_ARGS__ JSON 解析:反引号 → 双引号
+ *    - 根因: 用户在 WPS 公式中写 `f3,f2`(反引号),jsaLambda 收到仍是反引号,JSON.parse 不认
+ *    - 修法: 解析前先 .replace(/`/g, '"')
+ * 2. [修复] JSON parse 失败兜底也剔除 __KJ_ARGS__ 标记
+ *    - 根因: JSON 失败时只 log,没剔除,链式解析器把整段当 fn 编译 → Malformed arrow function
+ *    - 修法: catch 块也执行 fn = fn.replace(__kjMatch[0], '').trim()
+ * 3. [修复] fn 规范化:多空白字符 → 单个空格
+ *    - 根因: WPS 公式粘多行,fn 内部有 \n,new Function 编译时 arrow function body 跨行报错
+ *    - 修法: fn = fn.replace(/\s+/g, ' ').trim()
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.25 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [诊断] val() 加详细日志 — totalRows / maxLen / 前 2 行内容
+ *    调试 多层透视 (2).filter((x,i)=>i==0 || x.f2=='Product1') 只 spill 1 行的问题
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.24 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] v4.0.23 的 __KJ_ARGS__ 字段追加位置错 — 改用插队到 Range 之后
+ *    - 根因: v4.0.23 把提取的 rowFields/colFields/dataFields push 到 realArgs 头部(WPS args 之前)
+ *      WPS 传 args=[Range, "count()"],提取后变成 realArgs=["f3,f2","f6","count()",Range]
+ *      superPivot(arr, colFields, dataFields, Range) 顺序错位:
+ *        arr = "f3,f2" (string)
+ *        rowFields = "f6"
+ *        colFields = "count()"
+ *        dataFields = Range (undefined)
+ *    - 修法: 改为把字段插到 **第一个非 -r 参数(Range)之后** → realArgs = [Range, "f3,f2", "f6", "count()"]
+ *      superPivot(Range, "f3,f2", "f6", "count()") 顺序正确
+ *    - 关键证据: superPivot IN 显示 rowFields="f6"(应是 "f3,f2"),colFields=undefined,arr.t=string
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.23 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] jsaLambda 入口支持 __KJ_ARGS__={...} JSON 提取 — 解决 WPS 公式引擎丢 string 参数 bug
+ *    - 根因: WPS 公式 =k(fn, Range, s1, s2, s3) 多 string 参数中,引擎只传 4 个(丢 1 个)
+ *      验证: =k("$$...", A1:H40, "f3,f2", "f6", "count()...") → jsaLambda IN 显示
+ *            args=[<Range>, "f3,f2", "", "count()..."],"f6" 静默丢失
+ *      superPivot 因此收到 colFields="",不分组,只 spill 表头
+ *    - 修法: jsaLambda 入口从 fn 字符串中正则匹配 __KJ_ARGS__={...} JSON,自动注入到 realArgs
+ *      用法: =k("__KJ_ARGS__={\"rowFields\":\"f3,f2\",\"colFields\":\"f6\"}  (...args)=>$$...", A1:H40, "count()...")
+ *      WPS 只看到 3 个 string 参数(fn + 2 个),不再触发丢参
+ *      顺序: rowFields, colFields, dataFields, headerRows,然后是 args
+ *    - 向后兼容: 没用 __KJ_ARGS__ 标记的老公式完全不受影响
+ *    - 受益场景: 3.28 节 KO一切的k函数.xlsm "多层透视!J1" 公式
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.14 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [修复] _kParseChainableExpression: 放弃覆盖 Array.prototype.filter,
+ *    改用源码级重写——把链式最后一个 .filter / .map 的上游用 new Array2D(...) 包裹
+ *    - 根因: WPS JSA 沙箱可能拒绝给 Array.prototype 重新赋值,抛 TypeError,
+ *      被 jsaLambda 外层 catch 抓住,导致 jsaLambda 返回 null
+ *      单元格表现为 #K_ERR: pos=0, FN, msg="jsaLambda 返回 null/undefined"
+ *    - 修法: 解析时改写 expr,变成 (new Array2D(<上游>)).filter(<谓词>)
+ *      这样 .filter 自动走 Array2D.prototype.z筛选,继承构造函数注入的 f1/f2 访问器
+ *    - 不再覆盖 Array.prototype,WPS 沙箱无副作用
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.13 — 2026-06-07)
+ * ------------------------------------------------------------------------
+ * 1. [Bug] 链式调用 .filter((x,i)=>x.fN==...) 失败:谓词 x.fN 永远是 undefined
+ *    - 根因: _kParseChainableExpression 编译的 .filter 是 Array.prototype.filter,
+ *      而 superPivot 等链式上游返回的是普通 2D 数组(不是 Array2D 实例)
+ *    - 修复: 链式解析器临时把 Array.prototype.filter / map 重定向到
+ *      Array2D.z筛选 / z映射(只在本次 eval 范围,try/finally 还原)
+ *    - 同源问题: Array2D.prototype.z筛选 自身也缺 fN proxy,补上(与 z映射 行为对齐)
+ *    - 受益场景: 3.28 节 KO一切的k函数.xlsm "(多层透视 2)!J1"
+ *      =k("(...args)=>$$.superPivot(...args).filter((x,i)=>i==0 || x.f2=='Product1')", ...)
+ *    - 老用法(1D 数组 / 非函数回调)完全不受影响(走原生分支)
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.11 — 2026-06-05)
  * ------------------------------------------------------------------------
@@ -33,6 +132,14 @@
  * 7. [Bug] Array2D.agg switch/case: var 重声明 → let + 块作用域（2处）
  * 8. [Bug] SuperMap._aggregate switch/case: 同上修复
  * 9. [Bug] 全局 25 处 for(var k=) 循环变量重命名为 for(var ki=)，避免遮蔽顶层 UDF function k()
+ * 10. [修复] rangeMatrix v4.0.11 原地覆盖破坏课程 group-by 语义
+ *     - 原 rangeMatrix（L10628）是 group-by 聚合（按 keySelector 对 dataArrays 求和）
+ *     - v4.0.11 末尾（L18837）原地覆盖实现为元素级矩阵地址运算，与原版语义完全不同
+ *     - 课程第 3 章 3 个 rangeMatrix 示例（L3833-L3846 in JSA880_to_paste.js 教学版）全部依赖 group-by 语义
+ *     - 修复：保留原 group-by 实现不动；元素级版本独立为新函数 Array2D.rangeZip
+ *     - 同步导出 $.rangeZip / $.z区域对齐；不覆盖 $.rangeMatrix / $.z区域矩阵
+ *     - 课程 paste 板（JS880教案/第03章/3-25/JSA880_to_paste.js）的 rangeMatrix 行为回到 v3.8 group-by
+ *     - 新增 rangeZip 用于元素级矩阵 zip/对齐（替代 v4.0.11 错误位置的同名重写）
  *
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.10 — 2026-06-01)
@@ -2824,7 +2931,12 @@ function _kParseChainableExpression(expr) {
     if (!isChainable) return null;
 
     try {
-        // 编译成函数,让 $$ 通过 globalThis 访问
+        // 🔧 v4.0.14 关键: IIFE 内 var $$ = Array2D
+        //   用户的 lambda `(...args)=>$$.superPivot(...args).filter(...)` 中 $$ 是自由变量
+        //   lambda 词法作用域 = 这里 IIFE 内的 scope,通过 var $$ = Array2D 捕获
+        //   不加这句,lambda 调用时 $$ 未定义 → ReferenceError → jsaLambda 返回 null → #K_ERR
+        // v4.0.11 已有这个结构,v4.0.13 我误改成 __Array2D 参数就坏了
+        // 现在恢复 v4.0.11 结构,不再覆盖 Array.prototype (避免 WPS 沙箱拒绝)
         var fn = new Function('__args', 'return (function() {' +
                               '  var $$ = (typeof Array2D !== "undefined") ? Array2D : this.Array2D;' +
                               '  return (' + expr + ').apply(null, __args);' +
@@ -2852,20 +2964,127 @@ function _kParseChainableExpression(expr) {
  */
 JSA.jsaLambda = function(fn, ...args) {
     try {
-        // 1) 解析 -r：开关打开后，后续字符串参数都按 Range 地址转 Range 对象
-        var rangeMode = false;
+        // 0) 🔧 v4.0.24: 提前声明 realArgs, 让 __KJ_ARGS__ 提取 + -r 解析 + args 收集共用
         var realArgs = [];
+
+        // 0.5) 🔧 v4.0.24: 提取 __KJ_ARGS__ —— 解决 WPS 公式引擎吞字符串参数 bug
+        //   根因: WPS 公式 =k("$$...", A1:H40, "f3,f2", "f6", "count()...") 5 个 string
+        //         参数中,WPS 只传进来 4 个(其中一个被默默丢了),例如 "f6" 丢失
+        //   修法: 用户在第一个 fn 字符串中加注释式标记 __KJ_ARGS__={"rowFields":"f3,f2",...}
+        //         jsaLambda 入口先收集 WPS 传的 args 到 realArgs 头部,再把提取的字段追加到末尾
+        //         这样 (...args) 展开时,顺序仍是 [Range, ..., rowFields, colFields, dataFields, headerRows]
+        //   例: =k("__KJ_ARGS__={\"rowFields\":\"f3,f2\"}  (...args)=>$$...", A1:H40, "count()...")
+        //   WPS 传: args = [Range, "count()"]
+        //   提取后: realArgs = [Range, "count()", "f3,f2"]
+        //   (...args) 展开: superPivot(Range, "count()", "f3,f2") ❌
+        //   ❌ 上面的追加方案仍然不对,改用插队方案: 把 __KJ_ARGS__ 字段塞到 WPS args 中的 Range 之后
+        //   提取后: realArgs = [Range, "f3,f2", "count()"]
+        //   (...args) 展开: superPivot(Range, "f3,f2", "count()") → superPivot(arr, rowFields, dataFields) ✅
+        //   ⚠️ 用户公式必须按 [Range, 数据依赖字段, 其他字段] 顺序传 args
+        var __kjExtracted = null;
+        if (typeof fn === 'string') {
+            var __kjMatch = fn.match(/__KJ_ARGS__\s*=\s*(\{[\s\S]*?\})\s*/);
+            if (__kjMatch) {
+                var __kjJsonText = __kjMatch[1];
+                // 🔧 v4.0.27: 反引号 → 双引号
+                __kjJsonText = __kjJsonText.replace(/`/g, '"');
+                // 🔧 v4.0.27: 宽松 JSON 解析 — 字段名 / 字符串值都允许无引号
+                //   根因: WPS 公式字符串中 "" 配对外层,内部 " 经常被吞
+                //   用户的 __KJ_ARGS__ 实际进 jsaLambda 是 {rowFields:"f3,f2"} 而非 {"rowFields":"f3,f2"}
+                //   改: 先尝试标准 JSON.parse,失败则用宽松解析(给 field 名/字符串值自动加引号)
+                var __kj = null;
+                try {
+                    __kj = JSON.parse(__kjJsonText);
+                } catch (__kjE1) {
+                    if (typeof Console !== 'undefined') {
+                        try { Console.log('[k/v4.0.27] __KJ_ARGS__ 严格 JSON parse 失败: ' + __kjE1.message + ', json=' + __kjJsonText + ', 尝试宽松解析'); } catch (__) {}
+                    }
+                    // 宽松解析: 保护引号内的逗号(值可能含逗号如 "f3,f2"),然后按外层 , 切
+                    // 🔧 v4.0.28: 先把 "..." 内的 , 替换为占位符 __KJ_PLACEHOLDER__,切完还原
+                    __kj = {};
+                    var __kjProtected = __kjJsonText
+                        .replace(/^\{/, '')
+                        .replace(/\}$/, '')
+                        .replace(/"([^"]*)"/g, function(m, p1) { return '"' + p1.replace(/,/g, '__KJ_PLACEHOLDER__') + '"'; })
+                        .replace(/'([^']*)'/g, function(m, p1) { return "'" + p1.replace(/,/g, '__KJ_PLACEHOLDER__') + "'"; });
+                    var __kjEntries = __kjProtected.split(',');
+                    for (var __kei = 0; __kei < __kjEntries.length; __kei++) {
+                        var __kv = __kjEntries[__kei].split(':');
+                        if (__kv.length >= 2) {
+                            var __kjKey = __kv[0].trim().replace(/^["']|["']$/g, '');
+                            var __kjVal = __kv.slice(1).join(':').trim()
+                                .replace(/^["']|["']$/g, '')  // 去外层引号
+                                .replace(/__KJ_PLACEHOLDER__/g, ',');  // 还原占位符
+                            __kj[__kjKey] = __kjVal;
+                        }
+                    }
+                }
+                __kjExtracted = [];
+                if (typeof __kj.rowFields === 'string' && __kj.rowFields) __kjExtracted.push(__kj.rowFields);
+                if (typeof __kj.colFields === 'string' && __kj.colFields) __kjExtracted.push(__kj.colFields);
+                if (typeof __kj.dataFields === 'string' && __kj.dataFields) __kjExtracted.push(__kj.dataFields);
+                if (typeof __kj.headerRows !== 'undefined') __kjExtracted.push(__kj.headerRows);
+                // 把标记从 fn 中剔除
+                fn = fn.replace(__kjMatch[0], '').trim();
+            }
+        }
+        // 🔧 v4.0.26: 规范化 fn 中的换行符为单个空格(防止 WPS 公式粘多行导致 syntax error)
+        if (typeof fn === 'string') {
+            fn = fn.replace(/\s+/g, ' ').trim();
+        }
+
+        // 1) 解析 -r：开关打开后，后续字符串参数都按 Range 地址转 Range 对象
+        //    🔧 v4.0.24: 同时把 __KJ_ARGS__ 提取的字段插到 **第一个非 -r 参数之后**
+        //    典型场景: args = [Range, "count()"]  →  realArgs = [Range, "f3,f2", "f6", "count()"]
+        //    这样 (...args) 展开: superPivot(Range, "f3,f2", "f6", "count()") → 顺序对 ✅
+        var rangeMode = false;
+        var __kjInjected = false;
         for (var i = 0; i < args.length; i++) {
             var a = args[i];
             if (a === '-r' || a === '-R') {
                 rangeMode = true;
                 continue;
             }
+            // 先 push 当前参数(Range / string / whatever)
             if (rangeMode && typeof a === 'string' && /^\$?[A-Za-z]+[\d]+(:\$?[A-Za-z]+[\d]+)?$/.test(a)) {
                 realArgs.push(asRange(a));
             } else {
                 realArgs.push(a);
             }
+            // 🔧 v4.0.24: 第一个非 -r 参数(Range 本身)之后,立刻插队注入 __KJ_ARGS__ 字段
+            if (!__kjInjected && __kjExtracted && __kjExtracted.length > 0) {
+                for (var __ki = 0; __ki < __kjExtracted.length; __ki++) realArgs.push(__kjExtracted[__ki]);
+                __kjInjected = true;
+            }
+        }
+        // 🔧 v4.0.24 兜底: WPS 没传任何 args,__KJ_ARGS__ 仍需追加
+        if (!__kjInjected && __kjExtracted) {
+            for (var __ki2 = 0; __ki2 < __kjExtracted.length; __ki2++) realArgs.push(__kjExtracted[__ki2]);
+        }
+
+        // 1.5) 🔧 v4.0.22 诊断 — 看 jsaLambda 实际收到的 args
+        if (typeof Console !== 'undefined') {
+            try {
+                var __dumpArgs = [];
+                for (var __di = 0; __di < args.length; __di++) {
+                    var __a = args[__di];
+                    if (__a === null) __dumpArgs.push('null');
+                    else if (__a === undefined) __dumpArgs.push('undefined');
+                    else if (typeof __a === 'string') __dumpArgs.push('"' + __a + '"');
+                    else __dumpArgs.push('<' + typeof __a + '>');
+                }
+                var __dumpReal = [];
+                for (var __ri = 0; __ri < realArgs.length; __ri++) {
+                    var __ra = realArgs[__ri];
+                    if (__ra === null) __dumpReal.push('null');
+                    else if (__ra === undefined) __dumpReal.push('undefined');
+                    else if (typeof __ra === 'string') __dumpReal.push('"' + __ra + '"');
+                    else if (typeof __ra === 'function' || (typeof __ra === 'object' && __ra && typeof __ra.Address !== 'undefined')) __dumpReal.push('<Range>');
+                    else __dumpReal.push('<' + typeof __ra + '>');
+                }
+                Console.log('[k/v4.0.22] jsaLambda IN: fn=' + JSON.stringify(fn) + ', args=[' + __dumpArgs.join(', ') + '], argsLen=' + args.length);
+                Console.log('[k/v4.0.24] realArgs=[' + __dumpReal.join(', ') + '], realArgsLen=' + realArgs.length);
+            } catch (__) {}
         }
 
         // 2) 【v4.2.2 增强】WPS 公式引擎里不识别反引号（会报#NAME?），
@@ -2884,23 +3103,61 @@ JSA.jsaLambda = function(fn, ...args) {
             }
         }
 
-        // 2.6) 【v4.2.2 增强】智能参数转换：
-        //   a) 智能 Range -> Value2：WPS 公式只能传原始类型，传 Range 对象会让多数函数报错。
+        // 2.6) 【v4.2.2 增强】智能参数转换:
+        //   a) 智能 Range -> Value2:WPS 公式只能传原始类型,传 Range 对象会让多数函数报错。
         //      检测到 Range 对象自动取 .Value2
-        //   b) 1x1 2D 数组 flatten：WPS 公式传单值时实际是 [[v]] (1x1 二维)，flatten 为 v
-        //      例外：A1:A10 在 WPS 是 [[1],[2]] (Nx1 二维)，不能 flatten，否则 filter/map 崩溃
-        //   c) NxM / 1xN / Nx1 二维数组保持原样，交给 Array2D 方法处理
-        function smartUnwrap(v) {
-            // Range 对象检测 → 转 Value2
-            if (v && typeof v === 'object' && v.Address && typeof v.Value2 !== 'undefined' && v !== asRange(v)) {
-                try { return v.Value2; } catch (e) { return v; }
+        //   b) 1x1 2D 数组 flatten:WPS 公式传单值时实际是 [[v]] (1x1 二维),flatten 为 v
+        //      例外:A1:A10 在 WPS 是 [[1],[2]] (Nx1 二维),不能 flatten,否则 filter/map 崩溃
+        //   c) NxM / 1xN / Nx1 二维数组保持原样,交给 Array2D 方法处理
+        // 🔧 v4.0.14 修复: 2D 数组必须保证是真正的 JS Array(非 WPS host array)
+        //   WPS 的 Range.Value2 返回的数组通过 Array.isArray() 检查,但 .slice 可能是 undefined
+        //   (host array 只实现了部分 Array 方法)。superPivot 第一行就 arr.slice(dataStartRow),
+        //   报 "arr.slice is not a function" → jsaLambda 返回 null → #K_ERR
+        //   修法: 检测到数组缺少关键方法(.slice/.filter/.map)时, 用 JSON 往返或 Array.from 强转
+        // 🔧 v4.0.14 修复: 递归把 WPS host array 转成真正的 JS Array
+        //   现象: WPS 的 Range.Value2 返回 host array,Array.isArray() === true 但 .slice 是 undefined
+        //   即使外层数组的 .slice 存在,子行(host 1D array)的 .slice 也可能缺失
+        //   修法: 递归处理所有层级的数组(外层 + 子层),用 JSON 往返或手动 copy 强转
+        function _toRealArray(v) {
+            if (!Array.isArray(v)) return v;
+            // 已经是真正的 Array(原型上有 .slice + .map + .filter)就跳过
+            if (typeof v.slice === 'function' && typeof v.map === 'function' && typeof v.filter === 'function') {
+                return v;
             }
-            // 只有 1x1 2D 数组才 flatten → 单个原始值
-            // 例: WPS 公式 =k("f1", A1) 传过来 [[1]] → flatten 为 1
+            // host array, JSON 往返最稳
+            try {
+                var __s = JSON.stringify(v);
+                var __r = JSON.parse(__s);
+                if (Array.isArray(__r)) return __r;
+            } catch (__e1) {}
+            // 兜底: 手动 copy(也递归处理子数组)
+            try {
+                var __out = [];
+                for (var __i = 0; __i < v.length; __i++) {
+                    var __item = v[__i];
+                    __out.push(Array.isArray(__item) ? _toRealArray(__item) : __item);
+                }
+                return __out;
+            } catch (__e2) { return v; }
+        }
+        function smartUnwrap(v) {
+            // 🔧 v4.0.17: Range 对象检测改用 duck-typing,不依赖 typeof
+            //   根因: WPS 公式 =k("...", A1:H40, ...) 传给 JSA 的 Range 对象 typeof === 'function'(不是 'object')
+            //         v4.0.14 的 typeof v === 'object' 检测直接跳过,Range 直接传 superPivot
+            //         superPivot 内部 arr.slice(dataStartRow) 报 "arr.slice is not a function"
+            //   修法: 看 v 是否有 Address + Value2 属性(duck-typing),不查 typeof
+            if (v != null && typeof v.Address !== 'undefined' && typeof v.Value2 !== 'undefined' && v !== asRange(v)) {
+                try {
+                    var __vv = v.Value2;
+                    if (__vv && __vv !== v) v = __vv;
+                } catch (e) { return v; }
+            }
+            // 1x1 2D 数组 flatten
             if (Array.isArray(v) && v.length === 1 && Array.isArray(v[0]) && v[0].length === 1) {
                 return v[0][0];
             }
-            // 其他多行/多列 2D 数组保持原样 (N行M列是合法 2D 输入)
+            // 🔧 v4.0.14: 递归把任何 host array 转成真正的 JS Array
+            v = _toRealArray(v);
             return v;
         }
         for (var sk = 0; sk < realArgs.length; sk++) {
@@ -2909,13 +3166,63 @@ JSA.jsaLambda = function(fn, ...args) {
 
         // 3) 解析字符串为可执行函数
         // [v5.0.0] 链式调用检测
+        // 🔧 v4.0.14 恢复 v4.0.11 的链式解析器路径(IIFE 内 var $$ = Array2D,lambda 词法捕获)
         if (typeof fn === 'string' && /\.\s*(filter|map|slice|take|skip|sort|forEach|reduce|find|some|every)\s*\(/.test(fn)) {
             var chainParser = _kParseChainableExpression(fn);
+            // 🔧 v4.0.23 诊断: 链式解析失败时打印 fn 看是否被吃字符
+            if (typeof Console !== 'undefined') {
+                try {
+                    Console.log('[k/v4.0.23] chainParser=' + (chainParser ? 'OK' : 'NULL') +
+                        ', fn=' + JSON.stringify(fn));
+                } catch (__) {}
+            }
             if (chainParser) {
                 try {
-                    return chainParser(realArgs);
+                    var _chainResult = chainParser(realArgs);
+                    if (_chainResult !== null && _chainResult !== undefined) {
+                        // 🔧 v4.0.19: Array2D 实例 → unwrap 成普通 2D 数组
+                        //   根因: superPivot 返回 wrappedResult(Array2D 实例),WPS 公式 spill 不知
+                        //         怎么处理 Array2D 实例,只 spill 第 1 行。
+                        //   修法: 如果是 Array2D 实例,取 .val() 或 ._items 返回纯 2D 数组
+                        //         链式 .filter((x,i)=>i==0 || x.fN==...) 后是 Array2D,也 unwrap
+                        if (_chainResult instanceof Array2D) {
+                            try {
+                                if (typeof _chainResult.val === 'function') {
+                                    var __valOut = _chainResult.val();
+                                    if (typeof Console !== 'undefined') {
+                                        try {
+                                            Console.log('[k/v4.0.20] val() returned: isArr=' + Array.isArray(__valOut) +
+                                                ', len=' + (__valOut && __valOut.length !== undefined ? __valOut.length : 'n/a') +
+                                                ', rowLens=' + (function() { try { var rl=[]; for (var i=0; i<Math.min(3,__valOut.length); i++) rl.push(__valOut[i] && __valOut[i].length); return rl.join(','); } catch(e) { return '?'; } })());
+                                            // 🔧 v4.0.25 诊断: 打印前 2 行的实际内容
+                                            if (__valOut && __valOut.length > 0) {
+                                                var __row0 = JSON.stringify(__valOut[0]);
+                                                var __row1 = __valOut.length > 1 ? JSON.stringify(__valOut[1]) : '(none)';
+                                                Console.log('[k/v4.0.25] val() row[0]=' + __row0);
+                                                Console.log('[k/v4.0.25] val() row[1]=' + __row1);
+                                            }
+                                        } catch (__) {}
+                                    }
+                                    return __valOut;
+                                }
+                                if (_chainResult._items) return _chainResult._items;
+                            } catch (__ue) {}
+                        }
+                        return _chainResult;
+                    }
                 } catch (e) {
-                    if (typeof Console !== 'undefined') Console.log('链式执行失败:' + e.message);
+                    if (typeof Console !== 'undefined') {
+                        Console.log('[k/chain] 执行失败: ' + e.message);
+                        try { Console.log('[k/chain] STACK: ' + (e.stack || '(no stack)')); } catch (__) {}
+                        try {
+                            var __arr0 = realArgs[0];
+                            Console.log('[k/chain] args[0]: isArr=' + Array.isArray(__arr0) +
+                                ', t=' + typeof __arr0 +
+                                ', hasSlice=' + (Array.isArray(__arr0) ? (typeof __arr0.slice) : 'n/a') +
+                                ', len=' + (__arr0 && __arr0.length !== undefined ? __arr0.length : 'n/a') +
+                                ', keys=' + (function() { try { var k=[]; for (var x in __arr0) { if (k.length<6) k.push(x); } return k.join(','); } catch(e) { return '?'; } })());
+                        } catch (__) {}
+                    }
                     // 继续走原来的解析流程
                 }
             }
@@ -2923,7 +3230,13 @@ JSA.jsaLambda = function(fn, ...args) {
 
         var func = JSA.z解析函数表达式(fn);
         if (typeof func === 'function') {
-            return func.apply(null, realArgs);
+            var __mainRet = func.apply(null, realArgs);
+            // 🔧 v4.0.19: Array2D 实例 → 普通 2D 数组 unwrap(WPS spill 需 plain array)
+            if (__mainRet instanceof Array2D) {
+                try { if (typeof __mainRet.val === 'function') return __mainRet.val(); } catch (__e) {}
+                try { if (__mainRet._items) return __mainRet._items; } catch (__e) {}
+            }
+            return __mainRet;
         }
 
         // 3) 兜底：把 fn 当作完整JSA代码块执行（兼容极简场景）
@@ -6710,6 +7023,7 @@ createBilingualAliases(Array2D.prototype, [
     ['z透视', 'pivotBy'],
     ['z上下连接', 'concat'],
     ['z左连接', 'leftjoin'],
+    ['z内连接', 'innerjoin'],
     ['z一对多连接', 'leftFulljoin'],
     ['z左右全连接', 'fulljoin'],
     ['z左右连接', 'zip'],
@@ -7073,7 +7387,13 @@ Array2D.prototype.z转置 = function() {
         return this._new(result);
     }
     var rows = this._items.length;
-    var cols = this._items[0].length;
+    // XXD-21: 取所有行长度的最大值, 而不是首行长度, 否则首行较短的参差数组转置后会缺列
+    var cols = 0;
+    for (var k = 0; k < this._items.length; k++) {
+        if (Array.isArray(this._items[k])) {
+            cols = Math.max(cols, this._items[k].length);
+        }
+    }
     var result = [];
     for (var j = 0; j < cols; j++) {
         result[j] = [];
@@ -7541,15 +7861,53 @@ Array2D.prototype.z筛选 = function(predicate, skipHeader) {
     if (skipHeader && skipHeader > 0) {
         data = data.slice(skipHeader);
     }
-    
+
+    // 🔧 v4.0.29 诊断: 打印 z筛选 入口参数
+    if (typeof Console !== 'undefined') {
+        try {
+            Console.log('[k/v4.0.29] z筛选 IN: this._items.len=' + (this._items ? this._items.length : 'n/a') +
+                ', data.len=' + (data ? data.length : 'n/a') +
+                ', skipHeader=' + skipHeader +
+                ', pred.t=' + typeof predicate +
+                ', hasFn=' + (typeof predicate === 'function'));
+        } catch (__) {}
+    }
+
     // 处理对象参数形式（增强功能）
     if (predicate && typeof predicate === 'object' && !Array.isArray(predicate)) {
         return this._new(Array2D._filterByObject(data, predicate));
     }
-    
+
     const fn = typeof predicate === 'function' ? predicate : parseLambda(predicate);
     if (!fn) return this._new([]);
-    return this._new(data.filter(fn));
+    // 🔧 v4.0.13 修复: 为每行创建代理，支持 x.f1, x.f2 等语法（与 z映射 对齐）
+    var result = [];
+    for (var __fi = 0; __fi < data.length; __fi++) {
+        var __row = data[__fi];
+        var __proxy = Array.isArray(__row) ? __row.slice() : [__row];
+        // 🔧 v4.0.30 修复: superPivot 输出 f2 列带前导空格,做 trim 后再赋 fN
+        //   根因: 数据 "    Product1" 被 z筛选 严格匹配 'Product1' 失败
+        //   修法: 字符串自动 trim 后赋给 x.fN (同时保留原值)
+        for (var __fc = 0; __fc < __proxy.length; __fc++) {
+            var __cellVal = __proxy[__fc];
+            if (typeof __cellVal === 'string') {
+                __proxy['f' + (__fc + 1)] = __cellVal.replace(/^\s+|\s+$/g, '');
+            } else {
+                __proxy['f' + (__fc + 1)] = __cellVal;
+            }
+        }
+        // 🔧 v4.0.29 诊断: 打印每行判定结果
+        if (typeof Console !== 'undefined' && __fi < 5) {
+            try {
+                var __p = __proxy;
+                Console.log('[k/v4.0.30] z筛选 row[' + __fi + ']: f1=' + JSON.stringify(__p.f1) + ', f2=' + JSON.stringify(__p.f2) + ', rowLen=' + __p.length);
+            } catch (__) {}
+        }
+        if (fn(__proxy, __fi)) {
+            result.push(__row);
+        }
+    }
+    return this._new(result);
 };
 Array2D.prototype.filter = Array2D.prototype.z筛选;
 
@@ -8482,6 +8840,20 @@ Array2D.prototype.z多列排序 = function(sortParams, headerRows, customOrder) 
     var header = this._items.slice(0, headerRows);
     var data = this._items.slice(headerRows);
 
+    // 🔧 XXD-19 修复: 同步 wps-jsa-jsa880-agent 的类型检测。
+    // 数字字符串 ('2' / '10') 直接用 < / > 比较会走字符串序 ('10' < '2')，
+    // 需先归一化。规则：null/undefined/空串 → null；number/Date/数字字符串 → 数值；boolean → 0/1；其余按字符串。
+    function _coerceForSort(val) {
+        if (val === null || val === undefined) return null;
+        if (typeof val === 'number') return val;
+        if (typeof val === 'boolean') return val ? 1 : 0;
+        if (val instanceof Date) return val.getTime();
+        var s = String(val).trim();
+        if (s === '') return null;
+        if (/^-?\d+(\.\d+)?$/.test(s)) return parseFloat(s);
+        return s;
+    }
+
     // 排序
     data.sort(function(a, b) {
         for (var s = 0; s < sorts.length; s++) {
@@ -8501,8 +8873,16 @@ Array2D.prototype.z多列排序 = function(sortParams, headerRows, customOrder) 
                 }
             }
 
-            if (valA < valB) return sort.order === 1 ? -1 : 1;
-            if (valA > valB) return sort.order === 1 ? 1 : -1;
+            // 两侧都能归一为 number 时按数值序比较；否则回退到原始 < / >（字符串序）
+            var cA = _coerceForSort(valA);
+            var cB = _coerceForSort(valB);
+            if (typeof cA === 'number' && typeof cB === 'number') {
+                if (cA < cB) return sort.order === 1 ? -1 : 1;
+                if (cA > cB) return sort.order === 1 ? 1 : -1;
+            } else {
+                if (valA < valB) return sort.order === 1 ? -1 : 1;
+                if (valA > valB) return sort.order === 1 ? 1 : -1;
+            }
         }
         return 0;
     });
@@ -9052,22 +9432,100 @@ Array2D.prototype.z左连接 = function(brr, leftKeySelector, rightKeySelector, 
         resFn = function(a, b) { return a.concat(b || []); };
     }
 
+    // XXD-16: pre-build rightMap for O(M+N); leftjoin still takes the first match (preserves original behavior)
+    var rightMap = {};
+    for (var j = 0; j < brr.length; j++) {
+        var sk = String(rightFn(brr[j], j));
+        if (!rightMap[sk]) rightMap[sk] = [];
+        rightMap[sk].push(brr[j]);
+    }
+    // Cache this._items once: it's a getter that copies the data on every access (perf footgun)
+    var leftItems = this._items;
+    var leftLen = leftItems.length;
     var result = [];
-    for (var i = 0; i < this._items.length; i++) {
-        var leftRow = this._items[i];
+    for (var i = 0; i < leftLen; i++) {
+        var leftRow = leftItems[i];
         var leftKey = leftFn(leftRow, i);
-        var matched = null;
-        for (var j = 0; j < brr.length; j++) {
-            if (keysEqual(leftKey, rightFn(brr[j], j))) {
-                matched = brr[j];
-                break;
-            }
-        }
+        var rightRows = rightMap[String(leftKey)] || [];
+        var matched = rightRows[0] || null;
         result.push(resFn(leftRow.slice(), matched ? matched.slice() : []));
     }
     return this._new(result);
 };
 Array2D.prototype.leftjoin = Array2D.prototype.z左连接;
+
+/**
+ * 内连接（innerjoin）- 仅保留两表键匹配的行（多对多：左表每一匹配 × 右表每一匹配）
+ * 与 z左连接 的区别：未匹配的左表行不会以空右表形式输出。
+ * @param {Array} brr - 右表数组
+ * @param {string|Function} leftKeySelector - 左表键选择器
+ * @param {string|Function} rightKeySelector - 右表键选择器
+ * @param {Function} resultSelector - 结果选择器
+ * @returns {Array2D} 新实例
+ * @example
+ * arr.z内连接(brr, 'f1', 'f1')          // 默认拼接
+ * arr.innerjoin(brr, 'f1', 'f1', 'a.f1,b.f2')
+ */
+Array2D.prototype.z内连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return JSON.stringify(row); };
+    var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return JSON.stringify(row); };
+
+    // 处理 resultSelector：支持函数或字符串（如 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5'）
+    var resFn;
+    if (typeof resultSelector === 'function') {
+        resFn = resultSelector;
+    } else if (typeof resultSelector === 'string' && resultSelector) {
+        var parts = resultSelector.split(',').map(function(s) { return s.trim(); });
+        var selectors = parts.map(function(part) {
+            var match = part.match(/^([ab])\.f(\d+)$/i);
+            if (match) {
+                return {
+                    table: match[1].toLowerCase(), // 'a' 或 'b'
+                    colIndex: parseInt(match[2]) - 1 // 0-based 索引
+                };
+            }
+            return null;
+        }).filter(function(s) { return s !== null; });
+
+        resFn = function(leftRow, rightRow) {
+            var result = [];
+            for (var s = 0; s < selectors.length; s++) {
+                var sel = selectors[s];
+                var row = sel.table === 'a' ? leftRow : rightRow;
+                if (row && sel.colIndex >= 0 && sel.colIndex < row.length) {
+                    result.push(row[sel.colIndex]);
+                } else {
+                    result.push(null);
+                }
+            }
+            return result;
+        };
+    } else {
+        // 默认：直接拼接
+        resFn = function(a, b) { return a.concat(b || []); };
+    }
+
+    // pre-build rightMap for O(M+N)
+    var rightMap = {};
+    for (var j = 0; j < brr.length; j++) {
+        var sk = String(rightFn(brr[j], j));
+        if (!rightMap[sk]) rightMap[sk] = [];
+        rightMap[sk].push(brr[j]);
+    }
+
+    var result = [];
+    for (var i = 0; i < this._items.length; i++) {
+        var leftRow = this._items[i];
+        var leftKey = leftFn(leftRow, i);
+        var rightRows = rightMap[String(leftKey)] || [];
+        // inner join: 仅当存在匹配时输出；多对多时输出所有组合
+        for (var k = 0; k < rightRows.length; k++) {
+            result.push(resFn(leftRow.slice(), rightRows[k].slice()));
+        }
+    }
+    return this._new(result);
+};
+Array2D.prototype.innerjoin = Array2D.prototype.z内连接;
 
 /**
  * 左右全连接（fulljoin）- 全外连接
@@ -10403,9 +10861,9 @@ Array2D.prototype.takeWhile = Array2D.prototype.z取前面连续满足;
  */
 Array2D.prototype.z去重并集 = function(brr, leftSelector, rightSelector) {
     var arr = this._items || this;
-    if (!Array.isArray(arr)) return brr || [];
+    if (!Array.isArray(arr)) return this._new(brr || []);
     var result = arr.slice();
-    if (!brr || !brr.length) return result;
+    if (!brr || !brr.length) return this._new(result);
     var leftKeySelector = leftSelector || (function(x) { return x; });
     var rightKeySelector = rightSelector || leftKeySelector;
     var leftKeys = arr.map(leftKeySelector);
@@ -10417,7 +10875,7 @@ Array2D.prototype.z去重并集 = function(brr, leftSelector, rightSelector) {
             result.push(brr[i]);
         }
     }
-    return result;
+    return this._new(result);
 };
 Array2D.prototype.union = Array2D.prototype.z去重并集;
 
@@ -11208,7 +11666,15 @@ Array2D.groupInto = function(arr, keySelector, valueSelector, separator) {
 
         var defs = [];
         for (var p = 0; p < parts.length; p++) {
-            var m = parts[p].match(/(sum|count|average|avg|max|min|textjoin|平方和)\s*\(\s*([^)]*)\s*\)/i);
+            // XXD-15: 裸名 sum/avg/max/min/textjoin/平方和 无参语义不明确,显式 throw;
+            // 裸名 count 无参 = 行数,合法。
+            var bareCount = parts[p].match(/^\s*count\s*$/i);
+            if (bareCount) { defs.push({ func: 'count', args: [] }); continue; }
+            var bareOther = parts[p].match(/^\s*(sum|average|avg|max|min|textjoin|平方和)\s*$/i);
+            if (bareOther) {
+                throw new Error('groupInto: 聚合函数 ' + bareOther[1] + ' 需要参数');
+            }
+            var m = parts[p].match(/(sum|count|average|avg|max|min|textjoin|qctextjoin|平方和)\s*\(\s*([^)]*)\s*\)/i);
             if (m) {
                 var fn = m[1].toLowerCase();
                 var argsStr = m[2].trim();
@@ -12167,6 +12633,22 @@ Array2D.leftjoin = function(arr, brr, leftKey, rightKey, resultSelector) {
 Array2D.z左连接 = Array2D.leftjoin;
 
 /**
+ * 静态方法：内连接（innerjoin）- 类似SQL的INNER JOIN
+ * @param {Array} arr - 左表
+ * @param {Array} brr - 右表
+ * @param {String|Function} leftKey - 左表关键字
+ * @param {String|Function} rightKey - 右表关键字
+ * @param {String|Function} resultSelector - 结果选择器
+ * @returns {Array} 仅含两表键匹配行的二维数组
+ * @example
+ * Array2D.innerjoin(arr, brr, 'f1', 'f1', 'a.f1,b.f2')
+ */
+Array2D.innerjoin = function(arr, brr, leftKey, rightKey, resultSelector) {
+    return new Array2D(arr).z内连接(brr, leftKey, rightKey, resultSelector);
+};
+Array2D.z内连接 = Array2D.innerjoin;
+
+/**
  * 静态方法：排除（except）- 获取在arr中但不在brr中的元素
  * @param {Array} arr - 数组1
  * @param {Array} brr - 数组2
@@ -13017,6 +13499,7 @@ var _STATIC_METHOD_CONFIG = [
 
     // 连接类 - 返回数组
     ['leftjoin', 'z左连接', 'z左连接', 'array'],
+    ['innerjoin', 'z内连接', 'z内连接', 'array'],
     ['fulljoin', 'z左右全连接', 'z左右全连接', 'array'],
     ['leftFulljoin', 'z一对多连接', 'z一对多连接', 'array'],
     ['zip', 'z左右连接', 'z左右连接', 'array'],
@@ -13278,6 +13761,71 @@ Array2D.z按范围选择 = Array2D.rangeSelect;
  * var rs = Array2D.z超级透视(arr, ['f1,f5,f6','期数,年,月'], ['f2','国家'], [[g=>g.count(),g=>g.sum("f3")],'计数,求和'], 2, 'map');
  */
 Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRows, outputHeader, separator, options) {
+    // 🔧 v4.0.21: 诊断日志 — 看 superPivot 实际收到的参数
+    if (typeof Console !== 'undefined') {
+        try {
+            Console.log('[k/v4.0.21] superPivot IN: arr.t=' + typeof arr +
+                ', arrLen=' + (arr && arr.length !== undefined ? arr.length : 'n/a') +
+                ', rowFields=' + JSON.stringify(rowFields) +
+                ', colFields=' + JSON.stringify(colFields) +
+                ', dataFields=' + JSON.stringify(dataFields) +
+                ', headerRows=' + JSON.stringify(headerRows));
+        } catch (__) {}
+    }
+
+    // 🔧 v4.0.18: WPS Range 对象 → Value2 转换 + WPS host array → 真 Array 强转
+    //   根因: WPS 公式 =k("(...args)=>$.superPivot(...args).filter(...)") 传给 JSA 的 Range 对象
+    //         typeof === 'function' (不是 'object'),且 smartUnwrap 调 .Value2 仍可能调不通
+    //         直接传给 superPivot → arr.slice(dataStartRow) 报 "arr.slice is not a function"
+    //   修法 (双重保险):
+    //     1) superPivot 入口先做 Range duck-typing 检测(看 Address/Value2/Cells 任一),有就 .Value2
+    //     2) 然后用 try { arr.slice(0) } 探针看是不是 host array,不是就 JSON 强转
+    //   这样不依赖 jsaLambda 层的 smartUnwrap,superPivot 自己处理 Range/host array
+
+    // (1) Range 检测(duck-typing:不依赖 typeof)
+    if (arr != null && !(arr instanceof Array2D)) {
+        var __looksLikeRange = (typeof arr.Address !== 'undefined') ||
+                               (typeof arr.Value2 !== 'undefined') ||
+                               (typeof arr.Cells !== 'undefined') ||
+                               (typeof arr.Worksheet !== 'undefined') ||
+                               (typeof arr.Row !== 'undefined');
+        if (__looksLikeRange && !Array.isArray(arr)) {
+            try {
+                if (typeof arr.Value2 !== 'undefined') {
+                    var __vv = arr.Value2;
+                    if (__vv && __vv !== arr) arr = __vv;
+                }
+            } catch (__re1) {}
+            if (!Array.isArray(arr)) {
+                try {
+                    if (typeof arr.Value !== 'undefined') {
+                        var __vv2 = arr.Value;
+                        if (__vv2 && __vv2 !== arr) arr = __vv2;
+                    }
+                } catch (__re2) {}
+            }
+        }
+    }
+
+    // (2) host array → 真 Array 强转(用 try 探针)
+    if (Array.isArray(arr) && !(arr instanceof Array2D)) {
+        var __isRealArr = true;
+        try {
+            var __probe = arr.slice(0);
+            if (!Array.isArray(__probe)) __isRealArr = false;
+        } catch (__probeErr) {
+            __isRealArr = false;
+        }
+        if (!__isRealArr) {
+            try {
+                var __hp = JSON.parse(JSON.stringify(arr));
+                if (Array.isArray(__hp)) arr = __hp;
+            } catch (__he1) {
+                try { arr = Array.from(arr); } catch (__he2) {}
+            }
+        }
+    }
+
     // 🔧 v4.0.10: 检测新式调用：第5参数为 options 对象
     if (headerRows !== undefined && headerRows !== null && typeof headerRows === 'object' && !Array.isArray(headerRows)) {
         // 新式调用: z超级透视(arr, rowFields, colFields, dataFields, options)
@@ -14755,10 +15303,46 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         };
 
         /**
-         * val - 获取原始数组
-         * @returns {Array} 原始数组
+         * val - 获取原始数组(经过 jagged 对齐,空 cell 显式置 null)
+         * @returns {Array} 对齐后的 2D 数组(每行等长,WPS spill 不会把空 cell 显 0)
          */
-        wrappedResult.val = function() { return result; };
+        wrappedResult.val = function() {
+            // 🔧 v4.0.20: 多层表头各行长短不一,jagged 数组在 WPS spill 时空 cell 会显 0
+            //   修法: 找到 maxLen,每行补齐到 maxLen,空 cell 用 null(WPS spill null 显空白)
+            if (!Array.isArray(result) || result.length === 0) return result;
+            var __maxLen = 0;
+            for (var __i = 0; __i < result.length; __i++) {
+                if (result[__i] && result[__i].length > __maxLen) __maxLen = result[__i].length;
+            }
+            if (__maxLen === 0) return result;
+            var __aligned = [];
+            for (var __j = 0; __j < result.length; __j++) {
+                var __row = result[__j];
+                if (!Array.isArray(__row)) { __aligned.push(__row); continue; }
+                var __copy = new Array(__maxLen);
+                for (var __k = 0; __k < __maxLen; __k++) {
+                    if (__k < __row.length) {
+                        var __v = __row[__k];
+                        // 空字符串转 null(避免 WPS spill 显 0)
+                        __copy[__k] = (__v === '' || __v === undefined) ? null : __v;
+                    } else {
+                        __copy[__k] = null;
+                    }
+                }
+                __aligned.push(__copy);
+            }
+            // 🔧 v4.0.25 诊断: 打印 val() 后的实际对齐结果
+            if (typeof Console !== 'undefined') {
+                try {
+                    var __rowLens = [];
+                    for (var __ri = 0; __ri < Math.min(3, __aligned.length); __ri++) {
+                        __rowLens.push(__aligned[__ri] && __aligned[__ri].length);
+                    }
+                    Console.log('[k/v4.0.25] val() aligned: totalRows=' + __aligned.length + ', maxLen=' + __maxLen + ', firstRowLens=' + __rowLens.join(','));
+                } catch (__) {}
+            }
+            return __aligned;
+        };
 
         /**
          * res - 获取原始数组（val的别名）
@@ -17401,7 +17985,11 @@ var StrUtils = {
         separator = separator || "";
         if (typeof parts === "string") return parts;
         var result = "";
-        for (var i = 0; i < parts.length; i++) { if (i > 0) result += separator; result += String(parts[i] || ""); }
+        for (var i = 0; i < parts.length; i++) {
+            if (i > 0) result += separator;
+            var v = parts[i];
+            result += (v === null || v === undefined) ? "" : String(v);
+        }
         return result;
     },
     repeat: function(str, count) {
@@ -17924,7 +18512,7 @@ SuperMap.z分组统计 = function(arr, groupCol, statsConfig) {
         }
     }
     var groups = {};
-    for (var i = 0; i < dataRows.length; i++) { var row = dataRows[i]; var key = String(row[groupIdx] || ""); if (!groups[key]) groups[key] = []; groups[key].push(row); }
+    for (var i = 0; i < dataRows.length; i++) { var row = dataRows[i]; var key = (row[groupIdx] == null) ? '__NULL__' : String(row[groupIdx]); if (!groups[key]) groups[key] = []; groups[key].push(row); }
     var resultHeader = [groupHeader];
     for (var s = 0; s < stats.length; s++) resultHeader.push(stats[s].headerName + "_" + stats[s].aggType);
     var result = [resultHeader]; var keys = [];
@@ -18746,10 +19334,13 @@ if (typeof Range !== 'undefined') {
     };
 }
 
-// v4.0.11: $$ 方法同步 + rangeMatrix 增强（矩阵元素级运算）
+// v4.0.11: $$ 方法同步 + rangeZip 新增（矩阵元素级运算；原 rangeMatrix 元素级重写迁出，避免破坏课程 group-by 语义）
 (function() {
     // 同步 $$ 到 Array2D
-    var methods = ['rangeSelect','rangeMap','rangeMatrix','filter','selectCols','sortByCols',
+    // 注意：rangeMatrix 不在此处同步 —— 它在 L10628 已定义并保持 group-by 语义，$$ 同步已在
+    // v4.0.11 早段（L5002-L5006）通过 $.rangeMatrix = Array2D.rangeMatrix 完成。
+    // rangeZip 是 v4.0.11 元素级矩阵运算新名字，需要 $$ 同步。
+    var methods = ['rangeSelect','rangeMap','rangeZip','filter','selectCols','sortByCols',
         'distinct','groupInto','leftjoin','leftFulljoin','deleteCols','deleteRows'];
     for (var i = 0; i < methods.length; i++) {
         var m = methods[i];
@@ -18833,16 +19424,20 @@ if (typeof Range !== 'undefined') {
     $.rangeMap = Array2D.rangeMap;
     $.z区域映射 = $.rangeMap;
     
-    // ====== rangeMatrix 重写（元素级矩阵运算）====== 
-    Array2D.rangeMatrix = function(arr, keySelector, dataArrays, aggregator) { 
+    // ====== rangeZip 新增（元素级矩阵运算，原 v4.0.11 rangeMatrix 重写迁出）======
+    // 命名说明：原 rangeMatrix 在 L10628 已是 group-by 聚合函数（按 keySelector 分组，
+    // 对 dataArrays 求和/聚合），v4.0.11 在此处原地覆盖为元素级矩阵地址运算，导致课程
+    // 第 3 章 3 个 rangeMatrix 示例行为不正确。本函数保留元素级语义，命名为 rangeZip
+    // （两区域元素级对齐/zip 的含义更直观），原 rangeMatrix 保持 group-by 语义。
+    Array2D.rangeZip = function(arr, keySelector, dataArrays, aggregator) {
         // 提取 _items
         if (arr && arr._items) arr = arr._items;
         if (!arr || !Array.isArray(arr)) return [];
-        
+
         // 解析 arr 地址
         var a = (typeof keySelector === 'string') ? _pa(keySelector, arr) : null;
         if (!a) return arr; // 地址解析失败，返回原数组
-        
+
         // 解析第二个数据源：支持 [brr, addr] 或直接 brr
         var brr = null, b = null;
         if (Array.isArray(dataArrays) && dataArrays.length >= 2 && typeof dataArrays[1] === 'string') {
@@ -18854,7 +19449,7 @@ if (typeof Range !== 'undefined') {
             if (brr && brr._items) brr = brr._items;
         }
         if (!brr || !Array.isArray(brr)) return arr;
-        
+
         // brr 自动扩展
         var bRows = a.rc, bCols = a.cc;
         if (typeof brr === 'number' || typeof brr === 'string' || (brr !== null && !Array.isArray(brr))) {
@@ -18869,10 +19464,10 @@ if (typeof Range !== 'undefined') {
             b = {rs:0,cs:0,rc:bRows,cc:bCols};
         }
         if (!b) b = {rs:0, cs:0, rc: brr.length, cc: brr[0] ? brr[0].length : 0};
-        
+
         // 深拷贝 arr
         var result = []; for (var i=0;i<arr.length;i++) result[i] = arr[i].slice();
-        
+
         // 元素级运算（取两个区域的最大公共范围）
         var re = Math.min(a.rs + a.rc, b.rs + b.rc, arr.length);
         for (var i = a.rs; i < re; i++) {
@@ -18891,8 +19486,8 @@ if (typeof Range !== 'undefined') {
         }
         return result;
     };
-    $.rangeMatrix = Array2D.rangeMatrix;
-    $.z区域矩阵 = $.rangeMatrix;
+    $.rangeZip = Array2D.rangeZip;
+    $.z区域对齐 = $.rangeZip;
 })();
 
 // ==================== 完成打印 ====================
