@@ -3042,8 +3042,10 @@ JSA.jsaLambda = function(fn, ...args) {
                 //   用户的 __KJ_ARGS__ 实际进 jsaLambda 是 {rowFields:"f3,f2"} 而非 {"rowFields":"f3,f2"}
                 //   改: 先尝试标准 JSON.parse,失败则用宽松解析(给 field 名/字符串值自动加引号)
                 var __kj = null;
+                var __kjStrictOk = false; // 🔧 [XXD-51] 跟踪严格 JSON.parse 是否成功(用来区分 "宽松解析只是空对象" vs "__KJ_ARGS__={} 正常")
                 try {
                     __kj = JSON.parse(__kjJsonText);
+                    __kjStrictOk = true;
                 } catch (__kjE1) {
                     if (typeof Console !== 'undefined') {
                         try { Console.log('[k/v4.0.27] __KJ_ARGS__ 严格 JSON parse 失败: ' + __kjE1.message + ', json=' + __kjJsonText + ', 尝试宽松解析'); } catch (__) {}
@@ -3068,13 +3070,28 @@ JSA.jsaLambda = function(fn, ...args) {
                         }
                     }
                 }
+                // 🔧 [XXD-51] 严格 JSON.parse 失败 且 宽松解析也没拿到任何键(输入非空) → 抛 K_ERR 提示用户
+                //   旧行为:__kj 留空 {} → __kjExtracted=[] → fn 标记**还是被剥了** → 用户以为传了实际没传
+                //   新行为:显式抛 PARSE 错,外层 JSA.k 兜成 "#K_ERR: pos=0, FN, msg=\"...__KJ_ARGS__ 解析失败: ...\""
+                //   注意:__KJ_ARGS__={} 走的是 __kjStrictOk=true 分支,这里不会触发 throw
+                if (!__kjStrictOk) {
+                    var __kjKeys = __kj ? Object.keys(__kj) : [];
+                    if (__kjKeys.length === 0 && __kjJsonText && __kjJsonText.length > 0) {
+                        var __kjErr = new Error('__KJ_ARGS__ 解析失败: ' + __kjJsonText.substring(0, 200));
+                        __kjErr.__kCode = 'PARSE';
+                        throw __kjErr;
+                    }
+                }
                 __kjExtracted = [];
                 if (typeof __kj.rowFields === 'string' && __kj.rowFields) __kjExtracted.push(__kj.rowFields);
                 if (typeof __kj.colFields === 'string' && __kj.colFields) __kjExtracted.push(__kj.colFields);
                 if (typeof __kj.dataFields === 'string' && __kj.dataFields) __kjExtracted.push(__kj.dataFields);
                 if (typeof __kj.headerRows !== 'undefined') __kjExtracted.push(__kj.headerRows);
-                // 把标记从 fn 中剔除
-                fn = fn.replace(__kjMatch[0], '').trim();
+                // 🔧 [XXD-51] 守卫 fn 标记剥除 — 仅当真的提取到字段时才剥
+                //   __KJ_ARGS__={} 时 __kjExtracted=[] → 保留标记在 fn 里,提示用户这是空对象(下游会按语法错兜底,而不是悄悄传错)
+                if (__kjExtracted.length > 0) {
+                    fn = fn.replace(__kjMatch[0], '').trim();
+                }
             }
         }
         // 🔧 v4.0.26: 规范化 fn 中的换行符为单个空格(防止 WPS 公式粘多行导致 syntax error)
@@ -3295,6 +3312,9 @@ JSA.jsaLambda = function(fn, ...args) {
         }
         return null;
     } catch (e) {
+        // 🔧 [XXD-51] 透传已标记的 K_ERR 类错误(__kCode 设过)给 JSA.k 兜成 #K_ERR 字符串
+        //   否则在 HEAD 这层 catch 会把 __KJ_ARGS__ 解析失败 等提示吞掉,函数返回 null,用户看不到
+        if (e && e.__kCode) throw e;
         console.warn('jsaLambda 执行失败:', e && e.message ? e.message : e);
         return null;
     }
