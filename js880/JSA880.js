@@ -38,6 +38,12 @@
  *    - 受益: 'f1，f2，f3' 格式的列选择器在所有受影响函数中正常工作
  *    - 注意: z批量填充(cols 参数为数字,非列选择器)无需修改; z批量删除列 includes(',') 单列判断已修复 (XXD-78/XXD-79)
  *    - 追加: z内连接/z左连接/z右连接/z一对多连接 4 处 resultSelector.split(',') → split(/[,，]/)
+ *
+ * 3. [修复] XXD-102 XXD-103: DateUtils.z日期格式化 中文格式抛错
+ *    - 根因: z日期格式化 签名 (jsdate, fmt) 但原型链调用时仅传入1参,fmt为undefined
+ *    - 修法: 函数顶部加原型链兼容守卫,推断原型链调用模式回退到 this._date
+ *    - 受益: DateUtils(d).z日期格式化('yyyy年MM月dd日') 等中文格式不再抛错
+ *    - 兼容: 原有两参调用路径行为不变
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.36 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -1970,8 +1976,16 @@ RngUtils.z多列排序 = function(rng, sortParams, headerRows, customOrder) {
                 }
             }
 
-            if (valA < valB) return sort.order === 1 ? -1 : 1;
-            if (valA > valB) return sort.order === 1 ? 1 : -1;
+            if (typeof valA === 'string' && typeof valB === 'string') {
+                var strA = valA.toLowerCase();
+                var strB = valB.toLowerCase();
+                if (strA < strB) return sort.order === 1 ? -1 : 1;
+                if (strA > strB) return sort.order === 1 ? 1 : -1;
+            } else {
+                if (valA < valB) return sort.order === 1 ? -1 : 1;
+                if (valA > valB) return sort.order === 1 ? 1 : -1;
+            }
+
         }
         return 0;
     });
@@ -3340,19 +3354,59 @@ JSA.jsaLambda = function(fn, ...args) {
     }
 };
 /**
+ * [v5.x, XXD-103/104] _safeJsonStringify — JSON.stringify 安全包装
+ * 处理原生 JSON.stringify 在 WPS JSA 环境中的边界行为:
+ * 1. undefined → 返回 undefined (不抛错)
+ * 2. BigInt → 透传原生 TypeError (不包装错误信息)
+ * 3. NaN/Infinity → 原生行为返回 'null' (不干预)
+ * @param {*} val - 要序列化的值
+ * @param {Function|Array} [replacer] - 替换函数或数组
+ * @param {number|string} [space] - 缩进空格数或字符串
+ * @returns {string|undefined} JSON 字符串,或 undefined(输入为 undefined 时)
+ */
+function _safeJsonStringify(val, replacer, space) {
+    // 规则1: undefined 直接返回 undefined,匹配原生 JSON.stringify(undefined) 行为
+    if (typeof val === 'undefined') return undefined;
+    // 规则2: BigInt 原生 TypeError 直接透传(JSON.stringify 自身会抛),不额外包装
+    // 规则3: NaN/Infinity 原生就返回 'null',不干预
+    return JSON.stringify(val, replacer, space);
+}
+
+/**
  * [v5.0.0] JSA.k — k() 的完整实现(shim 给顶层 function k 调)
  *
  * 比 jsaLambda 多两层:
  *   1. fn / args 预处理(其实 jsaLambda 内部已做大部分,这里加保险)
  *   2. 错误位置化:#K_ERR: pos=N, KIND, msg="..."
  *
- * @param {string|Function} fn - 字符串函数表达式 / 路径 / Lambda
- * @param {...any} args - 后续参数
+ * [v4.0.42] 新增 options object 模式:
+ *   k({fn:'...', range:'A1:D40', rowFields:'f3,f2', ...})
+ *   第一个参数是非空对象 + 有 fn 属性 → 走 options object 模式,否则走原来 positional 模式
+ *
+ * @param {string|Function|Object} fn - 字符串函数表达式 / 路径 / Lambda / options object
+ * @param {...any} args - 后续参数(仅 positional 模式)
  * @returns {*} 函数结果;失败返回 "#K_ERR: ..."
  */
 JSA.k = function(fn) {
     var args = [];
-    for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+
+    // [v4.0.42] options object 模式: 第一个参数是非空对象+有fn属性→options模式,否则positional模式(向后兼容)
+    if (typeof fn === 'object' && fn !== null && !Array.isArray(fn) && fn.fn !== undefined) {
+        var opts = fn;
+        fn = opts.fn;
+        // range 优先放第一个参数位
+        if (opts.range !== undefined) {
+            args.push(opts.range);
+        }
+        // 其余属性按插入顺序追加(排除 fn 和 range)
+        for (var key in opts) {
+            if (key !== 'fn' && key !== 'range' && Object.prototype.hasOwnProperty.call(opts, key)) {
+                args.push(opts[key]);
+            }
+        }
+    } else {
+        for (var i = 1; i < arguments.length; i++) args.push(arguments[i]);
+    }
 
     // 0) 必传检查
     if (typeof fn === 'undefined' || fn === null || fn === '') {
@@ -4127,6 +4181,25 @@ function RangeChain(rng, colIndex) {
 RangeChain.prototype.Value = function() {
     return this._range;
 };
+/**
+ * toJSON - JSON 序列化支持(XXD-103/104)
+ * 当 RangeChain 实例被传入 JSON.stringify 时,返回其数据的简化表示
+ * @returns {Object|null} {address, value2, row, column} 或 null(无底层 Range 时)
+ */
+RangeChain.prototype.toJSON = function() {
+    if (!this._range) return null;
+    try {
+        return {
+            address: this._range.Address ? this._range.Address() : '',
+            value2: this._range.Value2,
+            row: this._range.Row,
+            column: this._range.Column
+        };
+    } catch (e) {
+        return { address: '', value2: null, row: 0, column: 0 };
+    }
+};
+
 
 /**
  * Value2 - 获取/设置值（Value2属性）
@@ -7942,7 +8015,7 @@ Array2D.prototype.forEachRev = Array2D.prototype.z倒序遍历执行;
  * @example
  * Array2D([1,2,3,4]).z筛选('x=>x>2')  // [3,4]
  */
-Array2D.prototype.z筛选 = function(predicate, skipHeader) {
+Array2D.prototype.z筛选 = function(/* TEST */) {
     // 🔧 v3.7.9 修复: 如果没有指定 skipHeader 但对象有 _header 属性，自动设为 1
     if (skipHeader === undefined && '_header' in this && this._header !== undefined) {
         skipHeader = 1;
@@ -8983,8 +9056,16 @@ Array2D.prototype.z多列排序 = function(sortParams, headerRows, customOrder) 
                 if (cA < cB) return sort.order === 1 ? -1 : 1;
                 if (cA > cB) return sort.order === 1 ? 1 : -1;
             } else {
-                if (valA < valB) return sort.order === 1 ? -1 : 1;
-                if (valA > valB) return sort.order === 1 ? 1 : -1;
+                if (typeof valA === 'string' && typeof valB === 'string') {
+                    var strA = valA.toLowerCase();
+                    var strB = valB.toLowerCase();
+                    if (strA < strB) return sort.order === 1 ? -1 : 1;
+                    if (strA > strB) return sort.order === 1 ? 1 : -1;
+                } else {
+                    if (valA < valB) return sort.order === 1 ? -1 : 1;
+                    if (valA > valB) return sort.order === 1 ? 1 : -1;
+                }
+
             }
         }
         return 0;
@@ -9041,6 +9122,163 @@ Array2D.prototype.z自定义排序 = function(colIndex, orderList, headerRows) {
     return this._new(header.concat(data));
 };
 Array2D.prototype.sortByList = Array2D.prototype.z自定义排序;
+// ==================== Index 索引加速层 ====================
+
+/**
+ * 缓存键正规化 — 将 colSelector 转为字符串键，用于 _indexes 查找
+ */
+function _normalizeCacheKey(colSelector) {
+    if (colSelector === undefined) return '__whole__';
+    if (typeof colSelector === 'number') return 'n:' + colSelector;
+    if (typeof colSelector === 'string') return 's:' + colSelector;
+    if (Array.isArray(colSelector)) {
+        try { return 'a:' + JSON.stringify(colSelector); } catch (e) { return null; }
+    }
+    return null;
+}
+
+/**
+ * Index 索引对象 — 由 toIndex 创建，提供 O(unique) 的去重/分组/查找
+ */
+function Index(indices, source) {
+    this._indices = indices;
+    this._source = source;
+}
+
+Index.prototype.distinct = function(resultSelector) {
+    var source = this._source;
+    var keys = Object.keys(this._indices);
+    var result = [];
+    var outputFn;
+    if (resultSelector === undefined || resultSelector === '') {
+        outputFn = function(row) { return row ? (Array.isArray(row) ? row.slice() : [row]) : []; };
+    } else if (typeof resultSelector === 'string') {
+        if (resultSelector.includes(',') || resultSelector.includes('，')) {
+            var outIdx = [];
+            var parts = resultSelector.split(/[,，]/);
+            for (var j = 0; j < parts.length; j++) {
+                var p = parts[j].trim();
+                outIdx.push(p.toLowerCase().startsWith('f') ? parseInt(p.substring(1)) - 1 : parseInt(p) - 1);
+            }
+            outputFn = function(row) {
+                if (!row) return [];
+                var out = [];
+                for (var ki = 0; ki < outIdx.length; ki++) out.push(row[outIdx[ki]]);
+                return out;
+            };
+        } else if (resultSelector.toLowerCase().startsWith('f')) {
+            var col = parseInt(resultSelector.substring(1)) - 1;
+            outputFn = function(row) { return row ? [row[col]] : []; };
+        } else {
+            outputFn = function(row) { return row ? (Array.isArray(row) ? row.slice() : [row]) : []; };
+        }
+    } else if (Array.isArray(resultSelector)) {
+        outputFn = function(row) {
+            if (!row) return [];
+            var out = [];
+            for (var m = 0; m < resultSelector.length; m++) out.push(row[resultSelector[m]]);
+            return out;
+        };
+    } else {
+        outputFn = function(row) { return row ? (Array.isArray(row) ? row.slice() : [row]) : []; };
+    }
+    for (var i = 0; i < keys.length; i++) {
+        var firstRowIdx = this._indices[keys[i]][0];
+        result.push(outputFn(source[firstRowIdx]));
+    }
+    return source._new(result);
+};
+
+Index.prototype.groupBy = function(valSelector) {
+    var source = this._source;
+    var keys = Object.keys(this._indices);
+    var valFn = valSelector ? (typeof valSelector === 'function' ? valSelector : parseLambda(valSelector)) : null;
+    var groups = Object.create(null);
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var idxs = this._indices[key];
+        groups[key] = [];
+        for (var j = 0; j < idxs.length; j++) {
+            var row = source[idxs[j]];
+            groups[key].push(valFn ? valFn(row, idxs[j]) : row);
+        }
+    }
+    return groups;
+};
+
+Index.prototype.lookup = function(key) {
+    var keyStr = typeof key === 'string' ? key : JSON.stringify(key);
+    var idxs = this._indices[keyStr];
+    if (!idxs || idxs.length === 0) return [];
+    var source = this._source;
+    var result = [];
+    for (var i = 0; i < idxs.length; i++) result.push(source[idxs[i]]);
+    return result;
+};
+
+/**
+ * toIndex — 构建列索引，加速重复去重/分组操作
+ * @param {String|Number} colSelector - 列选择器（'f1'、0 等；函数不可缓存）
+ * @returns {Index} 索引对象
+ */
+Array2D.prototype.toIndex = function(colSelector) {
+    var cacheKey = _normalizeCacheKey(colSelector);
+    if (!this._indexes) {
+        Object.defineProperty(this, '_indexes', {
+            value: Object.create(null), writable: true, enumerable: false, configurable: true
+        });
+    }
+    if (cacheKey !== null && this._indexes[cacheKey]) return this._indexes[cacheKey];
+    var keyFn;
+    if (colSelector === undefined) {
+        keyFn = function(row) { return JSON.stringify(row); };
+    } else if (typeof colSelector === 'number') {
+        keyFn = function(row) { return row[colSelector]; };
+    } else if (typeof colSelector === 'string') {
+        if (colSelector.includes(',') || colSelector.includes('，')) {
+            var colIndexes = [];
+            var parts = colSelector.split(/[,，]/);
+            for (var p = 0; p < parts.length; p++) {
+                var part = parts[p].trim();
+                colIndexes.push(part.toLowerCase().startsWith('f') ? parseInt(part.substring(1)) - 1 : parseInt(part) - 1);
+            }
+            keyFn = function(row) {
+                var kp = [];
+                for (var ki = 0; ki < colIndexes.length; ki++) kp.push(row[colIndexes[ki]]);
+                return JSON.stringify(kp);
+            };
+        } else if (colSelector.toLowerCase().startsWith('f')) {
+            var colIdx = parseInt(colSelector.substring(1)) - 1;
+            keyFn = function(row) { return row[colIdx]; };
+        } else {
+            keyFn = function(row) { return JSON.stringify(row); };
+        }
+    } else if (typeof colSelector === 'function') {
+        keyFn = colSelector;
+    } else if (Array.isArray(colSelector)) {
+        keyFn = function(row) {
+            var kp = [];
+            for (var i = 0; i < colSelector.length; i++) kp.push(row[colSelector[i]]);
+            return JSON.stringify(kp);
+        };
+    } else {
+        keyFn = function(row) { return JSON.stringify(row); };
+    }
+    var indices = Object.create(null);
+    var _items = this._items;
+    for (var i = 0; i < _items.length; i++) {
+        var row = _items[i];
+        if (!row || (Array.isArray(row) && row.length === 0)) continue;
+        var key = keyFn(row);
+        var keyStr = typeof key === 'string' ? key : JSON.stringify(key);
+        if (!indices[keyStr]) indices[keyStr] = [];
+        indices[keyStr].push(i);
+    }
+    var idx = new Index(indices, this);
+    if (cacheKey !== null) this._indexes[cacheKey] = idx;
+    return idx;
+};
+
 
 /**
  * 去重
@@ -9083,6 +9321,11 @@ Array2D.prototype.sortByList = Array2D.prototype.z自定义排序;
  */
 Array2D.prototype.z去重 = function(colSelector, resultSelector) {
     var seen = Object.create(null);
+    // 🔧 v4.0.38 Index 加速: 命中 _indexes 缓存时走 O(unique) 路径
+    var _cacheKey = _normalizeCacheKey(colSelector);
+    if (_cacheKey !== null && this._indexes && this._indexes[_cacheKey]) {
+        return this._indexes[_cacheKey].distinct(resultSelector);
+    }
     var result = [];
 
     // 处理不同的参数类型
@@ -9353,6 +9596,12 @@ Array2D.prototype.z分组 = function(keySelector, valSelector) {
     // XXD-83: 空 keySelector 默认按整行分组（与 z去重 行为一致）
     if (!keyFn) {
         keyFn = function(row) { return JSON.stringify(row); };
+    }
+
+    // 🔧 v4.0.38 Index 加速: 命中 _indexes 缓存时走 O(unique) 路径
+    var _cacheKey = _normalizeCacheKey(keySelector);
+    if (_cacheKey !== null && this._indexes && this._indexes[_cacheKey]) {
+        return this._indexes[_cacheKey].groupBy(valSelector);
     }
 
     var groups = Object.create(null);
@@ -14742,6 +14991,15 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             var rowTotal = [];
             for (var df = 0; df < numDataFields; df++) {
                 var sum = 0;
+                // 🔧 XXD-106/104: colKeys===0 时从 groupMap 直接取(无 col key 后缀)
+                if (colKeys.length === 0) {
+                    var _noColKey = rowKey + rowColSep;
+                    if (groupMap[_noColKey]) {
+                        var _agg = executeAggregation(groupMap[_noColKey]);
+                        var _val = parseFloat(_agg[df]);
+                        if (!isNaN(_val)) sum = _val;
+                    }
+                } else {
                 for (var ck = 0; ck < colKeys.length; ck++) {
                     var colKey = colKeys[ck];
                     var fullKey = rowKey + rowColSep + colKey;
@@ -14751,6 +15009,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                         if (!isNaN(val)) sum += val;
                     }
                 }
+                } // XXD-106/104
                 rowTotal.push(sum);
             }
             grandTotalValues.rowTotals[rowKey] = rowTotal;
@@ -15190,9 +15449,9 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 }
                 dataRow = dataRow.concat(agg);
             } else {
-                // 没有数据，填充空值
+                // 🔧 XXD-106/104: 空值也走 applyDisplayAs 保持百分比格式一致
                 for (var c = 0; c < numDataFields; c++) {
-                    dataRow.push(nullValue);
+                    dataRow.push(applyDisplayAs(nullValue, rowKey, null, c));
                 }
             }
         } else {
@@ -15211,7 +15470,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     for (var c = 0; c < numDataFields; c++) {
                         // 🔧 v4.0.34 修复: 默认 nullValue 从 '' 改为 0
                         //   根因: 之前用 '' 让 val() 补空白,WPS spill 显空;用户 ideal 是显 0
-                        dataRow.push(options.nullValue !== undefined ? options.nullValue : 0);
+                        // 🔧 XXD-106/104: 空值也走 applyDisplayAs 保持百分比格式一致
+                        dataRow.push(applyDisplayAs(options.nullValue !== undefined ? options.nullValue : 0, rowKey, colKey, c));
                     }
                 }
             }
@@ -16022,6 +16282,7 @@ DateUtils.prototype.fromExcelDate = DateUtils.prototype.z从表格日期;
  * @returns {String} 格式化字符串
  */
 DateUtils.prototype.z日期格式化 = function(jsdate, fmt) {
+    if (typeof fmt !== 'string' && typeof jsdate === 'string') { fmt = jsdate; jsdate = this._date || jsdate; }
     if (!(jsdate instanceof Date)) {
         jsdate = new Date(jsdate);
     }
