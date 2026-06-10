@@ -5,7 +5,7 @@
  *
  * 原作者: 郑广学 (EXCEL880)
  * 维护者: 徐晓冬
- * 版本: 4.0.36 (2026年6月7日)
+ * 版本: 4.0.37 (2026年6月9日)
 
 【此版本为WPS现代版 v4.0.36】
  * 【此版本为WPS现代版 v4.0.13】
@@ -21,6 +21,23 @@
  *
  * API文档: https://vbayyds.com/api/jsa880/
  *
+ * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.37 — 2026-06-09)
+ * ------------------------------------------------------------------------
+ * 1. [修复] parseFieldsConfig 自定义标题 split 支持中文逗号(，)
+ *    - 根因: split(',') 只拆分 ASCII 逗号,中文逗号(，)未拆分
+ *      例如 rowFields=['f3,f2', '商品，国家'] → titles=['商品，国家'](未拆分),第一个 row 标题 cell 被整体填入 "商品，国家"
+ *    - 修法: 所有标题拆分统一改为 split(/[,，]/) 同时支持 ASCII 逗号和中文逗号
+ *    - 影响范围: parseFieldsConfig 内 4 处标题 split(行字段/列字段/数据字段)
+ *    - 受益: row/col/data 自定义标题使用中文逗号时正确拆分到各 cell
+ *
+ * 2. [修复] XXD-76 XXD-77: 列选择器/输出选择器接受中文全角逗号(，)
+ *    - 受影响函数: z去重(distinct), z分组汇总(groupInto), z选择列(selectCols)
+ *    - 修法: colSelector/resultSelector 的 includes(',') 和 split(',') 全部改为同时支持 ASCII 和中文逗号
+ *    - 修法: LAMBDA_PATTERNS.MULTI_COLUMN/ARRAY_BRACKET 正则和 parseLambda 内逗号拆分改为同时支持 ASCII 和中文逗号
+ *    - 受益: 'f1，f2，f3' 格式的列选择器在所有受影响函数中正常工作
+ *    - 注意: z批量填充(cols 参数为数字,非列选择器)无需修改; z批量删除列 includes(',') 单列判断已修复 (XXD-78/XXD-79)
+ *    - 追加: z内连接/z左连接/z右连接/z一对多连接 4 处 resultSelector.split(',') → split(/[,，]/)
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.36 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -561,9 +578,9 @@ const LAMBDA_PATTERNS = {
     /** 列选择器 f1, f2, f3 */
     COLUMN_SELECTOR: /^f\d+/,
     /** 多列选择器 f1,f2 或 f1, f2, f3 */
-    MULTI_COLUMN: /^f\d+(\s*,\s*f\d+)+$/,
+    MULTI_COLUMN: /^f\d+(\s*[,，]\s*f\d+)+$/,
     /** 方括号多列选择器 [f1,f2,f3] */
-    ARRAY_BRACKET: /^\[f\d+(\s*,\s*f\d+)*\]$/
+    ARRAY_BRACKET: /^\[f\d+(\s*[,，]\s*f\d+)*\]$/
 };
 
 /**
@@ -649,7 +666,7 @@ function parseLambda(expr) {
             fn = eval('(' + expr + ')');
         }
 // 处理 $0, $1, $2 索引语法 -> 转换为箭头函数
-        else if (expr.includes('$')) {
+        else if (LAMBDA_PATTERNS.INDEX_SELECTOR.test(expr)) {
             const indexMatch = expr.match(LAMBDA_PATTERNS.INDEX_SELECTOR);
             if (indexMatch && indexMatch.length > 0) {
                 const indices = indexMatch.map(m => parseInt(m.substring(1)));
@@ -671,14 +688,14 @@ function parseLambda(expr) {
         // 处理多列选择器 f1,f2 或 f1, f2, f3 -> 返回数组
         else if (LAMBDA_PATTERNS.MULTI_COLUMN.test(expr)) {
             // 分割并转换为数组: 'f1,f2' -> '[_[0],_[1]]'
-            const cols = expr.split(/\s*,\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
+            const cols = expr.split(/\s*[,，]\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
             fn = new Function('_', 'return [' + cols + ']');
         }
         // 🔧 v3.9.5 新增：处理方括号多列选择器 [f1,f2,f3] -> 返回数组
         else if (LAMBDA_PATTERNS.ARRAY_BRACKET.test(expr)) {
             // 提取方括号内的内容: '[f2,f4,f5,f6,f7,f8]' -> 'f2,f4,f5,f6,f7,f8'
             const innerExpr = expr.slice(1, -1).trim();
-            const cols = innerExpr.split(/\s*,\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
+            const cols = innerExpr.split(/\s*[,，]\s*/).map(c => '_[' + (parseInt(c.substring(1)) - 1) + ']').join(',');
             fn = new Function('_', 'return [' + cols + ']');
         }
         // 处理 f1, f2, f3 单列选择器语法 -> 转换为箭头函数
@@ -1911,15 +1928,18 @@ RngUtils.z多列排序 = function(rng, sortParams, headerRows, customOrder) {
 
     // 解析排序参数
     var sorts = [];
-    var parts = sortParams.split(',');
+    var parts = sortParams.split(/[,，]/);
     for (var i = 0; i < parts.length; i++) {
         var part = parts[i].trim();
-        var match = part.match(/f?(\d+)([+-])?/);
+        var match = part.match(/^f?(\d+)([+-])?$/);
         if (match) {
             sorts.push({
                 col: parseInt(match[1]),
                 order: (match[2] || '+') === '+' ? 1 : 2 // 1升序 2降序, 缺省升序
             });
+        }
+        else {
+            console.warn('[JSA880] z多列排序: 忽略无效排序参数 "' + part + '"');
         }
     }
 
@@ -1941,7 +1961,7 @@ RngUtils.z多列排序 = function(rng, sortParams, headerRows, customOrder) {
 
             // 自定义序列处理
             if (customOrder) {
-                var orderArr = customOrder.split(',');
+                var orderArr = customOrder.split(/[,，]/);
                 var idxA = orderArr.indexOf(String(valA));
                 var idxB = orderArr.indexOf(String(valB));
                 if (idxA >= 0 && idxB >= 0) {
@@ -3601,7 +3621,7 @@ JSA.z解析函数表达式 = function(expr) {
 
     // === f1, f2 多列语法 ===
     if (LAMBDA_PATTERNS.MULTI_COLUMN.test(expr)) {
-        var cols = expr.split(/\s*,\s*/).map(function(c) {
+        var cols = expr.split(/\s*[,，]\s*/).map(function(c) {
             return '_[' + (parseInt(c.substring(1)) - 1) + ']';
         }).join(',');
         fn = new Function('_', 'return [' + cols + ']');
@@ -3612,7 +3632,7 @@ JSA.z解析函数表达式 = function(expr) {
     // === [f1, f2] 方括号语法 ===
     if (LAMBDA_PATTERNS.ARRAY_BRACKET.test(expr)) {
         var innerExpr = expr.slice(1, -1).trim();
-        var cols2 = innerExpr.split(/\s*,\s*/).map(function(c) {
+        var cols2 = innerExpr.split(/\s*[,，]\s*/).map(function(c) {
             return '_[' + (parseInt(c.substring(1)) - 1) + ']';
         }).join(',');
         fn = new Function('_', 'return [' + cols2 + ']');
@@ -5911,6 +5931,8 @@ function asArray(a) {
     } else if (a === null || a === undefined) {
         arr = [];
     } else if (typeof a === 'string') {
+        // 统一中文逗号为英文逗号
+        a = a.replace(/，/g, ',');
         // 尝试按逗号分割
         if (a.indexOf(',') >= 0) {
             var parts = a.split(',').map(function(s) { return s.trim(); });
@@ -8439,8 +8461,17 @@ Array2D.where = function(data, column) {
 Array2D.prototype.z映射 = function(mapper) {
     const fn = typeof mapper === 'function' ? mapper : parseLambda(mapper);
     if (!fn) return this._new([]);
+    // 🔧 XXD-82 修复: 如果有 _header 属性，跳过表头行（与 z筛选 对齐）
+    var skipHeader = 0;
+    if ('_header' in this && this._header !== undefined) {
+        skipHeader = 1;
+    }
+    var data = this._items;
+    if (skipHeader > 0) {
+        data = data.slice(skipHeader);
+    }
     // 🔧 v4.0.10 修复：为每行创建代理，支持 x.f1, x.f2 等语法
-    var result = this._items.map(function(row, index) {
+    var result = data.map(function(row, index) {
         var proxy = Array.isArray(row) ? row.slice() : [row];
         for (var c = 0; c < proxy.length; c++) {
             proxy['f' + (c + 1)] = proxy[c];
@@ -8891,15 +8922,18 @@ Array2D.prototype.z多列排序 = function(sortParams, headerRows, customOrder) 
 
     // 解析排序参数
     var sorts = [];
-    var parts = sortParams.split(',');
+    var parts = sortParams.split(/[,，]/);
     for (var i = 0; i < parts.length; i++) {
         var part = parts[i].trim();
-        var match = part.match(/f?(\d+)([+-])?/);
+        var match = part.match(/^f?(\d+)([+-])?$/);
         if (match) {
             sorts.push({
                 col: parseInt(match[1]),
                 order: (match[2] || '+') === '+' ? 1 : 2 // 1升序 2降序, 缺省升序
             });
+        }
+        else {
+            console.warn('[JSA880] z多列排序: 忽略无效排序参数 "' + part + '"');
         }
     }
 
@@ -8933,7 +8967,7 @@ Array2D.prototype.z多列排序 = function(sortParams, headerRows, customOrder) 
 
             // 自定义序列处理
             if (customOrder) {
-                var orderArr = customOrder.split(',');
+                var orderArr = customOrder.split(/[,，]/);
                 var idxA = orderArr.indexOf(String(valA));
                 var idxB = orderArr.indexOf(String(valB));
                 if (idxA >= 0 && idxB >= 0) {
@@ -8982,7 +9016,7 @@ Array2D.prototype.z自定义排序 = function(colIndex, orderList, headerRows) {
     // 处理排序列表：支持逗号分隔的字符串或数组
     var actualOrderList = orderList;
     if (typeof orderList === 'string') {
-        actualOrderList = orderList.split(',').map(function(s) { return s.trim(); });
+        actualOrderList = orderList.split(/[,，]/).map(function(s) { return s.trim(); });
     }
 
     if (this._items.length <= headerRows) return this._new(this._items.slice());
@@ -9067,10 +9101,10 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
         keyFn = function(row) { return row[colSelector]; };
     } else if (typeof colSelector === 'string') {
         // 字符串模式：支持 'f1' 或 'f1,f2' 或 'f1,f3-f5'
-        if (colSelector.includes(',')) {
+        if (colSelector.includes(',') || colSelector.includes('，')) {
             // 多列组合
             colIndexes = [];  // 🔧 v4.0.2 移除 var，直接使用外层变量
-            var parts = colSelector.split(',');
+            var parts = colSelector.split(/[,，]/);
             for (var p = 0; p < parts.length; p++) {
                 var part = parts[p].trim();
                 if (part.toLowerCase().startsWith('f')) {
@@ -9152,9 +9186,9 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
         };
     } else if (typeof resultSelector === 'string') {
         // 字符串模式选择输出列
-        if (resultSelector.includes(',')) {
+        if (resultSelector.includes(',') || resultSelector.includes('，')) {
             var outIndexes = [];
-            var outParts = resultSelector.split(',');
+            var outParts = resultSelector.split(/[,，]/);
             for (var j = 0; j < outParts.length; j++) {
                 var outPart = outParts[j].trim();
                 if (outPart.toLowerCase().startsWith('f')) {
@@ -9229,25 +9263,25 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
         };
     }
 
-    for (var i = 0; i < this._items.length; i++) {
-        var row = this._items[i];
+    // 🔧 v4.x 性能：缓存 _items 避免每次迭代触发 getter（getter 每次拷贝整个数组，O(n²)）
+    var _items = this._items;
+    for (var i = 0; i < _items.length; i++) {
+        var row = _items[i];
         // 🔧 v4.0.3 防御性检查：跳过无效行
         if (!row || (Array.isArray(row) && row.length === 0)) continue;
 
-        // 🔧 v4.0.3 为所有行创建代理，支持 x.f1, x.f2 等属性访问
-        var proxy;
-        if (Array.isArray(row)) {
-            proxy = row.slice();
-            for (var c = 0; c < proxy.length; c++) {
-                proxy['f' + (c + 1)] = proxy[c];
+        // 🔧 v4.0.3 仅函数模式创建代理（支持 x.f1, x.f2 属性访问），其他模式直接用 row
+        var input = row;
+        if (isFunctionMode && Array.isArray(row)) {
+            input = row.slice();
+            for (var c = 0; c < input.length; c++) {
+                input['f' + (c + 1)] = input[c];
             }
-        } else {
-            proxy = row;
         }
 
         var key;
         try {
-            key = keyFn(proxy);
+            key = keyFn(input);
         } catch (e) {
             // 🔧 如果 keyFn 执行失败（如 row.f2 为 undefined），跳过该行
             console.warn('⚠️ z去重跳过第' + (i+1) + '行:', e.message);
@@ -9256,7 +9290,7 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
         var keyStr = typeof key === 'string' ? key : JSON.stringify(key);
         if (!seen[keyStr]) {
             seen[keyStr] = true;
-            result.push(outputFn(proxy, key));
+            result.push(outputFn(input, key));
         }
     }
     return this._new(result);
@@ -9315,6 +9349,11 @@ Array2D.prototype.toMatrix = Array2D.prototype.z转矩阵;
 Array2D.prototype.z分组 = function(keySelector, valSelector) {
     var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
     var valFn = valSelector ? (typeof valSelector === 'function' ? valSelector : parseLambda(valSelector)) : null;
+
+    // XXD-83: 空 keySelector 默认按整行分组（与 z去重 行为一致）
+    if (!keyFn) {
+        keyFn = function(row) { return JSON.stringify(row); };
+    }
 
     var groups = Object.create(null);
     for (var i = 0; i < this._items.length; i++) {
@@ -9471,7 +9510,7 @@ Array2D.prototype.z左连接 = function(brr, leftKeySelector, rightKeySelector, 
         resFn = resultSelector;
     } else if (typeof resultSelector === 'string' && resultSelector) {
         // 解析 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5' 这样的字符串
-        var parts = resultSelector.split(',').map(function(s) { return s.trim(); });
+        var parts = resultSelector.split(/[,，]/).map(function(s) { return s.trim(); });
         var selectors = parts.map(function(part) {
             var match = part.match(/^([ab])\.f(\d+)$/i);
             if (match) {
@@ -9544,7 +9583,7 @@ Array2D.prototype.z内连接 = function(brr, leftKeySelector, rightKeySelector, 
     if (typeof resultSelector === 'function') {
         resFn = resultSelector;
     } else if (typeof resultSelector === 'string' && resultSelector) {
-        var parts = resultSelector.split(',').map(function(s) { return s.trim(); });
+        var parts = resultSelector.split(/[,，]/).map(function(s) { return s.trim(); });
         var selectors = parts.map(function(part) {
             var match = part.match(/^([ab])\.f(\d+)$/i);
             if (match) {
@@ -9632,7 +9671,7 @@ Array2D.prototype.z左右全连接 = function(brr, leftKeySelector, rightKeySele
     if (typeof resultSelector === 'function') {
         resFn = resultSelector;
     } else if (typeof resultSelector === 'string' && resultSelector) {
-        var parts = resultSelector.split(',').map(function(s) { return s.trim(); });
+        var parts = resultSelector.split(/[,，]/).map(function(s) { return s.trim(); });
         var selectors = parts.map(function(part) {
             var match = part.match(/^([ab])\.f(\d+)$/i);
             if (match) {
@@ -9718,7 +9757,7 @@ Array2D.prototype.z一对多连接 = function(brr, leftKeySelector, rightKeySele
         resFn = resultSelector;
     } else if (typeof resultSelector === 'string' && resultSelector) {
         // 解析 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5' 这样的字符串
-        var parts = resultSelector.split(',').map(function(s) { return s.trim(); });
+        var parts = resultSelector.split(/[,，]/).map(function(s) { return s.trim(); });
         var selectors = parts.map(function(part) {
             var match = part.match(/^([ab])\.f(\d+)$/i);
             if (match) {
@@ -10155,11 +10194,11 @@ Array2D.prototype.z批量删除列 = function(cols) {
     // 解析列索引
     if (typeof cols === 'string') {
         // f模式: f1,f2 或 f3
-        if (cols.startsWith('f') && !cols.includes(',')) {
+        if (cols.startsWith('f') && !cols.includes(',') && !cols.includes('，')) {
             var idx = parseInt(cols.substring(1)) - 1;
             colIndexes = [idx];
         } else {
-            var parts = cols.split(',');
+            var parts = cols.split(/[,，]/);
             for (var p = 0; p < parts.length; p++) {
                 if (parts[p].trim().startsWith('f')) {
                     colIndexes.push(parseInt(parts[p].trim().substring(1)) - 1);
@@ -10664,9 +10703,9 @@ Array2D.prototype.z选择列 = function(cols, newHeaders) {
         useHeader = false;
     } else if (typeof cols === 'string') {
         // 检查是否是 f 模式（列号格式）
-        if ((cols.includes(',') || cols.includes('-') || cols.includes('+')) && (cols.toLowerCase().includes('f'))) {
+        if ((cols.includes(',') || cols.includes('，') || cols.includes('-') || cols.includes('+')) && (cols.toLowerCase().includes('f'))) {
             // f 模式：先按逗号分割，再处理范围和合并
-            var parts = cols.split(',');
+            var parts = cols.split(/[,，]/);
             indexes = [];
             for (var i = 0; i < parts.length; i++) {
                 var part = parts[i].trim();
@@ -11371,7 +11410,7 @@ Array2D.rangeMap = function(arr, address, mapper) {
     // 深拷贝原数组
     var result = [];
     for (var i = 0; i < arr.length; i++) {
-        result[i] = arr[i].slice();
+        result[i] = Array.prototype.slice.call(arr[i]);
     }
 
     // 计算实际范围并映射
@@ -14219,7 +14258,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 // 处理标题：支持字符串或数组
                 var titleArray = [];
                 if (typeof secondItem === 'string') {
-                    titleArray = secondItem.split(',');
+                    titleArray = secondItem.split(/[,\uFF0C]/);
                 } else if (Array.isArray(secondItem)) {
                     titleArray = secondItem;
                 }
@@ -14235,7 +14274,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 } else {
                     // [['f1,f2'], ['标题1','标题2']] 格式 - 带自定义标题的字段列表
                     var fieldStr = firstItem[0] || '';  // 假设是 ['f1,f2,f3'] 格式
-                    var items = fieldStr.split(',');
+                    var items = fieldStr.split(/[,，]/);
                     for (var j = 0; j < items.length; j++) {
                         var item = items[j].trim();
                         var match = item.match(/^(f\d+)([+\-#]*)$/);
@@ -14257,9 +14296,9 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             // 🔧 v3.8.3 修复：支持同时使用排序符号和自定义标题
             if (fieldsConfig.length === 2 && typeof fieldsConfig[0] === 'string' && typeof fieldsConfig[1] === 'string') {
                 var fieldStr = fieldsConfig[0];
-                var items = fieldStr.split(',');
+                var items = fieldStr.split(/[,，]/);
                 // 始终解析标题（即使有排序符号）
-                titles = fieldsConfig[1].split(',');
+                titles = fieldsConfig[1].split(/[,，]/);
                 for (var j = 0; j < items.length; j++) {
                     var item = items[j].trim();
                     var match = item.match(/^(f\d+)([+\-#]*)$/);
@@ -14282,7 +14321,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             // ['f1+,f2-'] 格式 或 带排序符号的格式
             if (typeof fieldsConfig[0] === 'string') {
                 var fieldStr = fieldsConfig[0];
-                var items = fieldStr.split(',');
+                var items = fieldStr.split(/[,，]/);
                 for (var ki = 0; ki < items.length; ki++) {
                     var item = items[ki].trim();
                     var match = item.match(/^(f\d+)([+\-#]*)$/);
@@ -14295,7 +14334,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 }
             }
         } else if (typeof fieldsConfig === 'string') {
-            var items = fieldsConfig.split(',');
+            var items = fieldsConfig.split(/[,，]/);
             for (var m = 0; m < items.length; m++) {
                 var item = items[m].trim();
                 var match = item.match(/^(f\d+)([+\-#]*)$/);
@@ -14323,7 +14362,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             // [[回调数组], '标题'] 格式
             dataConfig = {
                 fields: [{ callbacks: dataFields[0] }],
-                titles: (typeof dataFields[1] === 'string' ? dataFields[1].split(',') : (Array.isArray(dataFields[1]) ? dataFields[1] : [])),
+                titles: (typeof dataFields[1] === 'string' ? dataFields[1].split(/[,，]/) : (Array.isArray(dataFields[1]) ? dataFields[1] : [])),
                 hasTitles: true,
                 isCallback: true,
                 rawString: null
@@ -14336,7 +14375,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 // 数据字段格式
                 dataConfig = {
                     fields: [{ field: dfStr }],
-                    titles: dataFields[1].split(','),
+                    titles: dataFields[1].split(/[,，]/),
                     hasTitles: true,
                     rawString: dfStr
                 };
@@ -14959,7 +14998,11 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
 
             // 行0 左侧: 行字段位置只 push 1 个空 cell (用合并跨 numRowFieldLevels 列)
             if (!hideRowTitles) {
-                headerRows[0].push('');
+                headerRows[0].push(
+                    numRowFieldLevels === 1
+                        ? (cornerTitle || getFieldTitle(colConfig.fields[0], 0, 'col'))
+                        : ''
+                );
                 // 合并 numRowFieldLevels 列
                 if (numRowFieldLevels > 1) {
                     recordMerge(0, 0, numRowFieldLevels, 1);
@@ -15013,9 +15056,14 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 var targetRow = cfIdx;
 
                 // 添加行字段空白
+                // 🔧 XXD-69: multi-col corner 填 col 字段标题到最后一个角标列
                 if (!hideRowTitles) {
                     for (var rfIdx = 0; rfIdx < numRowFieldLevels; rfIdx++) {
-                        headerRows[targetRow].push('');
+                        if (rfIdx === numRowFieldLevels - 1 && numRowFieldLevels > 0) {
+                            headerRows[targetRow].push(getFieldTitle(colConfig.fields[cfIdx], cfIdx, 'col'));
+                        } else {
+                            headerRows[targetRow].push('');
+                        }
                     }
                 }
 
@@ -15040,8 +15088,9 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             if (!hideRowTitles) {
                 for (var rfIdx = 0; rfIdx < numRowFieldLevels; rfIdx++) {
                     headerRows[lastRow].push(getFieldTitle(rowConfig.fields[rfIdx], rfIdx, 'row'));
-                    // 纵向合并：行字段标题跨所有表头行
-                    recordMerge(0, rfIdx, headerRowCount, 1);
+                    // 🔧 XXD-74: 取消 XXD-69 引入的角标 recordMerge — 用户期望 (1,1)(2,1) 是独立空 cell
+                    //   旧逻辑：if (rfIdx < numRowFieldLevels - 1) recordMerge(0, rfIdx, numColFieldLevels, 1)
+                    //   取消后 corner 4 个 cell (1,1)(1,2)(2,1)(2,2) 保持独立
                 }
             }
 
@@ -15486,7 +15535,7 @@ Array2D.prototype.superPivot = Array2D.prototype.z超级透视;
     var propNames = Object.getOwnPropertyNames(Array2D.prototype);
     // 已经手动定义的静态方法，跳过自动生成
     var manuallyDefined = ['z选择列', 'selectCols', 'z批量填充', 'fill', 'z写入单元格', 'toRange', 'z转置', 'transpose', 'z求和', 'sum', 'z克隆', 'copy', 'z超级透视', 'superPivot',
-                          'z筛选', 'filter', 'z多列排序', 'sortByCols', 'z映射', 'map', 'z去重', 'distinct'];
+                          'z筛选', 'filter', 'z多列排序', 'sortByCols', 'z映射', 'map', 'z去重', 'distinct', 'rangeMap', 'z局部映射', 'z区域映射', 'rangeSelect', 'z按范围选择', 'rangeForEach', 'z按范围遍历'];
 
     for (var i = 0; i < propNames.length; i++) {
         var name = propNames[i];
@@ -18449,7 +18498,7 @@ var WorkbookUtils = {
 SuperMap.z选择列 = function(arr, cols) {
     if (!arr || arr.length === 0) return [];
     var header = arr[0]; var dataRows = arr.slice(1); var colIndices = [];
-    var parts = String(cols).split(",");
+    var parts = String(cols).split(/[,，]/);
     for (var i = 0; i < parts.length; i++) {
         var part = parts[i].trim();
         if (typeof part === "number") { colIndices.push(part); continue; }
@@ -19477,7 +19526,7 @@ if (typeof Range !== 'undefined') {
         if (!mapper) return arr;
         var fn = typeof mapper === 'function' ? mapper : Array2D.parseLambda(mapper);
         if (!fn) return arr;
-        var result = []; for (var i=0;i<arr.length;i++) result[i]=arr[i].slice();
+        var result = []; for (var i=0;i<arr.length;i++) result[i]=Array.prototype.slice.call(arr[i]);
         if (typeof address === 'string') {
             address = address.trim();
             if (!address) {
@@ -19543,7 +19592,7 @@ if (typeof Range !== 'undefined') {
         if (!b) b = {rs:0, cs:0, rc: brr.length, cc: brr[0] ? brr[0].length : 0};
 
         // 深拷贝 arr
-        var result = []; for (var i=0;i<arr.length;i++) result[i] = arr[i].slice();
+        var result = []; for (var i=0;i<arr.length;i++) result[i] = Array.prototype.slice.call(arr[i]);
 
         // 元素级运算（取两个区域的最大公共范围）
         var re = Math.min(a.rs + a.rc, b.rs + b.rc, arr.length);
