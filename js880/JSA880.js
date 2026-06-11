@@ -719,6 +719,11 @@ function parseLambda(expr) {
     if (expr === null || expr === undefined || expr === '') {
         return null;
     }
+    // 🔧 XXD-210: 支持数字选择器 — 数字视为列索引，返回 row[col]
+    if (typeof expr === 'number' && isFinite(expr) && expr >= 0 && Math.floor(expr) === expr) {
+        var _col = expr;
+        return function(row) { return row == null ? undefined : row[_col]; };
+    }
     if (typeof expr !== 'string') return null;
 
     // 缓存检查
@@ -2896,7 +2901,8 @@ JSA.average = JSA.z平均值;
 JSA.agg = JSA.agg || function(arr, sel) { return new Array2D(arr).z求和(sel); };
 // 🔧 XXD-220 fix: oadate(null) THROW + oadate('2024-06-09') THROW — 防御性处理 null/字符串
 JSA.oadate = JSA.oadate || function(d) {
-    if (d == null) return null;
+    if (d == null) return 0;   // OADate convention: null/undefined = 0 (no date)
+    if (typeof d === 'number') return d;  // 已经是 OADate 数值，直接返回
     if (typeof d === 'string') d = new Date(d);
     if (!(d instanceof Date) || isNaN(d.getTime())) return null;
     return d.getTime() / 86400000 + 25569;
@@ -15397,18 +15403,6 @@ Array2D.z按范围选择 = Array2D.rangeSelect;
  * var rs = Array2D.z超级透视(arr, ['f1,f5,f6','期数,年,月'], ['f2','国家'], [[g=>g.count(),g=>g.sum("f3")],'计数,求和'], 2, 'map');
  */
 Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRows, outputHeader, separator, options) {
-    // 🔧 v4.0.21: 诊断日志 — 看 superPivot 实际收到的参数
-    if (typeof Console !== 'undefined') {
-        try {
-            Console.log('[k/v4.0.21] superPivot IN: arr.t=' + typeof arr +
-                ', arrLen=' + (arr && arr.length !== undefined ? arr.length : 'n/a') +
-                ', rowFields=' + JSON.stringify(rowFields) +
-                ', colFields=' + JSON.stringify(colFields) +
-                ', dataFields=' + JSON.stringify(dataFields) +
-                ', headerRows=' + JSON.stringify(headerRows));
-        } catch (__) {}
-    }
-
     // 🔧 v4.0.18: WPS Range 对象 → Value2 转换 + WPS host array → 真 Array 强转
     //   根因: WPS 公式 =k("(...args)=>$.superPivot(...args).filter(...)") 传给 JSA 的 Range 对象
     //         typeof === 'function' (不是 'object'),且 smartUnwrap 调 .Value2 仍可能调不通
@@ -15524,7 +15518,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     var displayAs = options.displayAs || { mode: 'value', decimals: 2 };
 
     // 🔧 v4.0.10: 数字格式化配置
-    var nullValue = options.nullValue !== undefined ? options.nullValue : '';
+    // 🔧 XXD-47: 默认值从 '' 改为 0 — 与 v4.0.34 数据行硬编码 0 保持一致
+    var nullValue = options.nullValue !== undefined ? options.nullValue : 0;
 
     // 🔧 v3.9.4 新增：筛选器配置
     // 支持在透视表输出前筛选特定行/列值
@@ -16044,7 +16039,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         }
         // 如果第一个键无效，移除它
         if (!isValid) {
-            Console.log('警告: 第一个 rowKey 无效，移除: ' + firstKey);
+            if (typeof Console !== 'undefined') { try { Console.log('警告: 第一个 rowKey 无效，移除: ' + firstKey); } catch(__) {} }
             rowKeys.shift();
         }
     }
@@ -16076,35 +16071,36 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
         }
     }
 
-    // 对列键排序
-    colKeys.sort(function(a, b) {
-        var aParts = a.split(separator);
-        var bParts = b.split(separator);
+    // 🔧 XXD-47: 列键排序也用 Schwartzian transform（与行键排序一致，避免每次比较重复 parseFloat）
+    var colSortKeys = colKeys.map(function(key, idx) {
+        var parts = key.split(separator);
+        var keys = [];
+        for (var ki = 0; ki < colConfig.fields.length; ki++) {
+            var val = parts[ki] || '';
+            var num = parseFloat(val);
+            var isNum = !isNaN(num) && String(num) === String(val).trim();
+            keys.push({ raw: val, num: isNum ? num : null, isNum: isNum });
+        }
+        return { key: key, keys: keys, idx: idx, origIdx: colKeyMap[key] ? colKeyMap[key].originalIndex : idx };
+    });
+
+    colSortKeys.sort(function(a, b) {
         for (var ki = 0; ki < colConfig.fields.length; ki++) {
             var cf = colConfig.fields[ki];
-            var aVal = aParts[ki];
-            var bVal = bParts[ki];
+            var ak = a.keys[ki], bk = b.keys[ki];
             var cmp = 0;
-            var aNum = parseFloat(aVal);
-            var bNum = parseFloat(bVal);
-            if (!isNaN(aNum) && !isNaN(bNum) && String(aNum) === String(aVal).trim() && String(bNum) === String(bVal).trim()) {
-                cmp = aNum - bNum;
+            if (ak.isNum && bk.isNum) {
+                cmp = ak.num - bk.num;
             } else {
-                cmp = String(aVal).localeCompare(String(bVal));
+                cmp = String(ak.raw).localeCompare(String(bk.raw));
             }
-            if (cmp !== 0) {
-                return cf.sort === '-' ? -cmp : cmp;
-            }
-            // 🔧 如果当前字段相等且排序符号为 #，保持原始顺序
-            if (cf.sort === '#') {
-                // 比较原始索引来保持顺序
-                var aOrigIdx = colKeyMap[a].originalIndex;
-                var bOrigIdx = colKeyMap[b].originalIndex;
-                return aOrigIdx - bOrigIdx;
-            }
+            if (cmp !== 0) return cf.sort === '-' ? -cmp : cmp;
+            if (cf.sort === '#') return a.origIdx - b.origIdx;
         }
         return 0;
     });
+
+    colKeys = colSortKeys.map(function(sk) { return sk.key; });
 
     // 🔧 v3.8.3: 排序完成（调试日志已移除）
 
@@ -16407,12 +16403,11 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
     var numRowFieldLevels = rowConfig.fields.length;
     // 🔧 修复：单列字段时需要3行表头，多列时需要 numColFieldLevels + 1 行
     var headerRowCount = (numColFieldLevels === 1) ? 2 : numColFieldLevels + 1;
+    // 🔧 XXD-47: 显式初始化 hideRowTitles，不依赖 var 提升隐式行为
+    var hideRowTitles = (outputHeader === -1);
 
     // 构建表头
     if (outputHeader === 1 || outputHeader === true || outputHeader === -1) {
-        // 🔧 v3.8.8 新增：outputHeader = -1 表示输出表头但不包含行标题列
-        var hideRowTitles = (outputHeader === -1);
-
         // 检查是否有自定义标题
         var hasRowTitles = rowConfig.hasTitles && rowConfig.titles.length > 0;
         var hasColTitles = colConfig.hasTitles && colConfig.titles.length > 0;
@@ -16752,10 +16747,10 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     dataRow = dataRow.concat(agg);
                 } else {
                     for (var c = 0; c < numDataFields; c++) {
-                        // 🔧 v4.0.34 修复: 默认 nullValue 从 '' 改为 0
-                        //   根因: 之前用 '' 让 val() 补空白,WPS spill 显空;用户 ideal 是显 0
+                        // 🔧 v4.0.34: 默认 nullValue 为 0(WPS spill 显 0 匹配用户期望)
                         // 🔧 XXD-106/104: 空值也走 applyDisplayAs 保持百分比格式一致
-                        dataRow.push(applyDisplayAs(options.nullValue !== undefined ? options.nullValue : 0, rowKey, colKey, c));
+                        // 🔧 XXD-47: 统一用 nullValue 变量(已在入口处默认 0)
+                        dataRow.push(applyDisplayAs(nullValue, rowKey, colKey, c));
                     }
                 }
             }
@@ -16768,14 +16763,8 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 dataRow.push(applyDisplayAs(rowTotal[rt], rowKey, null, rt));
             }
         }
-        
+
         dataRows.push(dataRow);
-        // 🔧 v4.0.34 诊断: 打印前 3 行 dataRow 长度 + 内容
-        if (typeof Console !== 'undefined' && rk < 3) {
-            try {
-                Console.log('[k/v4.0.34] dataRow[' + rk + '].len=' + dataRow.length + ', content=' + JSON.stringify(dataRow).slice(0, 200));
-            } catch (__) {}
-        }
         prevRowKeyParts = rowKeyParts;
     }
     
@@ -17000,16 +16989,6 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                     }
                 }
                 __aligned.push(__copy);
-            }
-            // 🔧 v4.0.25 诊断: 打印 val() 后的实际对齐结果
-            if (typeof Console !== 'undefined') {
-                try {
-                    var __rowLens = [];
-                    for (var __ri = 0; __ri < Math.min(3, __aligned.length); __ri++) {
-                        __rowLens.push(__aligned[__ri] && __aligned[__ri].length);
-                    }
-                    Console.log('[k/v4.0.25] val() aligned: totalRows=' + __aligned.length + ', maxLen=' + __maxLen + ', firstRowLens=' + __rowLens.join(','));
-                } catch (__) {}
             }
             return __aligned;
         };
