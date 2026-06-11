@@ -11301,6 +11301,10 @@ Array2D.prototype.fulljoin = Array2D.prototype.z左右全连接;
  * arr.leftFulljoin(brr, 'f1', 'f1')
  */
 Array2D.prototype.z一对多连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z左连接/全连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return row[0]; };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return row[0]; };
     
