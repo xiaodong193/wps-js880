@@ -44,6 +44,26 @@
  *    - 修法: 函数顶部加原型链兼容守卫,推断原型链调用模式回退到 this._date
  *    - 受益: DateUtils(d).z日期格式化('yyyy年MM月dd日') 等中文格式不再抛错
  *    - 兼容: 原有两参调用路径行为不变
+ *
+ * 4. [修复] XXD-137 XXD-140: z分组 中文逗号(，)归一化为 ASCII 逗号
+ *    - 根因: keySelector/valSelector 含中文逗号(，)时，parseLambda 虽能解析，
+ *      但 _normalizeCacheKey 产生不一致的缓存键('s:f1，f2' vs 's:f1,f2')，
+ *      导致 Index 缓存未命中，且行为与 ASCII 逗号('f1,f2')路径不完全一致
+ *    - 修法: z分组 入口处将 keySelector/valSelector 的 ，→, 归一化
+ *    - 影响范围: z分组 原型方法 (index 加速路径也受益于统一缓存键)
+ *    - 受益: 中文输入法场景下 'f1，f2' 行为与 'f1,f2' 完全一致
+ *
+ * 5. [修复] XXD-141 XXD-138: z去重 f3-f5 范围只输出第3列而非3列
+ *    - 根因: colSelector 含无逗号的范围语法 f3-f5 时，单列 f 分支 startsWith('f') 先于
+ *      范围检测,parseInt('3-f5')→3,只取第3列;逗号分隔分支内 f3-f4 同样 startsWith('f')
+ *      先于 includes('-'),范围被截断为单列;toIndex 同
+ *    - 修法 (4处):
+ *      ① z去重 单列 f 分支: 新增 indexOf('-') 范围检测,展开 f3-f5→[2,3,4]
+ *      ② z去重 逗号分支: startsWith('f') 内新增 includes('-') 范围检测
+ *      ③ toIndex 单列 f 分支: 同上范围检测
+ *      ④ toIndex 逗号分支: 同上范围检测
+ *    - 影响范围: z去重(colSelector f3-f5)、toIndex、逗号分隔内 f3-f4 格式
+ *    - 受益: z去重('f3-f5') 正确输出 3 列(f3,f4,f5)而非仅 f3;逗号格式如 'f1,f3-f4' 正确展开
  * ------------------------------------------------------------------------
  * 更新日志 (v4.0.36 — 2026-06-07)
  * ------------------------------------------------------------------------
@@ -3506,6 +3526,8 @@ JSA.k.help = function() {
         'distinctRows':  'distinct',
         'groupBy':       'z分组',
         'z分组':         'z分组',
+        'groupInto':     'groupInto',
+        'z分组汇总':     'groupInto',
         'sort':          'z多列排序',
         'z排序':         'z多列排序',
         'z多列排序':     'z多列排序',
@@ -9240,7 +9262,17 @@ Array2D.prototype.toIndex = function(colSelector) {
             var parts = colSelector.split(/[,，]/);
             for (var p = 0; p < parts.length; p++) {
                 var part = parts[p].trim();
+                if (part.includes('-') && part.toLowerCase().startsWith('f')) {
+                    // XXD-141/XXD-138: 范围 f3-f5 在逗号分隔内
+                    var _range2 = part.split('-');
+                    var _start2 = parseInt(_range2[0].toLowerCase().replace('f', ''));
+                    var _end2 = parseInt(_range2[1].toLowerCase().replace('f', ''));
+                    for (var _r2 = _start2; _r2 <= _end2; _r2++) {
+                        colIndexes.push(_r2 - 1);
+                    }
+                } else {
                 colIndexes.push(part.toLowerCase().startsWith('f') ? parseInt(part.substring(1)) - 1 : parseInt(part) - 1);
+                }
             }
             keyFn = function(row) {
                 var kp = [];
@@ -9248,8 +9280,24 @@ Array2D.prototype.toIndex = function(colSelector) {
                 return JSON.stringify(kp);
             };
         } else if (colSelector.toLowerCase().startsWith('f')) {
+            // XXD-141/XXD-138: 检测范围语法 f3-f5
+            if (colSelector.indexOf('-') > -1 && colSelector.indexOf(',') === -1 && colSelector.indexOf('，') === -1) {
+                var _rangeX = colSelector.split('-');
+                var _startX = parseInt(_rangeX[0].toLowerCase().replace('f', ''));
+                var _endX = parseInt(_rangeX[1].toLowerCase().replace('f', ''));
+                var _rangeCols = [];
+                for (var _rX = _startX; _rX <= _endX; _rX++) {
+                    _rangeCols.push(_rX - 1);
+                }
+                keyFn = function(row) {
+                    var kp = [];
+                    for (var _ki = 0; _ki < _rangeCols.length; _ki++) kp.push(row[_rangeCols[_ki]]);
+                    return JSON.stringify(kp);
+                };
+            } else {
             var colIdx = parseInt(colSelector.substring(1)) - 1;
             keyFn = function(row) { return row[colIdx]; };
+            }
         } else {
             keyFn = function(row) { return JSON.stringify(row); };
         }
@@ -9351,7 +9399,17 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
             for (var p = 0; p < parts.length; p++) {
                 var part = parts[p].trim();
                 if (part.toLowerCase().startsWith('f')) {
+                    // XXD-141/XXD-138: 逗号分隔内的范围 f3-f5
+                    if (part.includes('-')) {
+                        var range = part.split('-');
+                        var start = parseInt(range[0].toLowerCase().replace('f', ''));
+                        var end = parseInt(range[1].toLowerCase().replace('f', ''));
+                        for (var r = start; r <= end; r++) {
+                            colIndexes.push(r - 1);
+                        }
+                    } else {
                     colIndexes.push(parseInt(part.substring(1)) - 1);
+                    }
                 } else if (part.includes('-')) {
                     // 处理范围 f3-f5
                     var range = part.split('-');
@@ -9372,10 +9430,29 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
                 return JSON.stringify(keyParts);
             };
         } else if (colSelector.toLowerCase().startsWith('f')) {
+            // XXD-141/XXD-138: 检测范围语法 f3-f5（无逗号分隔的纯范围）
+            if (colSelector.indexOf('-') > -1 && colSelector.indexOf(',') === -1 && colSelector.indexOf('，') === -1) {
+                // 范围模式: 展开 f3-f5 → [2,3,4]
+                var _rangeX = colSelector.split('-');
+                var _startX = parseInt(_rangeX[0].toLowerCase().replace('f', ''));
+                var _endX = parseInt(_rangeX[1].toLowerCase().replace('f', ''));
+                colIndexes = [];
+                for (var _rX = _startX; _rX <= _endX; _rX++) {
+                    colIndexes.push(_rX - 1);
+                }
+                keyFn = function(row) {
+                    var keyParts = [];
+                    for (var i = 0; i < colIndexes.length; i++) {
+                        keyParts.push(row[colIndexes[i]]);
+                    }
+                    return JSON.stringify(keyParts);
+                };
+            } else {
             // 单列 f模式
             var colIdx = parseInt(colSelector.substring(1)) - 1;
             colIndexes = [colIdx]; // 保存单列索引
             keyFn = function(row) { return row[colIdx]; };
+            }
         } else {
             // 普通字符串，当作整行去重
             keyFn = function(row) { return JSON.stringify(row); };
@@ -9508,6 +9585,12 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
 
     // 🔧 v4.x 性能：缓存 _items 避免每次迭代触发 getter（getter 每次拷贝整个数组，O(n²)）
     var _items = this._items;
+
+    // XXD-134 final fix: 始终跳过第0 行 (header) 去做重
+    if (_items.length > 0) {
+        _items = _items.slice(1);
+    }
+
     for (var i = 0; i < _items.length; i++) {
         var row = _items[i];
         // 🔧 v4.0.3 防御性检查：跳过无效行
@@ -9536,7 +9619,12 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
             result.push(outputFn(input, key));
         }
     }
-    return this._new(result);
+    // XXD-134/XXD-137: z去重 已消费所有行(含表头), 不应传播 _header 给下游操作(z映射等)
+    var _distinctResult = this._new(result);
+    if ('_header' in _distinctResult) {
+        delete _distinctResult._header;
+    }
+    return _distinctResult;
 };
 Array2D.prototype.distinct = Array2D.prototype.z去重;
 Array2D.prototype.zDistinct = Array2D.prototype.z去重;
@@ -9590,10 +9678,31 @@ Array2D.prototype.toMatrix = Array2D.prototype.z转矩阵;
  * @returns {Object} 分组结果
  */
 Array2D.prototype.z分组 = function(keySelector, valSelector) {
+    // XXD-137/140: 中文逗号 → ASCII逗号 归一化，确保 "f1，f2" 行为与 "f1,f2" 一致
+
+    if (typeof keySelector === "string") keySelector = keySelector.replace(/，/g, ",");
+    if (typeof valSelector === "string") valSelector = valSelector.replace(/，/g, ",");
+
     var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
     var valFn = valSelector ? (typeof valSelector === 'function' ? valSelector : parseLambda(valSelector)) : null;
 
     // XXD-83: 空 keySelector 默认按整行分组（与 z去重 行为一致）
+
+    // XXD-142/XXD-139: 数字索引/数组模式 — parseLambda 不处理非字符串，需显式构建 keyFn
+    if (!keyFn && typeof keySelector === 'number') {
+        keyFn = function(row) { return row[keySelector]; };
+    } else if (!keyFn && Array.isArray(keySelector)) {
+        if (keySelector.length === 1) {
+            var _ks0 = keySelector[0];
+            keyFn = function(row) { return row[_ks0]; };
+        } else {
+            keyFn = function(row) {
+                var kp = [];
+                for (var _ki = 0; _ki < keySelector.length; _ki++) kp.push(row[keySelector[_ki]]);
+                return JSON.stringify(kp);
+            };
+        }
+    }
     if (!keyFn) {
         keyFn = function(row) { return JSON.stringify(row); };
     }
@@ -9615,6 +9724,11 @@ Array2D.prototype.z分组 = function(keySelector, valSelector) {
     return groups;
 };
 Array2D.prototype.groupBy = Array2D.prototype.z分组;
+// XXD-133/136: z分组汇总 prototype — 委托到静态 groupInto (分组+聚合)
+Array2D.prototype.z分组汇总 = function(keySelector, valueSelector, separator) {
+    return Array2D.groupInto(this._items, keySelector, valueSelector, separator);
+};
+Array2D.prototype.groupInto = Array2D.prototype.z分组汇总;
 
 /**
  * 数据透视（pivotBy）- 创建数据透视表
@@ -15795,7 +15909,8 @@ Array2D.prototype.superPivot = Array2D.prototype.z超级透视;
     var propNames = Object.getOwnPropertyNames(Array2D.prototype);
     // 已经手动定义的静态方法，跳过自动生成
     var manuallyDefined = ['z选择列', 'selectCols', 'z批量填充', 'fill', 'z写入单元格', 'toRange', 'z转置', 'transpose', 'z求和', 'sum', 'z克隆', 'copy', 'z超级透视', 'superPivot',
-                          'z筛选', 'filter', 'z多列排序', 'sortByCols', 'z映射', 'map', 'z去重', 'distinct', 'rangeMap', 'z局部映射', 'z区域映射', 'rangeSelect', 'z按范围选择', 'rangeForEach', 'z按范围遍历'];
+                          'z筛选', 'filter', 'z多列排序', 'sortByCols', 'z映射', 'map', 'z去重', 'distinct', 'rangeMap', 'z局部映射', 'z区域映射', 'rangeSelect', 'z按范围选择', 'rangeForEach', 'z按范围遍历',
+                          'z分组汇总', 'groupInto', 'z分组汇总到字典', 'groupIntoMap', 'z分组汇总连接', 'groupIntoJoin'];
 
     for (var i = 0; i < propNames.length; i++) {
         var name = propNames[i];
