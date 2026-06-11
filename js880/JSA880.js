@@ -3141,9 +3141,10 @@ JSA.z人民币大写 = function(n) {
     var integerPart = Math.floor(num);
     var decimalPart = Math.round((num - integerPart) * 100);
 
-    var result = _convertIntegerPart(integerPart, digits, units, bigUnits) + "元";
-
+    var intStr = _convertIntegerPart(integerPart, digits, units, bigUnits);
+    var result;
     if (decimalPart > 0) {
+        result = intStr ? intStr + "元" : "";
         if (decimalPart >= 10) {
             var jiao = Math.floor(decimalPart / 10);
             var fen = decimalPart % 10;
@@ -3152,8 +3153,11 @@ JSA.z人民币大写 = function(n) {
         } else {
             result += digits[decimalPart] + "分";
         }
+    } else if (intStr) {
+        result = intStr + "元整";
     } else {
-        result += "整";
+        // sub-cent amount (e.g. 0.001) rounds to zero at fen precision → "零元整"
+        result = "零元整";
     }
 
     if (n < 0) result += "（负）";
@@ -3163,18 +3167,21 @@ JSA.z人民币大写 = function(n) {
         if (num === 0) return "";
         var result = "";
         var bigUnitIndex = 0;
+        var prevSection = 10000; // sentinel: full-width, no gap
         while (num > 0) {
             var section = num % 10000;
             if (section > 0) {
                 var sectionResult = _convertSection(section, digits, units);
-                result = sectionResult + bigUnits[bigUnitIndex] + result;
+                // Insert 零 when lower section was sparse (<1000) or was a skipped zero
+                var needZero = result !== "" && prevSection < 1000;
+                result = sectionResult + bigUnits[bigUnitIndex] + (needZero ? digits[0] : "") + result;
             }
+            prevSection = section;
             num = Math.floor(num / 10000);
             bigUnitIndex++;
         }
         return result;
     }
-
     function _convertSection(num, digits, units) {
         var result = "";
         var unitIndex = 0;
@@ -9189,6 +9196,11 @@ Array2D._checkCondition = function(row, condition, index) {
  * arr.where('f1').gt(0).and('f2').eq('中国').execute();
  */
 Array2D.prototype.where = function(column) {
+    // XXD-231: function predicate → immediate filter (not builder)
+    if (typeof column === 'function') {
+        var filtered = this._items.filter(function(row, idx) { return column(row, idx); });
+        return this._new(filtered);
+    }
     return new QueryBuilder(this._items, column);
 };
 Array2D.prototype.z筛选链 = Array2D.prototype.where;
@@ -9489,6 +9501,11 @@ QueryBuilder.prototype.val = QueryBuilder.prototype.execute;
 
 // 静态方法：直接通过 Array2D.where 创建
 Array2D.where = function(data, column) {
+    // XXD-231: function predicate → immediate filter (not builder)
+    if (typeof column === 'function') {
+        var filtered = data.filter(function(row, idx) { return column(row, idx); });
+        return new Array2D(filtered);
+    }
     return new QueryBuilder(data, column);
 };
 
@@ -10942,6 +10959,12 @@ Array2D.prototype.concat = Array2D.prototype.z上下连接;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z左连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐(原版 brr.length 抛 TypeError)
+    if (brr == null) return this._new([]);
+    // 兼容 Array2D 实例
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
+
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return JSON.stringify(row); };
     
@@ -11170,6 +11193,10 @@ Array2D.prototype.z分组聚合 = function(keySelector, valSelector) {
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z左右全连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return JSON.stringify(row); };
     
@@ -11401,6 +11428,10 @@ Array2D.prototype.zip = Array2D.prototype.z左右连接;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z排除 = function(brr, leftSelector, rightSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._items ? this._new(this._items.slice()) : this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._items ? this._new(this._items.slice()) : this._new([]);
     var leftFn = leftSelector ? parseLambda(leftSelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightSelector ? parseLambda(rightSelector) : function(row) { return JSON.stringify(row); };
 
@@ -11456,6 +11487,10 @@ Array2D.prototype.except = Array2D.prototype.z排除;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z取交集 = function(brr, leftSelector, rightSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftSelector ? parseLambda(leftSelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightSelector ? parseLambda(rightSelector) : function(row) { return JSON.stringify(row); };
 
@@ -11519,6 +11554,10 @@ Array2D.prototype.intersect = Array2D.prototype.z取交集;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z超级查找 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return row[0]; };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return row[0]; };
     var resFn = resultSelector || function(a, b) { return a.concat(b || []); };
@@ -13665,8 +13704,23 @@ Array2D.prototype.z分组汇总到字典 = function(keySelector, valueSelector) 
     var items = (this._items || this);
     return Array2D.groupIntoMap(items.length > 0 ? items.slice(1) : items, keySelector, valueSelector);
 };
-Array2D.prototype.z分组汇总连接 = function(targetData, keySelector, valueSelector, separator) {
-    return Array2D.groupIntoJoin(targetData, this._items || this, keySelector, valueSelector, separator);
+// XXD-210: 修复 prototype.z分组汇总连接 — 实例调用 .z分组汇总连接(分组列, 值列, 分隔符)
+// 原实现把第一个参数当 targetData 透传给静态方法，导致实例调用 (0,1,',') 时 targetData=0 出错。
+// 修正: 实例版不接受 targetData，数据来自 this；当 valueSelector 为数字(列索引)时自动用 textjoin 聚合。
+Array2D.prototype.z分组汇总连接 = function(keySelector, valueSelector, separator) {
+    var items = (this._items || this);
+    // 跳过表头行
+    var data = items.length > 0 ? items.slice(1) : items;
+    // 当 valueSelector 是数字(0-based列索引)或 f-notation 时，构建 textjoin 聚合函数
+    if (typeof valueSelector === 'number' || (typeof valueSelector === 'string' && /^f\d+$/i.test(valueSelector))) {
+        // _resolveCol 内部用 col-1 转 0-based，所以数字 0-based 索引需要 +1
+        var colRef = typeof valueSelector === 'number' ? valueSelector + 1 : valueSelector;
+        var sep = separator || ',';
+        return Array2D.groupInto(data, keySelector, function(helper) {
+            return helper.textjoin(colRef, sep);
+        }, '@^@');
+    }
+    return Array2D.groupInto(data, keySelector, valueSelector, separator || '@^@');
 };
 // XXD-205: 修复 z分组排名 全部返 [] — 原 alias `Array2D.prototype.z分组排名 = Array2D.rankGroup;`
 //  把 `arr` 当作隐式 `this`,实例调用时 `arr` 实际收到 colSelector('f1') 而非 this,
