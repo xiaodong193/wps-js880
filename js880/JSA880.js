@@ -2914,7 +2914,125 @@ JSA.z平均值 = function() {
 };
 JSA.average = JSA.z平均值;
 // 🔧 XXD-153 final fix: JSA.agg / JSA.oadate 别名
-JSA.agg = JSA.agg || function(arr, sel) { return new Array2D(arr).z求和(sel); };
+// 🔧 JSA.agg 升级: 从 fn 改为 namespace 对象,支持 .count/.sum/.avg/.min/.max/.textjoin/.qctextjoin/.addFunction
+//     旧: JSA.agg = function(arr, sel) { return new Array2D(arr).z求和(sel); }  (只能 sum)
+//     新: JSA.agg = { count, sum, avg, min, max, textjoin, qctextjoin, addFunction }
+//     addFunction(name, fn) 把 fn 同时注册到 JSA.agg / Array.prototype / Array2D.prototype
+//     用户代码: agg.addFunction("平方和", 平方和) → agg.平方和(arr) / arr.平方和() / new Array2D(arr).平方和()
+//     兼容:旧的 fn 形式自动检测并替换为 namespace(不会保留旧 fn 行为)
+JSA.agg = (function _buildAggNS() {
+    var ns = (typeof JSA.agg === 'object' && JSA.agg !== null && !Array.isArray(JSA.agg))
+        ? JSA.agg
+        : {};
+    // 半角→全角 转换(供 qctextjoin 使用)
+    function _toFullWidth(s) {
+        if (typeof s !== 'string') return s;
+        var out = '';
+        for (var i = 0; i < s.length; i++) {
+            var c = s.charCodeAt(i);
+            if (c >= 33 && c <= 126) out += String.fromCharCode(c + 65248);
+            else if (c === 32) out += String.fromCharCode(12288);
+            else out += s[i];
+        }
+        return out;
+    }
+    if (typeof ns.count !== 'function') {
+        ns.count = function(arr) { return new Array2D(arr).z数量(); };
+    }
+    if (typeof ns.sum !== 'function') {
+        ns.sum = function(arr, sel) { return new Array2D(arr).z求和(sel); };
+    }
+    if (typeof ns.avg !== 'function') {
+        ns.avg = function(arr, sel) { return new Array2D(arr).z平均值(sel); };
+    }
+    if (typeof ns.min !== 'function') {
+        ns.min = function(arr, sel) { return new Array2D(arr).z最小值(sel); };
+    }
+    if (typeof ns.max !== 'function') {
+        ns.max = function(arr, sel) { return new Array2D(arr).z最大值(sel); };
+    }
+    if (typeof ns.textjoin !== 'function') {
+        ns.textjoin = function(arr, col, sep) { return new Array2D(arr).z文本连接(col, sep); };
+    }
+    if (typeof ns.qctextjoin !== 'function') {
+        ns.qctextjoin = function(arr, col, sep) {
+            return _toFullWidth(ns.textjoin(arr, col, sep));
+        };
+    }
+    // addFunction: 自定义聚合 — 同时挂到 namespace / Array.prototype / Array2D.prototype
+    if (typeof ns.addFunction !== 'function') {
+        ns.addFunction = function(name, fn) {
+            if (typeof name !== 'string' || !name) return;
+            if (typeof fn !== 'function') return;
+            // 1) namespace 自身(agg.平方和(arr) 形式)
+            ns[name] = function(arr, col) { return fn(arr, col); };
+            // 2) Array.prototype(arr.平方和() 形式)
+            if (typeof Array !== 'undefined' && Array.prototype) {
+                Array.prototype[name] = function(col) { return fn(this, col); };
+            }
+            // 3) Array2D.prototype(new Array2D(arr).平方和() 形式)
+            if (typeof Array2D !== 'undefined' && Array2D.prototype) {
+                Array2D.prototype[name] = function(col) {
+                    var items = this._items || this;
+                    return fn(items, col);
+                };
+            }
+        };
+    }
+    return ns;
+})();
+
+// 🔧 v4.2.3: v1.6.1 兼容补丁 — 全局 agg + Array.prototype.f1..fN getters
+//     v1.6.1 旧版: Array2D.agg.addFunction(name, fn) 还会
+//       1) 把 fn 挂到全局 agg 对象(裸 agg.平方和(arr) 可用)
+//       2) 给 Array.prototype 加 f1..f1000 getters(让 arr.f1 = arr[0])
+//       3) 给 Array.prototype 自动绑定 Array2D.agg 上的所有方法(arr.count() / arr.sum(...) 等)
+//     v4.x 重构丢失了这三个机制,补回
+(function _v161CompatPatch() {
+    if (typeof JSA.agg !== 'object' || JSA.agg === null) return;
+    // 1) 全局 agg 别名(裸 agg.count(arr) 形式)
+    try {
+        if (typeof globalThis !== 'undefined' && typeof globalThis.agg === 'undefined') {
+            globalThis.agg = JSA.agg;
+        }
+    } catch (_e1) {
+        try { if (typeof agg === 'undefined') agg = JSA.agg; } catch (_e2) { /* 静默 */ }
+    }
+    // 2) Array.prototype.f1..f1000 getters(让 arr.f1 / arr.f2 / arr.fN = arr[N-1])
+    if (typeof Array !== 'undefined' && Array.prototype && !Array.prototype.__jsaFProxyPatched) {
+        try {
+            for (var r = 1; r <= 1000; r++) {
+                (function (_idx) {
+                    var _key = 'f' + _idx;
+                    if (typeof Array.prototype[_key] === 'undefined') {
+                        Object.defineProperty(Array.prototype, _key, {
+                            get: function () { return this[_idx - 1]; },
+                            enumerable: false,
+                            configurable: true
+                        });
+                    }
+                })(r);
+            }
+            Array.prototype.__jsaFProxyPatched = true;
+        } catch (_e3) { /* 静默 — 老环境不支持 defineProperty */ }
+    }
+    // 3) Array.prototype 自动绑定 JSA.agg 上的基础方法(arr.count() / arr.sum(sel) / arr.textjoin(sel, sep) 等)
+    if (typeof Array !== 'undefined' && Array.prototype && !Array.prototype.__jsaAggBound) {
+        try {
+            var _builtinKeys = ['count', 'sum', 'avg', 'min', 'max', 'textjoin', 'qctextjoin'];
+            for (var i = 0; i < _builtinKeys.length; i++) {
+                (function (_k) {
+                    if (typeof JSA.agg[_k] === 'function' && typeof Array.prototype[_k] === 'undefined') {
+                        Array.prototype[_k] = function () {
+                            return JSA.agg[_k].apply(null, [this].concat(Array.prototype.slice.call(arguments)));
+                        };
+                    }
+                })(_builtinKeys[i]);
+            }
+            Array.prototype.__jsaAggBound = true;
+        } catch (_e4) { /* 静默 */ }
+    }
+})();
 // 🔧 XXD-220 fix: oadate(null) THROW + oadate('2024-06-09') THROW — 防御性处理 null/字符串
 JSA.oadate = JSA.oadate || function(d) {
     if (d == null) return 0;   // OADate convention: null/undefined = 0 (no date)
@@ -2964,7 +3082,9 @@ JSA.z表达式求值 = function(expr) {
     try {
         return new Function('return ' + expr)();
     } catch (e) {
-        return 0;
+        var _e = new Error('eval880: ' + (e && e.message ? e.message : String(e)));
+        _e.__kCode = true;
+        throw _e;
     }
 };
 JSA.eval880 = JSA.z表达式求值;
@@ -20508,7 +20628,15 @@ console.log('========================================');
  * tree.show(); // 打印树结构
  */
 function TreeNode(name, data) {
+    if (typeof name === 'object' && name !== null && !Array.isArray(name) && 'id' in name) {
+        data = name;
+        name = null;
+    }
     this.name = name || '';
+    this.data = data || null;
+    this.children = [];
+    this.parent = null;
+}
 
 // T2.1: node.id → 返回节点 id（从 data 中取）
 Object.defineProperty(TreeNode.prototype, 'id', {
@@ -20539,11 +20667,6 @@ TreeNode.prototype.toJSON = function() {
         })(this.children)
     };
 };
-
-    this.data = data || null;
-    this.children = [];
-    this.parent = null;
-}
 
 TreeNode.prototype.addChild = function(name, data) {
     var child = new TreeNode(name, data);
