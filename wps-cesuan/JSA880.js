@@ -2228,6 +2228,8 @@ Array2D.prototype.some = Array2D.prototype.z有满足;
  * @returns {Number} 行数
  */
 Array2D.prototype.z行数 = function() {
+    // 🐛 null 守卫 — 空 Array2D 或损坏的 _items 返回 0 而不是抛 TypeError
+    if (!this._items) return 0;
     return this._items.length;
 };
 Array2D.prototype.rowCount = Array2D.prototype.z行数;
@@ -2237,7 +2239,10 @@ Array2D.prototype.rowCount = Array2D.prototype.z行数;
  * @returns {Number} 列数
  */
 Array2D.prototype.z列数 = function() {
-    return this._items.length > 0 && this._items[0] ? this._items[0].length : 0;
+    // 🐛 null 守卫 — 空 Array2D 或损坏的 _items 返回 0 而不是抛 TypeError
+    if (!this._items || this._items.length === 0) return 0;
+    var _row0 = this._items[0];
+    return (_row0 && typeof _row0.length === 'number') ? _row0.length : 0;
 };
 Array2D.prototype.colCount = Array2D.prototype.z列数;
 
@@ -3125,7 +3130,13 @@ Array2D.prototype.leftFulljoin = Array2D.prototype.z一对多连接;
 Array2D.prototype.z左右连接 = function() {
     var arrays = [this._items];
     for (var i = 0; i < arguments.length; i++) {
-        arrays.push(arguments[i]);
+        var _a = arguments[i];
+        // 🐛 null/undefined 守卫 — 跳过无效输入(原版 arr.length 抛 TypeError)
+        if (_a == null) continue;
+        // 支持 Array2D 实例 → 取 _items
+        if (_a instanceof Array2D) arrays.push(_a._items);
+        else if (Array.isArray(_a)) arrays.push(_a);
+        // 其他类型(字符串/数字)→ 跳过(原版会 crash)
     }
 
     var maxRows = 0;
@@ -10406,6 +10417,119 @@ JSA.z平均值 = function() {
 };
 JSA.average = JSA.z平均值;
 
+
+JSA.agg = (function _buildAggNS() {
+    var ns = (typeof JSA.agg === 'object' && JSA.agg !== null && !Array.isArray(JSA.agg))
+        ? JSA.agg
+        : {};
+    // 半角→全角 转换(供 qctextjoin 使用)
+    function _toFullWidth(s) {
+        if (typeof s !== 'string') return s;
+        var out = '';
+        for (var i = 0; i < s.length; i++) {
+            var c = s.charCodeAt(i);
+            if (c >= 33 && c <= 126) out += String.fromCharCode(c + 65248);
+            else if (c === 32) out += String.fromCharCode(12288);
+            else out += s[i];
+        }
+        return out;
+    }
+    if (typeof ns.count !== 'function') {
+        ns.count = function(arr) { return new Array2D(arr).z数量(); };
+    }
+    if (typeof ns.sum !== 'function') {
+        ns.sum = function(arr, sel) { return new Array2D(arr).z求和(sel); };
+    }
+    if (typeof ns.avg !== 'function') {
+        ns.avg = function(arr, sel) { return new Array2D(arr).z平均值(sel); };
+    }
+    if (typeof ns.min !== 'function') {
+        ns.min = function(arr, sel) { return new Array2D(arr).z最小值(sel); };
+    }
+    if (typeof ns.max !== 'function') {
+        ns.max = function(arr, sel) { return new Array2D(arr).z最大值(sel); };
+    }
+    if (typeof ns.textjoin !== 'function') {
+        ns.textjoin = function(arr, col, sep) { return new Array2D(arr).z文本连接(col, sep); };
+    }
+    if (typeof ns.qctextjoin !== 'function') {
+        ns.qctextjoin = function(arr, col, sep) {
+            return _toFullWidth(ns.textjoin(arr, col, sep));
+        };
+    }
+    // addFunction: 自定义聚合 — 同时挂到 namespace / Array.prototype / Array2D.prototype
+    if (typeof ns.addFunction !== 'function') {
+        ns.addFunction = function(name, fn) {
+            if (typeof name !== 'string' || !name) return;
+            if (typeof fn !== 'function') return;
+            // 1) namespace 自身(agg.平方和(arr) 形式)
+            ns[name] = function(arr, col) { return fn(arr, col); };
+            // 2) Array.prototype(arr.平方和() 形式)
+            if (typeof Array !== 'undefined' && Array.prototype) {
+                Array.prototype[name] = function(col) { return fn(this, col); };
+            }
+            // 3) Array2D.prototype(new Array2D(arr).平方和() 形式)
+            if (typeof Array2D !== 'undefined' && Array2D.prototype) {
+                Array2D.prototype[name] = function(col) {
+                    var items = this._items || this;
+                    return fn(items, col);
+                };
+            }
+        };
+    }
+    return ns;
+})();
+// 🔧 v4.2.3: v1.6.1 兼容补丁 — 全局 agg + Array.prototype.f1..fN getters
+//     v1.6.1 旧版: Array2D.agg.addFunction(name, fn) 还会
+//       1) 把 fn 挂到全局 agg 对象(裸 agg.平方和(arr) 可用)
+//       2) 给 Array.prototype 加 f1..f1000 getters(让 arr.f1 = arr[0])
+//       3) 给 Array.prototype 自动绑定 Array2D.agg 上的所有方法(arr.count() / arr.sum(...) 等)
+//     v4.x 重构丢失了这三个机制,补回
+(function _v161CompatPatch() {
+    if (typeof JSA.agg !== 'object' || JSA.agg === null) return;
+    // 1) 全局 agg 别名(裸 agg.count(arr) 形式)
+    try {
+        if (typeof globalThis !== 'undefined' && typeof globalThis.agg === 'undefined') {
+            globalThis.agg = JSA.agg;
+        }
+    } catch (_e1) {
+        try { if (typeof agg === 'undefined') agg = JSA.agg; } catch (_e2) { /* 静默 */ }
+    }
+    // 2) Array.prototype.f1..f1000 getters(让 arr.f1 / arr.f2 / arr.fN = arr[N-1])
+    if (typeof Array !== 'undefined' && Array.prototype && !Array.prototype.__jsaFProxyPatched) {
+        try {
+            for (var r = 1; r <= 1000; r++) {
+                (function (_idx) {
+                    var _key = 'f' + _idx;
+                    if (typeof Array.prototype[_key] === 'undefined') {
+                        Object.defineProperty(Array.prototype, _key, {
+                            get: function () { return this[_idx - 1]; },
+                            enumerable: false,
+                            configurable: true
+                        });
+                    }
+                })(r);
+            }
+            Array.prototype.__jsaFProxyPatched = true;
+        } catch (_e3) { /* 静默 — 老环境不支持 defineProperty */ }
+    }
+    // 3) Array.prototype 自动绑定 JSA.agg 上的基础方法(arr.count() / arr.sum(sel) / arr.textjoin(sel, sep) 等)
+    if (typeof Array !== 'undefined' && Array.prototype && !Array.prototype.__jsaAggBound) {
+        try {
+            var _builtinKeys = ['count', 'sum', 'avg', 'min', 'max', 'textjoin', 'qctextjoin'];
+            for (var i = 0; i < _builtinKeys.length; i++) {
+                (function (_k) {
+                    if (typeof JSA.agg[_k] === 'function' && typeof Array.prototype[_k] === 'undefined') {
+                        Array.prototype[_k] = function () {
+                            return JSA.agg[_k].apply(null, [this].concat(Array.prototype.slice.call(arguments)));
+                        };
+                    }
+                })(_builtinKeys[i]);
+            }
+            Array.prototype.__jsaAggBound = true;
+        } catch (_e4) { /* 静默 */ }
+    }
+})();
 /**
  * 模糊匹配
  * @param {String} str - 字符串
@@ -10472,6 +10596,16 @@ JSA.getNumberArray = JSA.z生成数字序列;
  * @returns {String} 大写
  */
 JSA.z人民币大写 = function(n) {
+    // 🐛 null/undefined/NaN 守卫 — 否则 Math.abs(NaN)=NaN, Math.floor(NaN)=NaN, _convertIntegerPart 崩溃
+    if (n == null || (typeof n === 'number' && isNaN(n))) return "";
+    // 字符串数字 → 强转
+    if (typeof n === 'string') {
+        var _n2 = parseFloat(n.replace(/,/g, ''));
+        if (isNaN(_n2)) return "";
+        n = _n2;
+    } else if (typeof n !== 'number') {
+        return "";
+    }
     var digits = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
     var units = ["", "拾", "佰", "仟"];
     var bigUnits = ["", "万", "亿"];
@@ -10546,6 +10680,10 @@ JSA.rmbdx = JSA.z人民币大写;
  * @returns {Number} 随机整数
  */
 JSA.z随机整数 = function(start, end) {
+    // 🐛 null/NaN 守卫 — 任意一边无效都返回 0
+    if (typeof start !== 'number' || isNaN(start)) return 0;
+    if (typeof end !== 'number' || isNaN(end)) return 0;
+    if (end < start) { var _t = start; start = end; end = _t; }  // 允许 start > end(自动交换)
     return Math.floor(Math.random() * (end - start + 1)) + start;
 };
 JSA.rndInt = JSA.z随机整数;
@@ -10556,6 +10694,8 @@ JSA.rndInt = JSA.z随机整数;
  * @returns {Array} 打乱后的数组
  */
 JSA.z随机打乱 = function(array) {
+    // 🐛 null/undefined 守卫 — array.slice() 会抛 TypeError
+    if (!array || !Array.isArray(array)) return [];
     var result = array.slice();
     for (var i = result.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
@@ -10572,6 +10712,9 @@ JSA.shuffle = JSA.z随机打乱;
  * @param {Number} ts - 毫秒
  */
 JSA.z延时 = function(ts) {
+    // 🐛 null/undefined/NaN/非数字 守卫 — 否则 while 死循环或 < 比较抛错
+    if (typeof ts !== 'number' || isNaN(ts)) throw new TypeError('z延时: 参数必须是数字(ms)');
+    if (ts < 0) throw new RangeError('z延时: 参数不能为负数');
     var start = Date.now();
     while (Date.now() - start < ts) {
         // 等待
@@ -10855,6 +10998,9 @@ JSA.z解析函数表达式 = function(expr) {
  * @returns {Array} 分布后的数组
  */
 JSA.z矩阵分布 = function(totalRows, cols, direction) {
+    // 🐛 null/NaN 守卫 — 否则 Math.ceil(undefined) = NaN, for 循环 < NaN = false, 返回空数组
+    if (typeof totalRows !== 'number' || isNaN(totalRows) || totalRows < 0) return [];
+    if (typeof cols !== 'number' || isNaN(cols) || cols <= 0) return [];
     direction = direction || 'r';
     var result = [];
     var numbers = [];
