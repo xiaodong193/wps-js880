@@ -10104,6 +10104,8 @@ JSA.val = JSA.z转数值;
  */
 JSA.z写入单元格 = function(arr, rng, clearDown) {
     var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    // XXD-47: null/undefined 守卫 — 公开 API 常接收公式结果（可能为 null）
+    if (!arr || !targetRng) return null;
     var rows = arr.length;
     var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : 1) : 0;
     // 根据数组大小调整目标区域
@@ -10148,6 +10150,8 @@ JSA.cdate = JSA.z转日期数值;
  * @returns {String} 结果
  */
 JSA.z替换 = function(str, find, replaceWith) {
+    // XXD-47: null/undefined 守卫 — 公开 API 常接收公式结果（可能为 null）
+    if (typeof str !== 'string' && !(str instanceof String)) return '';
     return str.split(find).join(replaceWith);
 };
 JSA.replace = JSA.z替换;
@@ -10687,7 +10691,8 @@ JSA.getDecimal = JSA.z取小数;
 JSA.z转公式数组 = function(arr) {
     if (!Array.isArray(arr)) return arr;
     var rows = arr.length;
-    var cols = rows > 0 ? arr[0].length : 0;
+    // XXD-47: 1D 数组的 arr[0] 是标量无 .length — 视为 1 列
+    var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : 1) : 0;
     var result = [];
     for (var i = 0; i < rows; i++) {
         if (Array.isArray(arr[i])) {

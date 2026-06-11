@@ -38,9 +38,6 @@ const OUTPUT_SHEET_NAME = "测试输出";
 const DEFAULT_TEST_ROWS = 1000;
 const PERFORMANCE_TEST_ROWS = 5000;
 
-// WPS 枚举常量
-const XL_UP = -4162;           // 向上查找
-
 // 颜色常量
 const COLOR_GREEN = 0x008000;     // 通过 - 绿色
 const COLOR_RED = 0xFF0000;       // 失败 - 红色
@@ -501,7 +498,7 @@ class clsTestRunner {
      */
     assertArrayLength(arr, expectedLength, message) {
         // 检查是否是类数组对象（有 length 属性）
-        var actualLength = 0;
+        let actualLength = 0;
         if (Array.isArray(arr)) {
             actualLength = arr.length;
         } else if (arr && typeof arr.length === 'number') {
