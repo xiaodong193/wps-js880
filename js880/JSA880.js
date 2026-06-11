@@ -2998,12 +2998,14 @@ JSA.agg = (function _buildAggNS() {
 (function _v161CompatPatch() {
     if (typeof JSA.agg !== 'object' || JSA.agg === null) return;
     // 1) 全局 agg 别名(裸 agg.count(arr) 形式)
+    //    🐛 v4.2.9 fix: 原版用 typeof 检查会被 L19954 老 function agg() 在 with(global) 里污染 global.agg
+    //    强制无条件覆盖 — 用户如需老 function 形式,可用 Array2D.agg(arr, colRef, aggType) 静态方法
     try {
-        if (typeof globalThis !== 'undefined' && typeof globalThis.agg === 'undefined') {
-            globalThis.agg = JSA.agg;
+        if (typeof globalThis !== 'undefined') {
+            globalThis.agg = JSA.agg;  // 强制 namespace 覆盖 function
         }
     } catch (_e1) {
-        try { if (typeof agg === 'undefined') agg = JSA.agg; } catch (_e2) { /* 静默 */ }
+        try { agg = JSA.agg; } catch (_e2) { /* 静默 */ }
     }
     // 2) Array.prototype.f1..f1000 getters(让 arr.f1 / arr.f2 / arr.fN = arr[N-1])
     if (typeof Array !== 'undefined' && Array.prototype && !Array.prototype.__jsaFProxyPatched) {
@@ -18192,7 +18194,9 @@ DateUtils.datedif = function(startDate, endDate, unit) {
         this.k = JSA.k;
         this.jsaLambda = JSA.jsaLambda;
         // 【v4.0.10】导出常用全局函数到 JSA 命名空间
-        if (typeof agg !== 'undefined') this.agg = agg;
+        // 🐛 v4.2.9 fix: 原 `if (typeof agg !== 'undefined') this.agg = agg` 会覆盖 v1.6.1 patch 设的 namespace
+        // 改为只导出 namespace 形式(addFunction 方法),老 function 形式跳过
+        if (typeof agg !== 'undefined' && typeof agg.addFunction === 'function') this.agg = agg;
         if (typeof oadate !== 'undefined') this.oadate = oadate;
         if (typeof map2d !== 'undefined') this.map2d = map2d;
         if (typeof forEach2d !== 'undefined') this.forEach2d = forEach2d;
