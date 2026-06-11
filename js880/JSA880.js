@@ -3257,6 +3257,8 @@ JSA.rndIntArray = JSA.z随机整数数组;
  * @returns {Array} 打乱后的数组
  */
 JSA.z随机打乱 = function(array) {
+    // 🐛 null/undefined 守卫 — array.slice() 会抛 TypeError
+    if (!array || !Array.isArray(array)) return [];
     var result = array.slice();
     for (var i = result.length - 1; i > 0; i--) {
         var j = Math.floor(Math.random() * (i + 1));
@@ -3491,9 +3493,9 @@ JSA.z取整数 = function(v) {
 JSA.cint = JSA.z取整数;
 
 // XXD-157/158 final fix: 基础数学函数中文 alias
-JSA.z向下取整 = function(v) { return Math.floor(v); };
-JSA.z向上取整 = function(v) { return Math.ceil(v); };
-JSA.z四舍五入 = function(v) { return Math.round(v); };
+JSA.z向下取整 = function(v) { var _n = Number(v); return isNaN(_n) ? 0 : Math.floor(_n); };
+JSA.z向上取整 = function(v) { var _n = Number(v); return isNaN(_n) ? 0 : Math.ceil(_n); };
+JSA.z四舍五入 = function(v) { var _n = Number(v); return isNaN(_n) ? 0 : Math.round(_n); };
 JSA.z取整     = JSA.z四舍五入; // 默认四舍五入取整
 JSA.z幂       = function(base, exp) { return Math.pow(base, exp); };
 JSA.z对数     = function(v) { return Math.log(v); };
@@ -4304,6 +4306,9 @@ JSA.z解析函数表达式 = function(expr) {
  * @returns {Array} 分布后的数组
  */
 JSA.z矩阵分布 = function(totalRows, cols, direction) {
+    // 🐛 null/NaN 守卫 — 否则 Math.ceil(undefined) = NaN, for 循环 < NaN = false, 返回空数组
+    if (typeof totalRows !== 'number' || isNaN(totalRows) || totalRows < 0) return [];
+    if (typeof cols !== 'number' || isNaN(cols) || cols <= 0) return [];
     direction = direction || 'r';
     var result = [];
     var numbers = [];
