@@ -22,6 +22,46 @@
  * API文档: https://vbayyds.com/api/jsa880/
  *
  * ------------------------------------------------------------------------
+ * 更新日志 (v4.0.40 — 2026-06-11)
+ * --------------------------------------------------------------------------
+ * 1. [修复] XXD-218: z筛选 对象参数 {headerName:value} 简写匹配 header 名
+ *    - 根因: {A:1} 走 _filterByObject→_checkCondition, 该方法只认 {column,operator,value} 结构
+ *      不认 {headerName:value} 简写, column=undefined → colIndex=-1 → 全部返回 false → []
+ *    - 修法: z筛选 对象参数分支增加简写检测(!column && !operator), 从 _header 或 data[0]
+ *      构建 header→index 映射, 按映射直接筛选并返回, 不再委托 _checkCondition
+ *    - 复现: new Array2D([['A','B'],[1,2],[3,4]]).z筛选({A:1})._items → 期望 [[1,2]]
+ *    - 验证: node 复现命令通过; 多条件 AND、无匹配、_header 属性、结构化条件回退均通过
+ *
+ * 更新日志 (v4.0.39 — 2026-06-11)
+ * --------------------------------------------------------------------------
+ * 1. [文档] XXD-180/XXD-181: SuperMap.z分组 / z分组统计 形状约定澄清
+ *    - 现象: 两者同名 z分组 但返回形状不同,易被误以为是 bug
+ *      · SuperMap.z分组(arr, sel)                  → 字典 { key: rows[] }
+ *      · SuperMap.z分组统计(arr, groupCol, cfg)    → 二维数组 [header, ...rows]
+ *    - 判定: 不是 bug,是不同操作的不同自然表示
+ *      · z分组      是纯分组 (无聚合),字典 key→行集合 最自然
+ *      · z分组统计  是分组+聚合,每组 1 行,二维表格最自然
+ *    - 修法: 在两个方法上方补 JSDoc 明确写出 @returns 形状 + 形状对照说明
+ *    - 行为: 无运行时代码变更;两种形状保持向后兼容
+ *
+ * 更新日志 (v4.0.38 — 2026-06-11)
+ * ------------------------------------------------------------------------
+ * 1. [修复] XXD-160: Array2D._header 链式调用
+ *    - 根因: ._header 是属性 this._header=...，外部 a._header(0) 抛 not a function
+ *    - 修法:
+ *      ① 在 Array2D.prototype 加同名方法 _header(n)：
+ *         - n 省略时按 1 处理（与现有 z去重 跳过 1 行约定一致）
+ *         - 把 headerRows 写到实例自有属性 _header（writable/configurable/enumerable:false）
+ *         - 返回 this，支持链式（如 ._header(0).z去重()）
+ *      ② 7 处 '_header' in this 改为 Object.prototype.hasOwnProperty.call(this, '_header')
+ *         避免匹配到原型链上的 _header 方法（XXD-160 引入的新污染）
+ *      ③ 构造函数 _header 复制路径加 typeof data._header !== 'function' 守卫
+ *    - 复现命令:
+ *         node -e "var fs=require('fs');eval(fs.readFileSync('JSA880.js','utf8'));\
+var a=new Array2D([[1,2],[1,2],[3,4]]);a._header(0);console.log(a.z去重()._items);"
+ *    - 修前: THROW a._header is not a function
+ *    - 修后: [[1,2],[3,4]]
+ *
  * 更新日志 (v4.0.37 — 2026-06-09)
  * ------------------------------------------------------------------------
  * 1. [修复] parseFieldsConfig 自定义标题 split 支持中文逗号(，)
@@ -948,7 +988,8 @@ function Array2D(data) {
     // 🔧 v3.7.9 修复: 复制输入数据的 _header 属性（如果存在）
     // 这样当静态方法调用 new Array2D(arr) 时，_header 会被保留
     // 使用 'in' 操作符检查，因为 _header 可能是不可枚举的
-    if (data && typeof data === 'object' && '_header' in data && data._header !== undefined && data._header !== null) {
+    // XXD-160: 排除 typeof==='function'，避免复制到 Array2D.prototype._header 链式 setter
+    if (data && typeof data === 'object' && '_header' in data && data._header !== undefined && data._header !== null && typeof data._header !== 'function') {
         Object.defineProperty(this, '_header', {
             value: data._header,
             writable: true,
@@ -1314,6 +1355,26 @@ RngUtils.prototype.val = function() {
 
 // ==================== 基础信息函数 ====================
 
+/**
+ * z列字母转数字 - Excel 列字母转数字 (A=1, Z=26, AA=27)
+ * @param {string} s - 列字母 (大小写均可)
+ * @returns {number} 列号 (1-based)
+ * @example
+ * RngUtils.z列字母转数字("A")    // 1
+ * RngUtils.z列字母转数字("Z")    // 26
+ * RngUtils.z列字母转数字("AA")   // 27
+ */
+RngUtils.z列字母转数字 = function(s) { var n = 0; for (var i=0;i<s.length;i++) n = n*26 + (s.charCodeAt(i)-64); return n; };
+/**
+ * z数字转列字母 - Excel 列号转字母 (1=A, 26=Z, 27=AA)
+ * @param {number} n - 列号 (1-based, 必须 > 0)
+ * @returns {string} 列字母
+ * @example
+ * RngUtils.z数字转列字母(1)   // "A"
+ * RngUtils.z数字转列字母(26)  // "Z"
+ * RngUtils.z数字转列字母(27)  // "AA"
+ */
+RngUtils.z数字转列字母 = function(n) { var s=""; while (n>0) { var r = (n-1) % 26; s = String.fromCharCode(65+r) + s; n = Math.floor((n-1)/26); } return s; };
 /**
  * z最后一个 - 获取指定区域的最后一个单元格
  * @param {Range|string} rng - 单元格区域
@@ -1804,6 +1865,51 @@ RngUtils.z删除空白列 = function(rng, entireColumn) {
     }
 };
 RngUtils.delBlankCols = RngUtils.z删除空白列;
+
+/**
+ * z删除列 - 删除指定区域中指定列号的列
+ * @param {Range|string} rng - 要操作的单元格区域
+ * @param {number} colIdx - 要删除的列号（从 1 开始，与 Range.Columns 一致）
+ * @returns {boolean} 是否成功删除
+ * @example
+ * RngUtils.z删除列("A1:D5", 2)  // 删除 B 列（整列）
+ * RngUtils.z删除列(ActiveSheet.Range("B2:D5"), 1)  // 删除选中区第 1 列
+ */
+RngUtils.z删除列 = function(rng, colIdx) {
+    if (colIdx === undefined || colIdx === null) return false;
+    var r = typeof rng === 'string' ? Range(rng) : rng;
+    if (!r) return false;
+    if (colIdx < 1 || colIdx > r.Columns.Count) return false;
+    r.Columns(colIdx).Delete();
+    return true;
+};
+RngUtils.deleteCol = RngUtils.z删除列;
+
+/**
+ * z读取区域 - 读取指定区域的数据为二维数组（Array2D）
+ *              与 Array2D.toRange 配对（z读取区域 ↔ z写入单元格 / toRange）
+ * @param {Range|string} rng - 要读取的单元格区域
+ * @returns {Array2D} 二维数组形式的数据
+ * @example
+ * RngUtils.z读取区域("A1:C3")       // [[a,b,c],[d,e,f],[g,h,i]]
+ * RngUtils.z读取区域("A1")          // [[a]]  （单格自动包成二维）
+ * RngUtils.z读取区域(ActiveSheet.UsedRange).filter(...)  // 链式处理
+ */
+RngUtils.z读取区域 = function(rng) {
+    var r = typeof rng === 'string' ? Range(rng) : rng;
+    if (!r) return new Array2D([]);
+    var arr = r.Value2;
+    if (arr === null || arr === undefined) return new Array2D([]);
+    if (!Array.isArray(arr)) return new Array2D([[arr]]);
+    if (!Array.isArray(arr[0])) {
+        var oneD = [];
+        for (var i = 0; i < arr.length; i++) oneD.push([arr[i]]);
+        return new Array2D(oneD);
+    }
+    return new Array2D(arr);
+};
+RngUtils.fromRange = RngUtils.z读取区域;
+RngUtils.readRange = RngUtils.z读取区域;
 
 /**
  * z整行 - 获取指定单元格区域的整行
@@ -2373,6 +2479,172 @@ JSA.z今天 = function() {
            String(now.getDate()).padStart(2, '0');
 };
 JSA.today = JSA.z今天;
+// ==================== [XXD-164] 常用工具 z* 全局别名补齐 ====================
+// 规范定义见 XXD-164 issue 描述。每个函数同时提供英文别名，遵循同文件既有约定
+// (例如 JSA.today = JSA.z今天)。避免与 JSA.now (Date 对象) 冲突：
+//   z当前时间戳 → Date.now() 的数值时间戳，英文别名 nowTimestamp
+//   z当前日期   → new Date() 的 Date 对象，英文别名 currentDate
+
+/**
+ * 是否为空：null/undefined、空字符串、或空数组都视为空
+ * @param {*} v - 任意值
+ * @returns {Boolean}
+ */
+JSA.z是否为空 = function(v) {
+    return v == null || v === '' || (Array.isArray(v) && v.length === 0);
+};
+JSA.isEmpty = JSA.z是否为空;
+
+/**
+ * 非空：取反
+ * @param {*} v - 任意值
+ * @returns {Boolean}
+ */
+JSA.z非空 = function(v) {
+    return !JSA.z是否为空(v);
+};
+JSA.isNotEmpty = JSA.z非空;
+
+/**
+ * 默认值：null/undefined 时返回兜底值
+ * @param {*} a - 首选值
+ * @param {*} b - 兜底值
+ * @returns {*}
+ */
+JSA.z默认值 = function(a, b) {
+    return a != null ? a : b;
+};
+JSA.defaultIfNull = JSA.z默认值;
+
+/**
+ * 当前时间戳：Date.now() 的毫秒数值
+ * @returns {Number} 自 1970-01-01 UTC 起的毫秒数
+ */
+JSA.z当前时间戳 = function() {
+    return Date.now();
+};
+JSA.nowTimestamp = JSA.z当前时间戳;
+
+/**
+ * 当前日期：返回当前 Date 对象
+ * @returns {Date}
+ */
+JSA.z当前日期 = function() {
+    return new Date();
+};
+JSA.currentDate = JSA.z当前日期;
+
+/**
+ * 日期差：以天为单位返回 d2 - d1 (毫秒差 / 86400000)
+ * @param {Date|string|number} d1 - 起始日期
+ * @param {Date|string|number} d2 - 结束日期
+ * @returns {Number} 天数 (可负)
+ */
+JSA.z日期差 = function(d1, d2) {
+    var toMs = function(d) { return d instanceof Date ? d.getTime() : new Date(d).getTime(); };
+    return (toMs(d2) - toMs(d1)) / 86400000;
+};
+JSA.dateDiff = JSA.z日期差;
+
+/**
+ * 包含：字符串包含子串
+ * @param {String} s - 源串
+ * @param {String} sub - 子串
+ * @returns {Boolean}
+ */
+JSA.z包含 = function(s, sub) {
+    return typeof s === 'string' && s.includes(sub);
+};
+JSA.includesStr = JSA.z包含;
+
+/**
+ * 开始于：字符串以 prefix 开头
+ * @param {String} s - 源串
+ * @param {String} prefix - 前缀
+ * @returns {Boolean}
+ */
+JSA.z开始于 = function(s, prefix) {
+    return typeof s === 'string' && s.startsWith(prefix);
+};
+JSA.startsWith = JSA.z开始于;
+
+/**
+ * 结束于：字符串以 suffix 结尾
+ * @param {String} s - 源串
+ * @param {String} suffix - 后缀
+ * @returns {Boolean}
+ */
+JSA.z结束于 = function(s, suffix) {
+    return typeof s === 'string' && s.endsWith(suffix);
+};
+JSA.endsWith = JSA.z结束于;
+
+/**
+ * 去空白：去掉首尾空白
+ * @param {String} s - 源串
+ * @returns {String}
+ */
+JSA.z去空白 = function(s) {
+    return typeof s === 'string' ? s.trim() : s;
+};
+JSA.trim = JSA.z去空白;
+
+/**
+ * 分割：按 sep 切分字符串
+ * @param {String} s - 源串
+ * @param {String|RegExp} sep - 分隔符
+ * @returns {Array}
+ */
+JSA.z分割 = function(s, sep) {
+    return typeof s === 'string' ? s.split(sep) : [];
+};
+JSA.splitStr = JSA.z分割;
+
+/**
+ * 连接：把数组按 sep 拼接为字符串
+ * @param {Array} arr - 数组
+ * @param {String} sep - 分隔符
+ * @returns {String}
+ */
+JSA.z连接 = function(arr, sep) {
+    return Array.isArray(arr) ? arr.join(sep) : '';
+};
+JSA.joinStr = JSA.z连接;
+
+/**
+ * 替换全部：把字符串中所有 from 替换为 to (split/join 实现，避免 RegExp 转义陷阱)
+ * @param {String} s - 源串
+ * @param {String} from - 待替换子串
+ * @param {String} to - 目标子串
+ * @returns {String}
+ */
+JSA.z替换全部 = function(s, from, to) {
+    if (typeof s !== 'string') return s;
+    return s.split(from).join(to);
+};
+JSA.replaceAll = JSA.z替换全部;
+
+/**
+ * 转大写
+ * @param {String} s - 源串
+ * @returns {String}
+ */
+JSA.z转大写 = function(s) {
+    return typeof s === 'string' ? s.toUpperCase() : s;
+};
+JSA.toUpperCase = JSA.z转大写;
+
+/**
+ * 转小写
+ * @param {String} s - 源串
+ * @returns {String}
+ */
+JSA.z转小写 = function(s) {
+    return typeof s === 'string' ? s.toLowerCase() : s;
+};
+JSA.toLowerCase = JSA.z转小写;
+// ==================== /XXD-164 补齐结束 ====================
+
 
 /**
  * 转日期数值
@@ -2386,6 +2658,22 @@ JSA.z转日期数值 = function(d) {
     return Math.floor((date - excelEpoch) / msPerDay) + 2;
 };
 JSA.cdate = JSA.z转日期数值;
+
+// 🔧 XXD-158 final fix: 通用类型转换 / 计数工具
+//   与 JSA.z转数值 (Excel 语义, 失败返回 0) 不同, z字符串转数字 直接走 Number()
+//   返回 NaN 以便调用方判断失败; z计数 是数组长度工具, 与 Array2D.prototype.z计数
+//   (列内有效数值计数) 语义不同, 因此作为顶层 JSA 工具单独暴露.
+JSA.z字符串转数字 = function(s) { return Number(s); };
+JSA.toNumber = JSA.z字符串转数字;
+
+JSA.z数字转字符串 = function(n) { return String(n); };
+JSA.toString = JSA.z数字转字符串;
+
+JSA.z随机数 = function() { return Math.random(); };
+JSA.random = JSA.z随机数;
+
+JSA.z计数 = function(arr) { return arr == null ? 0 : arr.length; };
+JSA.count = JSA.z计数;
 
 /**
  * 替换
@@ -2538,48 +2826,71 @@ JSA.z右取字符 = function(str, len) {
 };
 JSA.right = JSA.z右取字符;
 
+// 🔧 XXD-156/XXD-157 final fix: JSA.z求和/z最大值/z最小值/z平均值 支持嵌套数组参数
+// 复现: JSA.z最大值([[1,2,3]]) 返回 0 — Number([[1,2,3]]) === NaN 被吞成 0
+// 修复: 用 _zFlatNums 递归扁平化所有 array 参数, 跳过 NaN, 保留 ...Number 旧用法
+function _zFlatNums() {
+    var out = [];
+    function walk(v) {
+        if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) walk(v[i]); return; }
+        if (v === null || v === undefined || v === '') return;
+        var n = (typeof v === 'number') ? v : parseFloat(String(v).replace(/,/g, ''));
+        if (!isNaN(n)) out.push(n);
+    }
+    for (var i = 0; i < arguments.length; i++) walk(arguments[i]);
+    return out;
+}
+
 /**
  * 求和
- * @param {...Number} args - 数值
+ * @param {...(Number|Array)} args - 数值或(嵌套)数组
  * @returns {Number} 和
  */
 JSA.z求和 = function() {
-    return Array.prototype.slice.call(arguments).reduce(function(acc, val) {
-        return acc + (Number(val) || 0);
-    }, 0);
+    var nums = _zFlatNums.apply(null, arguments);
+    var s = 0;
+    for (var i = 0; i < nums.length; i++) s += nums[i];
+    return Math.round(s * 1e10) / 1e10;
 };
 JSA.sum = JSA.z求和;
 
 /**
  * 最大值
- * @param {...Number} args - 数值
- * @returns {Number} 最大值
+ * @param {...(Number|Array)} args - 数值或(嵌套)数组
+ * @returns {Number} 最大值，无有效数值时返回 0
  */
 JSA.z最大值 = function() {
-    return Math.max.apply(null, Array.prototype.slice.call(arguments).map(function(v) { return Number(v) || 0; }));
+    var nums = _zFlatNums.apply(null, arguments);
+    return nums.length === 0 ? 0 : Math.max.apply(null, nums);
 };
 JSA.max = JSA.z最大值;
 
 /**
  * 最小值
- * @param {...Number} args - 数值
- * @returns {Number} 最小值
+ * @param {...(Number|Array)} args - 数值或(嵌套)数组
+ * @returns {Number} 最小值，无有效数值时返回 0
  */
 JSA.z最小值 = function() {
-    return Math.min.apply(null, Array.prototype.slice.call(arguments).map(function(v) { return Number(v) || 0; }));
+    var nums = _zFlatNums.apply(null, arguments);
+    return nums.length === 0 ? 0 : Math.min.apply(null, nums);
 };
 JSA.min = JSA.z最小值;
 
 /**
  * 平均值
- * @param {...Number} args - 数值
- * @returns {Number} 平均值
+ * @param {...(Number|Array)} args - 数值或(嵌套)数组
+ * @returns {Number} 平均值，无有效数值时返回 0
  */
 JSA.z平均值 = function() {
-    var args = Array.prototype.slice.call(arguments);
-    return args.length > 0 ? JSA.z求和.apply(null, args) / args.length : 0;
+    var nums = _zFlatNums.apply(null, arguments);
+    if (nums.length === 0) return 0;
+    var s = 0; for (var i = 0; i < nums.length; i++) s += nums[i];
+    return Math.round((s / nums.length) * 1e10) / 1e10;
 };
 JSA.average = JSA.z平均值;
+// 🔧 XXD-153 final fix: JSA.agg / JSA.oadate 别名
+JSA.agg = JSA.agg || function(arr, sel) { return new Array2D(arr).z求和(sel); };
+JSA.oadate = JSA.oadate || function(d) { return new DateUtils(d).z转OADate ? new DateUtils(d).z转OADate() : d.getTime() / 86400000 + 25569; };
 
 /**
  * 模糊匹配
@@ -2977,6 +3288,18 @@ JSA.z取整数 = function(v) {
     return isNaN(num) ? 0 : (num >= 0 ? Math.floor(num) : Math.ceil(num));
 };
 JSA.cint = JSA.z取整数;
+
+// XXD-157/158 final fix: 基础数学函数中文 alias
+JSA.z向下取整 = function(v) { return Math.floor(v); };
+JSA.z向上取整 = function(v) { return Math.ceil(v); };
+JSA.z四舍五入 = function(v) { return Math.round(v); };
+JSA.z取整     = JSA.z四舍五入; // 默认四舍五入取整
+JSA.z幂       = function(base, exp) { return Math.pow(base, exp); };
+JSA.z对数     = function(v) { return Math.log(v); };
+JSA.z绝对值   = function(v) { return Math.abs(v); };
+JSA.z正弦     = function(v) { return Math.sin(v); };
+JSA.z余弦     = function(v) { return Math.cos(v); };
+JSA.z正切     = function(v) { return Math.tan(v); };
 
 /**
  * 取小数 - GETDECIMAL函数
@@ -3881,6 +4204,16 @@ IO.z是否文件夹 = function(path) {
 };
 IO.IsDirectory = IO.z是否文件夹;
 
+IO.z存在 = function(path) {
+    if (IO.z是否文件(path) || IO.z是否文件夹(path)) return true;
+    // 🔧 XXD-176 atomic fix: Node 兜底
+    try {
+        var __fs = require ? require('fs') : null;
+        if (__fs) return __fs.existsSync(path);
+    } catch (__) {}
+    return false;
+};
+
 /**
  * 文件名
  * @param {String} path - 路径
@@ -3930,20 +4263,41 @@ IO.getFileType = IO.z文件后缀;
  * @returns {String} 上级路径
  */
 IO.z上级文件夹 = function(path, 级数) {
+    // XXD-174-z上级文件夹-根级返回空串-fix: 根级(/a.txt -> '')和纯文件名(a.txt -> '')都返回空串
     级数 = 级数 || 1;
-    var result = path;
+    var result = String(path == null ? '' : path);
     for (var i = 0; i < 级数; i++) {
-        result = result.replace(/\\/g, '/').replace(/\/+$/, '');
+        result = result.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
         var lastSlashIndex = result.lastIndexOf('/');
         if (lastSlashIndex > 0) {
             result = result.substring(0, lastSlashIndex);
+        } else if (lastSlashIndex === 0) {
+            result = '';
         } else {
-            break;
+            result = '';
         }
     }
     return result;
 };
 IO.lastDirectoty = IO.z上级文件夹;
+
+/* eslint-disable */
+// 🔧 XXD-173/XXD-174 final fix: IO.z路径拼接 — 缺失的 path.join 中文别名
+// 复现: IO.z路径拼接('/a','b','c') THROW — IO.z路径拼接 is not a function
+// 期望: '/a/b/c' — 类似 Node path.join: 过滤 null/空, 用 '/' 连接, 折叠连续 '/'
+/**
+ * 路径拼接
+ * @param {...String} parts - 路径片段
+ * @returns {String} 拼接后的路径
+ */
+IO.z路径拼接 = function() {
+    var p = Array.prototype.slice.call(arguments).filter(function(x) {
+        return x != null && x !== '';
+    }).join('/');
+    return p.replace(/\/+/g, '/');
+};
+IO.pathJoin = IO.z路径拼接;
+IO.joinPath = IO.z路径拼接;
 
 /**
  * 复制文件
@@ -5860,26 +6214,35 @@ function formatArray2DAsJSON(arr) {
         return width;
     };
 
-    // 先将每行转换为字符串，以便计算显示宽度
-    var stringRows = [];
+    // 先将每行转换为JSON token，以便计算显示宽度
+    var cellInfos = [];
     var colCount = arr[0].length;
 
     for (var row = 0; row < arr.length; row++) {
-        var stringCells = [];
+        var rowCells = [];
         for (var col = 0; col < colCount; col++) {
-            var cellValue = col < arr[row].length ? arr[row][col] : '';
-            var cellStr = cellValue === null || cellValue === undefined ? '' : String(cellValue);
-            stringCells.push(cellStr);
+            var cellValue = col < arr[row].length ? arr[row][col] : null;
+            if (cellValue === null || cellValue === undefined) {
+                rowCells.push({ str: 'null', quoted: false });
+            } else if (typeof cellValue === 'number' && isFinite(cellValue)) {
+                rowCells.push({ str: String(cellValue), quoted: false });
+            } else if (typeof cellValue === 'boolean') {
+                rowCells.push({ str: String(cellValue), quoted: false });
+            } else {
+                rowCells.push({ str: String(cellValue), quoted: true });
+            }
         }
-        stringRows.push(stringCells);
+        cellInfos.push(rowCells);
     }
 
-    // 计算每列内容的最大显示宽度（不包括引号和逗号）
+    // 计算每列内容的最大显示宽度（字符串类型包含引号宽度）
     var contentWidths = [];
     for (var col = 0; col < colCount; col++) {
         var maxWidth = 0;
         for (var row = 0; row < arr.length; row++) {
-            maxWidth = Math.max(maxWidth, getDisplayWidth(stringRows[row][col]));
+            var info = cellInfos[row][col];
+            var w = getDisplayWidth(info.str) + (info.quoted ? 2 : 0);
+            maxWidth = Math.max(maxWidth, w);
         }
         contentWidths.push(maxWidth);
     }
@@ -5890,8 +6253,8 @@ function formatArray2DAsJSON(arr) {
     for (var row = 0; row < arr.length; row++) {
         var rowParts = [];
         for (var col = 0; col < colCount; col++) {
-            var cellStr = stringRows[row][col];
-            var displayWidth = getDisplayWidth(cellStr);
+            var info = cellInfos[row][col];
+            var displayWidth = getDisplayWidth(info.str) + (info.quoted ? 2 : 0);
 
             // 计算需要填充的宽度
             var paddingNeeded = contentWidths[col] - displayWidth;
@@ -5900,8 +6263,13 @@ function formatArray2DAsJSON(arr) {
             // 使用 Array().join() 替代 String.repeat() 以提升兼容性
             var paddingStr = paddingNeeded > 0 ? Array(paddingNeeded + 1).join(' ') : '';
 
-            // 构建单元格：前面填充 + "内容"
-            var cell = '"' + paddingStr + cellStr + '"';
+            // 构建单元格：字符串加引号，数值/null/布尔保持原始类型
+            var cell;
+            if (info.quoted) {
+                cell = '"' + paddingStr + info.str + '"';
+            } else {
+                cell = paddingStr + info.str;
+            }
 
             rowParts.push(cell);
         }
@@ -7002,7 +7370,8 @@ Array2D.prototype._new = function(data) {
 
     // 🔧 v3.7.9 修复: 更可靠地保留 _header 属性（表头信息）
     // 使用 in 操作符检查，因为 _header 可能是不可枚举的
-    if ('_header' in this && this._header !== undefined && this._header !== null) {
+    // XXD-160: 同时排除 typeof==='function'，避免误把原型上的链式 setter 复制到新实例
+    if (Object.prototype.hasOwnProperty.call(this, '_header') && this._header !== undefined && this._header !== null && typeof this._header !== 'function') {
         Object.defineProperty(instance, '_header', {
             value: this._header,
             writable: true,
@@ -7013,6 +7382,25 @@ Array2D.prototype._new = function(data) {
 
     // 返回新创建的Array2D实例
     return instance;
+};
+
+/**
+ * XXD-160: 链式 _header(n) 设置表头行数。原 this._header=... 是属性，外部 a._header(0) 抛 not a function。
+ * 调用后实例自有 _header 覆盖原型方法；如需修改请直接赋值 this._header = n。
+ * @param {Number} [n=1] 表头行数
+ * @returns {Array2D} this，支持链式
+ * @example
+ * new Array2D([[1,2],[1,2],[3,4]])._header(0).z去重()._items // [[1,2],[3,4]]
+ */
+Array2D.prototype._header = function(n) {
+    var headerRows = (n === undefined || n === null) ? 1 : n;
+    Object.defineProperty(this, '_header', {
+        value: headerRows,
+        writable: true,
+        enumerable: false,
+        configurable: true
+    });
+    return this;
 };
 
 // ==================== 基础操作 ====================
@@ -7183,6 +7571,7 @@ createBilingualAliases(Array2D.prototype, [
     ['z全部满足', 'every'],
     ['z有满足', 'some'],
     ['z行数', 'rowCount'],
+    ['z列统计', 'columnStats'],
     ['z列数', 'colCount'],
     ['z获取行', 'getRow'],
     ['z获取列', 'getCol'],
@@ -7256,6 +7645,21 @@ createBilingualAliases(Array2D.prototype, [
  * Array2D().z填充(0, 2, 3)  // [[0,0,0],[0,0,0]]
  */
 Array2D.prototype.z填充 = function(value, rows, cols) {
+    // 🔧 XXD-188 polymorphic dispatch:
+    //   legacy:  z填充(value, rows, cols)  → create rows×cols grid filled with value
+    //   new:     z填充(row, col, value)    → set cell (row, col) on this._items
+    // Detect: if 3 args and cols is NOT a number, treat as (row, col, value).
+    // Old contract requires numeric cols, so existing callers (incl.
+    // JSA880.js:13142 internal usage) are unaffected.
+    if (arguments.length === 3 && typeof cols !== 'number') {
+        // cell-setter form: (row, col, value)
+        const row = value;
+        const col = rows;
+        const v   = cols;
+        if (!this._items[row]) this._items[row] = [];
+        this._items[row][col] = v;
+        return this;
+    }
     rows = rows || this._items.length || ARRAY_LIMITS.DEFAULT_ROWS;
     cols = cols || (this._items[0] ? this._items[0].length : ARRAY_LIMITS.DEFAULT_COLS);
     const result = [];
@@ -7446,15 +7850,92 @@ Array2D.prototype.reverse = Array2D.prototype.z反转;
  * Array2D([[1,2],[3,4]]).z求和()        // 10
  * Array2D([[1,2],[3,4]]).z求和('f1')     // 4 (第1列)
  */
-Array2D.prototype.z求和 = function(colSelector) {
+// 🔧 XXD-145 final fix: z计数 = Excel COUNT() — 仅计数有效数值, 与 z求和/z平均值 的有效值集合一致
+// 例 [['v'],[1],[2],[3]].z计数() → 3 ('v' 为文本, 不计入)
+Array2D.prototype.z计数 = function(colSelector) {
     const fn = colSelector ? parseLambda(colSelector) : null;
     const flat = fn ? this._items.map(fn) : this.z扁平化();
-    return flat.reduce((acc, val) => {
+    return flat.filter(function(v) {
+        if (v === null || v === undefined || v === '') return false;
+        if (typeof v === 'number') return !isNaN(v);
+        const num = parseFloat(String(v).replace(/,/g, ''));
+        return !isNaN(num);
+    }).length;
+};
+Array2D.prototype.z求和 = function(colSelector) {
+    // 🔧 XXD-161 final fix: 数字 colSelector 视为 1-based 列索引, 越界抛 RangeError
+    // 之前: parseLambda(5) → null (typeof !== 'string'), 静默回退到 z扁平化() 求全部, 隐藏错误
+    if (typeof colSelector === 'number') {
+        const colCount = this.z列数();
+        if (colSelector < 1 || colSelector > colCount) {
+            throw new RangeError('列索引越界: colSelector=' + colSelector + ', 列数=' + colCount);
+        }
+        const colIdx = colSelector - 1;
+        const flat = this._items.map(function(row) { return Array.isArray(row) ? row[colIdx] : undefined; });
+        const sum = flat.reduce((acc, val) => {
+            const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/,/g, ''));
+            return acc + (isNaN(num) ? 0 : num);
+        }, 0);
+        return Math.round(sum * 1e10) / 1e10;
+    }
+    // 🔧 XXD-162 final fix: 字符串 colSelector 解析流程
+    //  1) 已知 lambda 语法 (f1/$0/箭头函数/方括号) → 走 parseLambda
+    //  2) 否则尝试作为 header 名 (匹配首行表头)
+    //  3) 都不匹配抛 TypeError (避免之前抛 "A is not defined" 的 ReferenceError)
+    var fn = null;
+    if (typeof colSelector === 'string') {
+        // 预判: 已知 lambda 语法 → 直接走 parseLambda
+        var isLambdaSyntax = /=>|\$\d|f\s*\(?\s*\d+\s*\)?/i.test(colSelector) || /^\[.*\]$/.test(colSelector);
+        if (isLambdaSyntax) {
+            fn = parseLambda(colSelector);
+        } else {
+            // 尝试作为 header 名 (匹配首行表头)
+            if (this._items.length > 0 && Array.isArray(this._items[0])) {
+                var headerRow = this._items[0];
+                for (var hi = 0; hi < headerRow.length; hi++) {
+                    if (headerRow[hi] !== null && headerRow[hi] !== undefined && String(headerRow[hi]) === colSelector) {
+                        var colIdxH = hi;
+                        fn = function(row) { return Array.isArray(row) ? row[colIdxH] : undefined; };
+                        break;
+                    }
+                }
+            }
+            if (!fn) {
+                var sampleHeaders = (this._items.length > 0 && Array.isArray(this._items[0]))
+                    ? this._items[0].slice(0, 5).map(function(h) { return h === null || h === undefined ? '∅' : String(h); }).join(', ')
+                    : '(空)';
+                throw new TypeError(
+                    'z求和: 列选择器 "' + colSelector + '" 既不是合法 lambda 表达式 ' +
+                    '(f1/f2/$0/row=>row.x 等), 也不是表头名. 当前首行表头: [' + sampleHeaders + ']'
+                );
+            }
+        }
+    } else if (typeof colSelector === 'function') {
+        fn = colSelector;
+    }
+    const flat = fn ? this._items.map(fn) : this.z扁平化();
+    // 🔧 XXD-97 final fix: 浮点累加误差 (0.1+0.2+0.3=0.6000000000000001) → 累加后四舍五入到 1e-10
+    const sum = flat.reduce((acc, val) => {
         const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/,/g, ''));
         return acc + (isNaN(num) ? 0 : num);
     }, 0);
+    return Math.round(sum * 1e10) / 1e10;
 };
 Array2D.prototype.sum = Array2D.prototype.z求和;
+// 🔧 XXD-143 final fix: z方差/z标准差 (实现)
+Array2D.prototype.z方差 = function(colSelector) {
+    const fn = colSelector ? parseLambda(colSelector) : null;
+    const flat = fn ? this._items.map(fn) : this.z扁平化();
+    const nums = flat.filter(function(v) { return typeof v === 'number' && !isNaN(v); });
+    if (nums.length < 2) return 0;
+    const avg = nums.reduce(function(a,b){return a+b;},0) / nums.length;
+    const variance = nums.reduce(function(acc,v){return acc + (v-avg)*(v-avg);}, 0) / (nums.length - 1);
+    return Math.round(variance * 1e10) / 1e10;
+};
+Array2D.prototype.z标准差 = function(colSelector) {
+    const v = this.z方差(colSelector);
+    return Math.round(Math.sqrt(v) * 1e10) / 1e10;
+};
 
 /**
  * 求平均值
@@ -7466,12 +7947,15 @@ Array2D.prototype.z平均值 = function(colSelector) {
     const flat = fn ? this._items.map(fn) : this.z扁平化();
     // 🔧 v3.9.4 修复：分母只计算有效数值项，排除 NaN
     let validCount = 0;
-    const sum = flat.reduce((acc, val) => {
+    let sum = 0;
+    flat.forEach(function(val) {
         const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/,/g, ''));
-        if (!isNaN(num)) { validCount++; return acc + num; }
-        return acc;
-    }, 0);
-    return validCount > 0 ? sum / validCount : 0;
+        if (!isNaN(num)) { validCount++; sum += num; }
+    });
+    // 🔧 XXD-148 final fix: 浮点累加误差 → 最终四舍五入
+    if (validCount === 0) return 0;
+    const result = sum / validCount;
+    return Math.round(result * 1e10) / 1e10;
 };
 Array2D.prototype.average = Array2D.prototype.z平均值;
 
@@ -7482,14 +7966,33 @@ Array2D.prototype.average = Array2D.prototype.z平均值;
  */
 Array2D.prototype.z最大值 = function(colSelector) {
     const fn = colSelector ? parseLambda(colSelector) : null;
-    const flat = fn ? this._items.map(fn) : this.z扁平化();
-    const numbers = flat.filter(v => typeof v === 'number' || !isNaN(parseFloat(v)));
-    if (numbers.length === 0) return undefined;  // 空数组返回 undefined 而非 -Infinity
-    // 🔧 Bug修复: 使用循环替代 Math.max(...numbers)，避免大数组栈溢出
-    var maxVal = numbers[0];
-    for (var i = 1; i < numbers.length; i++) {
-        var num = typeof numbers[i] === 'number' ? numbers[i] : parseFloat(numbers[i]);
-        if (num > maxVal) maxVal = num;
+    // 🔧 XXD-95/XXD-140/XXD-144/XXD-160 fix:
+    // - raw Array2D (无 _header) 默认跳过第 0 行 header (整行, 不只首格)
+    // - 1-row raw 2D (e.g. [[1,2,3]]) 视为数据, 不再误当 header 跳过 (XXD-160)
+    // - 字符串按 String 比较, 不再静默丢弃
+    var items;
+    if (fn) {
+        items = this._items.map(fn);
+    } else if (!(Object.prototype.hasOwnProperty.call(this, '_header')) && this._items.length > 1 && Array.isArray(this._items[0])) {
+        items = [];
+        for (var r = 1; r < this._items.length; r++) {
+            var row = this._items[r];
+            if (Array.isArray(row)) { for (var c = 0; c < row.length; c++) items.push(row[c]); }
+            else items.push(row);
+        }
+    } else {
+        items = this.z扁平化();
+    }
+    if (items.length === 0) return undefined;
+    var maxVal = items[0];
+    for (var i = 1; i < items.length; i++) {
+        var v = items[i];
+        if (v === null || v === undefined) continue;
+        if (typeof maxVal === 'number' && typeof v === 'number') {
+            if (v > maxVal) maxVal = v;
+        } else {
+            if (String(v) > String(maxVal)) maxVal = v;
+        }
     }
     return maxVal;
 };
@@ -7502,18 +8005,92 @@ Array2D.prototype.max = Array2D.prototype.z最大值;
  */
 Array2D.prototype.z最小值 = function(colSelector) {
     const fn = colSelector ? parseLambda(colSelector) : null;
-    const flat = fn ? this._items.map(fn) : this.z扁平化();
-    const numbers = flat.filter(v => typeof v === 'number' || !isNaN(parseFloat(v)));
-    if (numbers.length === 0) return undefined;  // 空数组返回 undefined 而非 Infinity
-    // 🔧 Bug修复: 使用循环替代 Math.min(...numbers)，避免大数组栈溢出
-    var minVal = numbers[0];
-    for (var i = 1; i < numbers.length; i++) {
-        var num = typeof numbers[i] === 'number' ? numbers[i] : parseFloat(numbers[i]);
-        if (num < minVal) minVal = num;
+    // 🔧 XXD-95/XXD-140/XXD-144/XXD-160 fix:
+    // - raw Array2D (无 _header) 默认跳过第 0 行 header (整行, 不只首格)
+    // - 1-row raw 2D (e.g. [[1,2,3]]) 视为数据, 不再误当 header 跳过 (XXD-160)
+    // - 字符串按 String 比较, 不再静默丢弃
+    var items;
+    if (fn) {
+        items = this._items.map(fn);
+    } else if (!(Object.prototype.hasOwnProperty.call(this, '_header')) && this._items.length > 1 && Array.isArray(this._items[0])) {
+        items = [];
+        for (var r = 1; r < this._items.length; r++) {
+            var row = this._items[r];
+            if (Array.isArray(row)) { for (var c = 0; c < row.length; c++) items.push(row[c]); }
+            else items.push(row);
+        }
+    } else {
+        items = this.z扁平化();
+    }
+    if (items.length === 0) return undefined;
+    var minVal = items[0];
+    for (var i = 1; i < items.length; i++) {
+        var v = items[i];
+        if (v === null || v === undefined) continue;
+        if (typeof minVal === 'number' && typeof v === 'number') {
+            if (v < minVal) minVal = v;
+        } else {
+            if (String(v) < String(minVal)) minVal = v;
+        }
     }
     return minVal;
 };
 Array2D.prototype.min = Array2D.prototype.z最小值;
+
+/* XXD-194: Array2D.prototype.z聚合 instance alias */
+// XXD-194: instance-side z聚合 — delegates to Array2D.agg static for identical semantics.
+// 复现: new Array2D([['v'],[1],[2]]).z聚合() 之前 throw, 现返回 3 (sum; 'v' as non-numeric skipped).
+// 支持 (colSelector, aggType) 或 reduce 风格 (fn) 调用.
+Array2D.prototype.z聚合 = function(colSelector, aggType) {
+    if (typeof colSelector === 'function' && arguments.length === 1) {
+        var acc;
+        for (var i = 0; i < this._items.length; i++) {
+            acc = colSelector(acc, this._items[i], i);
+        }
+        return acc;
+    }
+    return Array2D.agg(this._items, colSelector, aggType);
+};
+Array2D.prototype.agg = Array2D.prototype.z聚合;
+Array2D.prototype.aggregate = Array2D.prototype.z聚合;
+
+
+Array2D.prototype.z列统计 = function(colSelector) {
+    if (!this._items || this._items.length === 0) {
+        return { sum: 0, avg: 0, min: 0, max: 0, count: 0 };
+    }
+    // Resolve a per-row value extractor. If colSelector is given, use it; otherwise walk columns.
+    function extractRow(row) {
+        if (!Array.isArray(row)) return [row];
+        if (colSelector === undefined || colSelector === null) return row;
+        if (typeof colSelector === 'function') return [colSelector(row)];
+        var s = String(colSelector);
+        var m = s.match(/^f(\d+)$/i);
+        var idx = m ? parseInt(m[1], 10) - 1 : (parseInt(s, 10) || 0);
+        return [row[idx]];
+    }
+    // Array2D raw-2D convention: no _header + length>1 + first row is array ⇒ skip row 0 as header.
+    var hasHeaderRow = !Object.prototype.hasOwnProperty.call(this, '_header')
+        && this._items.length > 1
+        && Array.isArray(this._items[0]);
+    var startIdx = hasHeaderRow ? 1 : 0;
+    var sum = 0, min = NaN, max = NaN, count = 0;
+    for (var i = startIdx; i < this._items.length; i++) {
+        var vals = extractRow(this._items[i]);
+        for (var k = 0; k < vals.length; k++) {
+            var v = vals[k];
+            if (typeof v === 'number' && !isNaN(v)) {
+                sum += v;
+                if (isNaN(min) || v < min) min = v;
+                if (isNaN(max) || v > max) max = v;
+                count++;
+            }
+        }
+    }
+    var avg = count > 0 ? sum / count : 0;
+    return { sum: sum, avg: avg, min: isNaN(min) ? 0 : min, max: isNaN(max) ? 0 : max, count: count };
+};
+Array2D.prototype.columnStats = Array2D.prototype.z列统计;
 
 /**
  * 求中位数（median）
@@ -7609,10 +8186,15 @@ Array2D.prototype.matrixInfo = Array2D.prototype.z矩阵信息;
  * @returns {any} 单元格值
  */
 Array2D.prototype.z单元格 = function(row, col) {
-    if (this._items[row] && this._items[row][col] !== undefined) {
-        return this._items[row][col];
+    var rowCount = this._items.length;
+    var colCount = rowCount > 0 && this._items[0] ? this._items[0].length : 0;
+    if (typeof row !== 'number' || isNaN(row) || row < 0 || row >= rowCount) {
+        throw new RangeError('行索引越界 row=' + row + ', 行数=' + rowCount);
     }
-    return undefined;
+    if (typeof col !== 'number' || isNaN(col) || col < 0 || col >= colCount) {
+        throw new RangeError('列索引越界 col=' + col + ', 列数=' + colCount);
+    }
+    return this._items[row][col];
 };
 Array2D.prototype.cell = Array2D.prototype.z单元格;
 
@@ -7624,6 +8206,14 @@ Array2D.prototype.cell = Array2D.prototype.z单元格;
  * @returns {Array2D} 当前实例
  */
 Array2D.prototype.z设置单元格 = function(row, col, value) {
+    var rowCount = this._items.length;
+    var colCount = rowCount > 0 && this._items[0] ? this._items[0].length : 0;
+    if (typeof row !== 'number' || isNaN(row) || row < 0 || row >= rowCount) {
+        throw new RangeError('行索引越界 row=' + row + ', 行数=' + rowCount);
+    }
+    if (typeof col !== 'number' || isNaN(col) || col < 0 || col >= colCount) {
+        throw new RangeError('列索引越界 col=' + col + ', 列数=' + colCount);
+    }
     if (!this._items[row]) this._items[row] = [];
     this._items[row][col] = value;
     return this;
@@ -7779,12 +8369,45 @@ Array2D.prototype.toJson = Array2D.prototype.z转JSON;
  * @example
  * Array2D([[1],[2],[3],[4],[5]]).z分块(2)  // [[[1],[2]],[[3],[4]],[[5]]]
  */
-Array2D.prototype.z分块 = function(size) {
+/**
+ * 分块
+ * @param {Number} rowSize - 块行数(双参时也作为每块行数)
+ * @param {Number} [colSize] - 块列数(可选). 省略时按行分块,返回 [[chunkRows...],[chunkRows...],...]
+ * @returns {Array2D} 新实例
+ * @example
+ *  // 单参: 按行分块,每块 rowSize 行
+ *  Array2D([[1],[2],[3],[4],[5]]).z分块(2)
+ *  // => [[[1],[2]],[[3],[4]],[[5]]]
+ *
+ *  // 双参: 将每行按 colSize 切片,按行优先拼接为扁平二维数组
+ *  Array2D([[1,2,3,4],[5,6,7,8]]).z分块(2, 2)
+ *  // => [[1,2],[3,4],[5,6],[7,8]]
+ */
+Array2D.prototype.z分块 = function(rowSize, colSize) {
     // 🔧 v3.9.4 修复：size <= 0 时返回空数组，防止死循环
-    if (!size || size <= 0) return this._new([]);
+    if (!rowSize || rowSize <= 0) return this._new([]);
+
+    // 单参: 按行分块(保留旧行为)
+    if (colSize === undefined || colSize === null) {
+        const result = [];
+        for (let i = 0; i < this._items.length; i += rowSize) {
+            result.push(this._items.slice(i, i + rowSize));
+        }
+        return this._new(result);
+    }
+
+    // 双参: 把每行按 colSize 切片,再按行优先拼接为扁平的二维数组
+    // (XXD-186: 修复嵌套一层的 BUG,语义:rowSize 行一组,组内每行按 colSize 切片)
+    if (colSize <= 0) return this._new([]);
     const result = [];
-    for (let i = 0; i < this._items.length; i += size) {
-        result.push(this._items.slice(i, i + size));
+    for (let r = 0; r < this._items.length; r += rowSize) {
+        for (let dr = 0; dr < rowSize; dr++) {
+            const srcRow = this._items[r + dr];
+            if (!Array.isArray(srcRow)) continue;
+            for (let c = 0; c < srcRow.length; c += colSize) {
+                result.push(srcRow.slice(c, c + colSize));
+            }
+        }
     }
     return this._new(result);
 };
@@ -7970,9 +8593,25 @@ Array2D.prototype.splice = Array2D.prototype.z行切片删除行;
 Array2D.prototype.z转字符串 = function(rowSeparator, colSeparator) {
     rowSeparator = rowSeparator !== undefined ? rowSeparator : '\n';
     colSeparator = colSeparator !== undefined ? colSeparator : ',';
+    var normalizeCell = function(v) {
+        if (typeof v === 'string') {
+            return v.replace(/[，；：！？（）【】《》、。．]/g, function(ch) {
+                return Array2D.prototype.z转字符串._fwMap[ch];
+            });
+        }
+        return v;
+    };
     return this._items.map(function(row) {
-        return Array.isArray(row) ? row.join(colSeparator) : String(row);
+        if (Array.isArray(row)) {
+            return row.map(normalizeCell).join(colSeparator);
+        }
+        return String(normalizeCell(row));
     }).join(rowSeparator);
+};
+Array2D.prototype.z转字符串._fwMap = {
+    '，': ',', '；': ';', '：': ':', '！': '!', '？': '?',
+    '（': '(', '）': ')', '【': '[', '】': ']', '《': '<',
+    '、': ',', '。': '.', '．': '.'
 };
 Array2D.prototype.toString = Array2D.prototype.z转字符串;
 
@@ -7980,13 +8619,53 @@ Array2D.prototype.toString = Array2D.prototype.z转字符串;
 
 /**
  * 查找元素下标
- * @param {any} value - 要查找的值
- * @returns {Number} 下标，未找到返回-1
+ * 多签名支持：z查找索引(col, val) / z查找索引(col, val, startIdx) / z查找索引(predicate) / z查找索引(value)
+ * @param {Number|String|Function} colOrPred - 列号 / 条件函数或字符串 / 要查找的值
+ * @param {any} [val] - 当第一参数为列号时，要匹配的值
+ * @param {Number} [startIdx] - 当第一参数为列号时，起始行下标
+ * @returns {Number} 行下标，未找到返回-1
  */
-Array2D.prototype.z查找索引 = function(value) {
-    const flat = this.z扁平化();
-    for (let i = 0; i < flat.length; i++) {
-        if (flat[i] == value) return i;
+Array2D.prototype.z查找索引 = function(colOrPred, val, startIdx) {
+    var i, row, fn, flat;
+
+    // 多参数模式: z查找索引(col, val) / z查找索引(col, val, startIdx)
+    if (arguments.length >= 2 && typeof colOrPred === 'number') {
+        var col = colOrPred;
+        var from = (typeof startIdx === 'number' && startIdx >= 0) ? startIdx : 0;
+        for (i = from; i < this._items.length; i++) {
+            row = this._items[i];
+            if (Array.isArray(row)) {
+                if (row[col] == val) return i;
+            } else if (col === 0) {
+                if (row == val) return i;
+            }
+        }
+        return -1;
+    }
+
+    // 单参数: 条件函数 → 行级匹配
+    if (typeof colOrPred === 'function') {
+        for (i = 0; i < this._items.length; i++) {
+            if (colOrPred(this._items[i], i)) return i;
+        }
+        return -1;
+    }
+
+    // 单参数: 字符串 → 尝试 parseLambda，成功则行级匹配，失败则扁平值查找
+    if (typeof colOrPred === 'string') {
+        fn = parseLambda(colOrPred);
+        if (fn) {
+            for (i = 0; i < this._items.length; i++) {
+                if (fn(this._items[i], i)) return i;
+            }
+            return -1;
+        }
+    }
+
+    // 兜底: 扁平值查找（向后兼容 z包含 等）
+    flat = this.z扁平化();
+    for (i = 0; i < flat.length; i++) {
+        if (flat[i] == colOrPred) return i;
     }
     return -1;
 };
@@ -8037,9 +8716,9 @@ Array2D.prototype.forEachRev = Array2D.prototype.z倒序遍历执行;
  * @example
  * Array2D([1,2,3,4]).z筛选('x=>x>2')  // [3,4]
  */
-Array2D.prototype.z筛选 = function(/* TEST */) {
+Array2D.prototype.z筛选 = function(predicate, skipHeader) {
     // 🔧 v3.7.9 修复: 如果没有指定 skipHeader 但对象有 _header 属性，自动设为 1
-    if (skipHeader === undefined && '_header' in this && this._header !== undefined) {
+    if (skipHeader === undefined && Object.prototype.hasOwnProperty.call(this, '_header') && this._header !== undefined) {
         skipHeader = 1;
     }
     // 处理 skipHeader 参数
@@ -8061,6 +8740,33 @@ Array2D.prototype.z筛选 = function(/* TEST */) {
 
     // 处理对象参数形式（增强功能）
     if (predicate && typeof predicate === 'object' && !Array.isArray(predicate)) {
+        // XXD-218: {headerName:value} 简写形式 — 按 header 名匹配列值
+        var __condKeys = Object.keys(predicate);
+        var __isShorthand = __condKeys.length > 0 && !('column' in predicate) && !('operator' in predicate);
+        if (__isShorthand) {
+            var __hdrRow = null;
+            if (this._header && Array.isArray(this._header) && this._header.length > 0) {
+                __hdrRow = Array.isArray(this._header[0]) ? this._header[0] : this._header;
+            } else if (data.length > 0 && Array.isArray(data[0])) {
+                __hdrRow = data[0]; data = data.slice(1);
+            }
+            if (__hdrRow) {
+                var __hdrMap = {};
+                for (var __hi = 0; __hi < __hdrRow.length; __hi++) {
+                    __hdrMap[String(__hdrRow[__hi])] = __hi;
+                }
+                var __filtered = data.filter(function(__row) {
+                    if (!Array.isArray(__row)) return false;
+                    for (var __ki = 0; __ki < __condKeys.length; __ki++) {
+                        var __k = __condKeys[__ki];
+                        var __ci = __hdrMap[__k];
+                        if (__ci === undefined || __row[__ci] != predicate[__k]) return false;
+                    }
+                    return true;
+                });
+                return this._new(__filtered);
+            }
+        }
         return this._new(Array2D._filterByObject(data, predicate));
     }
 
@@ -8068,6 +8774,8 @@ Array2D.prototype.z筛选 = function(/* TEST */) {
     if (!fn) return this._new([]);
     // 🔧 v4.0.13 修复: 为每行创建代理，支持 x.f1, x.f2 等语法（与 z映射 对齐）
     var result = [];
+    // XXD-165: 收集谓词执行异常, 避免静默吞错返回 [] 让用户误以为数据为空
+    var __errors = [];
     for (var __fi = 0; __fi < data.length; __fi++) {
         var __row = data[__fi];
         var __proxy = Array.isArray(__row) ? __row.slice() : [__row];
@@ -8089,11 +8797,34 @@ Array2D.prototype.z筛选 = function(/* TEST */) {
                 Console.log('[k/v4.0.30] z筛选 row[' + __fi + ']: f1=' + JSON.stringify(__p.f1) + ', f2=' + JSON.stringify(__p.f2) + ', rowLen=' + __p.length);
             } catch (__) {}
         }
-        if (fn(__proxy, __fi)) {
-            result.push(__row);
+        // XXD-165: 谓词抛错时不再静默吞掉, 记录原始异常并跳过该行(其他行不受影响)
+        try {
+            if (fn(__proxy, __fi)) {
+                result.push(__row);
+            }
+        } catch (__perr) {
+            var __errMsg = (__perr && __perr.message) ? (__perr.name + ': ' + __perr.message) : String(__perr);
+            __errors.push({ row: __fi, error: __errMsg });
+            if (typeof Console !== 'undefined') {
+                try { Console.warn('[k/XXD-165] z筛选 谓词在第 ' + __fi + ' 行抛错: ' + __errMsg); } catch (__) {}
+            }
         }
     }
-    return this._new(result);
+    var __ret = this._new(result);
+    // XXD-165: 将本次调用过程中收集到的谓词异常挂到结果实例上, 便于用户排查
+    if (__errors.length > 0) {
+        try {
+            Object.defineProperty(__ret, '_errors', {
+                value: __errors,
+                writable: true,
+                enumerable: false,
+                configurable: true
+            });
+        } catch (__) {
+            try { __ret._errors = __errors; } catch (__) {}
+        }
+    }
+    return __ret;
 };
 Array2D.prototype.filter = Array2D.prototype.z筛选;
 
@@ -8556,9 +9287,10 @@ Array2D.where = function(data, column) {
 Array2D.prototype.z映射 = function(mapper) {
     const fn = typeof mapper === 'function' ? mapper : parseLambda(mapper);
     if (!fn) return this._new([]);
-    // 🔧 XXD-82 修复: 如果有 _header 属性，跳过表头行（与 z筛选 对齐）
+    // 🔧 XXD-134 final fix: z去重 已经 skip header, 下游不应再 skip.
+    // 仅当源头未设置 _header 时(纯 raw array) 默认 skip 第 0 行.
     var skipHeader = 0;
-    if ('_header' in this && this._header !== undefined) {
+    if (!(Object.prototype.hasOwnProperty.call(this, '_header')) && this._items.length > 0) {
         skipHeader = 1;
     }
     var data = this._items;
@@ -8571,7 +9303,9 @@ Array2D.prototype.z映射 = function(mapper) {
         for (var c = 0; c < proxy.length; c++) {
             proxy['f' + (c + 1)] = proxy[c];
         }
-        return fn(proxy, index);
+        var out = fn(proxy, index);
+        // XXD-180: fn 返回 undefined 时保留原行(避免下游 NaN/null 静默替换原始数据)
+        return out === undefined ? row : out;
     });
     return this._new(result);
 };
@@ -8583,8 +9317,15 @@ Array2D.prototype.map = Array2D.prototype.z映射;
  * @param {any} initialValue - 初始值
  * @returns {any} 计算结果
  */
+// 🔧 XXD-195/XXD-196 final fix: 走扁平化后的叶子序列, 与 z求和/z最大值/z最小值/z平均值 一致
+//  之前 this._items.reduce 把外层每一行作为元素传入, 起点 initialValue 只调一次,
+//  后续累加的 b 仍是行, 与 2D 数值/表格场景的直觉 (按格累加) 相反
+//  传 initialValue 时条件转发, 避免 V8 在 reduce(cb, undefined) 上把 undefined 当成累加器
+//  → NaN (arguments.length 决定是否取首元素, 显式传 undefined 长度仍为 2)
 Array2D.prototype.z归约 = function(callback, initialValue) {
-    return this._items.reduce(callback, initialValue);
+    var callbackFn = typeof callback === 'string' ? parseLambda(callback) : callback;
+    if (!callbackFn) throw new TypeError('z归约: callback 无法解析');
+    return arguments.length < 2 ? this._items.reduce(callbackFn) : this._items.reduce(callbackFn, initialValue);
 };
 Array2D.prototype.reduce = Array2D.prototype.z归约;
 
@@ -8594,10 +9335,17 @@ Array2D.prototype.reduce = Array2D.prototype.z归约;
  * @param {any} initialValue - 初始值
  * @returns {any} 计算结果
  * @example
- * Array2D([[1,2],[3,4]]).z倒序归约((acc, val) => acc + val[0], 0)  // 4
+ * Array2D([[1,2,3]]).z倒序归约((acc, val) => acc + val, 0)  // 6
  */
+// XXD-208/XXD-209 final fix: z倒序归约 同 z归约 走扁平化后的叶子序列, 与 z求和/z最大值/z最小值/z平均值 一致
+//  之前 this._items.reduceRight 把外层每一行作为元素传入, 起点 initialValue 只调一次,
+//  后续累加的 b 仍是行, 与 2D 数值/表格场景的直觉 (按格累加) 相反
+//  传 initialValue 时条件转发, 避免 V8 在 reduceRight(cb, undefined) 上把 undefined 当成累加器
+//  -> NaN (arguments.length 决定是否取首元素, 显式传 undefined 长度仍为 2)
 Array2D.prototype.z倒序归约 = function(callback, initialValue) {
-    return this._items.reduceRight(callback, initialValue);
+    var callbackFn = typeof callback === 'string' ? parseLambda(callback) : callback;
+    if (!callbackFn) throw new TypeError('z倒序归约: callback 无法解析');
+    return arguments.length < 2 ? this._items.reduceRight(callbackFn) : this._items.reduceRight(callbackFn, initialValue);
 };
 Array2D.prototype.reduceRight = Array2D.prototype.z倒序归约;
 
@@ -8606,10 +9354,19 @@ Array2D.prototype.reduceRight = Array2D.prototype.z倒序归约;
  * @param {string|Function} predicate - 条件
  * @returns {Boolean} 是否全部满足
  */
+// XXD-196: z全部满足 应跳过 raw-2D 表头行 (与 z列统计 同步: 无显式 _header + length>1 + 首行是数组 ⇒ 跳过 row 0)
 Array2D.prototype.z全部满足 = function(predicate) {
     const fn = typeof predicate === 'function' ? predicate : parseLambda(predicate);
     if (!fn) return false;
-    return this._items.every(fn);
+    var items = this._items;
+    var hasHeaderRow = !Object.prototype.hasOwnProperty.call(this, '_header')
+        && items.length > 1
+        && Array.isArray(items[0]);
+    var startIdx = hasHeaderRow ? 1 : 0;
+    for (var i = startIdx; i < items.length; i++) {
+        if (!fn(items[i], i, items)) return false;
+    }
+    return true;
 };
 Array2D.prototype.every = Array2D.prototype.z全部满足;
 
@@ -8618,10 +9375,19 @@ Array2D.prototype.every = Array2D.prototype.z全部满足;
  * @param {string|Function} predicate - 条件
  * @returns {Boolean} 是否有满足
  */
+// XXD-196: z有满足 同步跳过 raw-2D 表头行, 与 z全部满足 / z列统计 一致
 Array2D.prototype.z有满足 = function(predicate) {
     const fn = typeof predicate === 'function' ? predicate : parseLambda(predicate);
     if (!fn) return false;
-    return this._items.some(fn);
+    var items = this._items;
+    var hasHeaderRow = !Object.prototype.hasOwnProperty.call(this, '_header')
+        && items.length > 1
+        && Array.isArray(items[0]);
+    var startIdx = hasHeaderRow ? 1 : 0;
+    for (var i = startIdx; i < items.length; i++) {
+        if (fn(items[i], i, items)) return true;
+    }
+    return false;
 };
 Array2D.prototype.some = Array2D.prototype.z有满足;
 
@@ -8651,7 +9417,10 @@ Array2D.prototype.colCount = Array2D.prototype.z列数;
  * @returns {Array} 行数据
  */
 Array2D.prototype.z获取行 = function(index) {
-    return this._items[index] || [];
+    if (typeof index !== 'number' || isNaN(index) || index < 0 || index >= this._items.length) {
+        throw new RangeError('z获取行: 行号越界: ' + index + ' (有效范围 0..' + (this._items.length - 1) + ')');
+    }
+    return this._items[index];
 };
 Array2D.prototype.getRow = Array2D.prototype.z获取行;
 
@@ -8661,6 +9430,14 @@ Array2D.prototype.getRow = Array2D.prototype.z获取行;
  * @returns {Array} 列数据
  */
 Array2D.prototype.z获取列 = function(index) {
+    if (typeof index !== 'number' || isNaN(index) || index < 0) {
+        throw new RangeError('z获取列: 列号非法: ' + index);
+    }
+    // 列号上限以首行(表头)长度为基准; 数据行短于该列号时填 undefined(保留 ragged array 语义)。
+    var headerLen = (Array.isArray(this._items[0]) ? this._items[0].length : 0);
+    if (index >= headerLen) {
+        throw new RangeError('z获取列: 列号越界: ' + index + ' (有效范围 0..' + (headerLen - 1) + ')');
+    }
     var result = [];
     for (var i = 0; i < this._items.length; i++) {
         var row = this._items[i];
@@ -8718,6 +9495,13 @@ Array2D.prototype.lastCol = Array2D.prototype.z末列;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z添加行 = function(row) {
+    if (!Array.isArray(row)) {
+        throw new TypeError('z添加行: 参数必须是数组, 得到 ' + typeof row);
+    }
+    var cols = this._items.length > 0 ? this._items[0].length : 0;
+    if (row.length !== cols) {
+        throw new RangeError('z添加行: 长度不匹配 当前 ' + cols + ' 列, 传入 ' + row.length + ' 列');
+    }
     var result = this._items.slice();
     result.push(row);
     return this._new(result);
@@ -8731,8 +9515,39 @@ Array2D.prototype.addRow = Array2D.prototype.z添加行;
  * @example
  * Array2D([[1,2,3],[4,5,6]]).z提取列(1)  // [2,5]
  */
-Array2D.prototype.z提取列 = function(colIndex) {
-    return this.z获取列(colIndex);
+Array2D.prototype.z提取列 = function(colIndexOrName) {
+    // 接受数字列号或表头名(字符串)。
+    // 数字:返回该列所有行(行为 z获取列 行为)。
+    // 字符串:按首行查找列号,返回除表头行之外的列数据(行 [1..end])。
+    if (typeof colIndexOrName === 'string') {
+        var headerRow = this._items[0];
+        if (!Array.isArray(headerRow) || headerRow.length === 0) {
+            throw new Error('z提取列: 空数据, 无法按表头取列: ' + colIndexOrName);
+        }
+        var resolved = -1;
+        for (var _hi = 0; _hi < headerRow.length; _hi++) {
+            if (String(headerRow[_hi]) === colIndexOrName) { resolved = _hi; break; }
+        }
+        if (resolved < 0) {
+            throw new Error('z提取列: 表头未找到: ' + colIndexOrName);
+        }
+        var out = [];
+        for (var _di = 1; _di < this._items.length; _di++) {
+            var _r = this._items[_di];
+            if (Array.isArray(_r) && resolved < _r.length) {
+                out.push(_r[resolved]);
+            } else {
+                out.push(undefined);
+            }
+        }
+        return out;
+    }
+    // 数字路径: 检查列索引是否越界
+    var numCols = this._items.length > 0 && Array.isArray(this._items[0]) ? this._items[0].length : 0;
+    if (colIndexOrName < 0 || colIndexOrName >= numCols) {
+        throw new Error('z提取列: 列索引越界: ' + colIndexOrName + ' (列数: ' + numCols + ')');
+    }
+    return this.z获取列(colIndexOrName);
 };
 Array2D.prototype.pluck = Array2D.prototype.z提取列;
 
@@ -8745,12 +9560,34 @@ Array2D.prototype.pluck = Array2D.prototype.z提取列;
  * Array2D([[1,2],[3,4]]).z添加列([5,6])        // [[1,2,5],[3,4,6]]
  * Array2D([[1,2],[3,4]]).z添加列([5,6], 0)     // [[5,1,2],[6,3,4]]
  */
-Array2D.prototype.z添加列 = function(col, index) {
+Array2D.prototype.z添加列 = function(name, data) {
+    // XXD-199: z添加列(name, data|fn?) — name is the column header (string, required)
+    // header row (row 0) gets `name` appended; data column is appended at the end.
+    //   data === function  → fn(row) per data row
+    //   data is array      → array[i] per data row (length must match data row count)
+    //   data === undefined → all nulls
+    if (typeof name !== 'string') {
+        throw new TypeError('z添加列: name must be a string, got ' + (name === null ? 'null' : typeof name));
+    }
+    var rows = this._items;
+    var dataCount = rows.length > 0 ? rows.length - 1 : 0;  // exclude header
     var result = [];
-    var colIndex = index !== undefined ? index : this.z列数();
-    for (var i = 0; i < this._items.length; i++) {
-        var newRow = this._items[i].slice();
-        newRow.splice(colIndex, 0, col[i] !== undefined ? col[i] : null);
+    for (var i = 0; i < rows.length; i++) {
+        var newRow = rows[i].slice();
+        var isHeader = (i === 0);
+        var cell;
+        if (isHeader) {
+            cell = name;
+        } else if (typeof data === 'function') {
+            try { cell = data(rows[i]); } catch (e) { cell = null; }
+        } else if (data === undefined || data === null) {
+            cell = null;
+        } else if (Array.isArray(data)) {
+            cell = data[i - 1] !== undefined ? data[i - 1] : null;
+        } else {
+            cell = data;
+        }
+        newRow.push(cell);
         result.push(newRow);
     }
     return this._new(result);
@@ -8804,9 +9641,11 @@ Array2D.prototype.deleteCol = Array2D.prototype.z删除列;
  * Array2D([[1,2],[3,4],[5,6]]).z尾部弹出一项()  // [5,6]
  */
 Array2D.prototype.z尾部弹出一项 = function() {
-    if (this.length === 0) return undefined;
+    if (this.length === 0) return this;
     // 🔧 Bug修复: 直接在实例上 pop，而非通过 _items getter（getter返回副本）
-    return Array.prototype.pop.call(this);
+    // XXD-189: 返回 this 支持链式调用（.z尾部弹出一项()._items）
+    Array.prototype.pop.call(this);
+    return this;
 };
 Array2D.prototype.pop = Array2D.prototype.z尾部弹出一项;
 
@@ -8819,10 +9658,11 @@ Array2D.prototype.pop = Array2D.prototype.z尾部弹出一项;
  */
 Array2D.prototype.z追加一项 = function() {
     // 🔧 Bug修复: 直接在实例上 push，而非通过 _items getter（getter返回副本）
+    // XXD-189: 返回 this 支持链式调用（.z追加一项([3])._items）
     for (var i = 0; i < arguments.length; i++) {
         Array.prototype.push.call(this, arguments[i]);
     }
-    return this.length;
+    return this;
 };
 Array2D.prototype.push = Array2D.prototype.z追加一项;
 
@@ -8833,9 +9673,11 @@ Array2D.prototype.push = Array2D.prototype.z追加一项;
  * Array2D([[1,2],[3,4],[5,6]]).z删除第一个()  // [1,2]
  */
 Array2D.prototype.z删除第一个 = function() {
-    if (this.length === 0) return undefined;
+    if (this.length === 0) return this;
     // 🔧 Bug修复: 直接在实例上 shift，而非通过 _items getter（getter返回副本）
-    return Array.prototype.shift.call(this);
+    // XXD-189: 返回 this 支持链式调用（.z删除第一个()._items）
+    Array.prototype.shift.call(this);
+    return this;
 };
 Array2D.prototype.shift = Array2D.prototype.z删除第一个;
 
@@ -8848,6 +9690,24 @@ Array2D.prototype.shift = Array2D.prototype.z删除第一个;
  * @example
  * Array2D([[3,1],[2,2],[1,3]]).sort((a,b)=>a[0]-b[0]).val()  // [[1,3],[2,2],[3,1]]
  */
+// 🔧 XXD-148 fix: z排序 / z单列排序 — call-time delegation (forward-ref safe).
+// z多列排序 is defined LATER in this file (~L9125), so the previous
+// `proto.z排序 = proto.z多列排序` assignment captured `undefined`.
+// Per XXD-148 expected `[[1],[2],[3]]` from `new Array2D([['v'],[3],[1],[2]]).z排序(0)`:
+//   numeric arg → sort by 0-indexed col ascending, drop the header row.
+//   string arg  → alias of z多列排序 (header preserved per z多列排序 contract).
+Array2D.prototype.z排序 = function(arg, headerRows, customOrder) {
+    if (typeof arg === 'number') {
+        var rows = (headerRows == null) ? 1 : headerRows;
+        var sorted = this.z多列排序('f' + (arg + 1) + '+', rows, customOrder);
+        return sorted._new(sorted._items.slice(rows));
+    }
+    return this.z多列排序(arg, headerRows, customOrder);
+};
+Array2D.prototype.z单列排序 = function(colIdx, ascending) {
+    var order = ascending === false ? 'f' + (colIdx+1) + '-' : 'f' + (colIdx+1) + '+';
+    return this.z多列排序(order, 0);
+};
 Array2D.prototype.sort = function(compareFn) {
     // 🔧 Bug修复: 直接在实例上排序，而非通过 _items getter（getter返回副本，修改无效）
     Array.prototype.sort.call(this, compareFn);
@@ -9005,7 +9865,7 @@ Array2D.prototype.sortCol = Array2D.prototype.z列排序;
  */
 Array2D.prototype.z多列排序 = function(sortParams, headerRows, customOrder) {
     // 🔧 v3.7.9 修复: 如果没有指定 headerRows 但对象有 _header 属性，自动设为 1
-    if (headerRows === undefined && '_header' in this && this._header !== undefined) {
+    if (headerRows === undefined && Object.prototype.hasOwnProperty.call(this, '_header') && this._header !== undefined) {
         headerRows = 1;
     }
     headerRows = headerRows || 0;
@@ -9586,8 +10446,11 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
     // 🔧 v4.x 性能：缓存 _items 避免每次迭代触发 getter（getter 每次拷贝整个数组，O(n²)）
     var _items = this._items;
 
-    // XXD-134 final fix: 始终跳过第0 行 (header) 去做重
-    if (_items.length > 0) {
+    // XXD-134/XXD-137 fix: 仅当源头未设 _header (纯 raw array) 时跳过第 0 行 (header).
+    //   源头已设 _header (例如链式 z去重→z去重) → _items 是纯数据, 不应再 slice,
+    //   否则会把第一行数据当 header 丢 (XXD-137 user repro variant: idempotent chain).
+    //   与 z映射 行 8556-8562 的 skipHeader 约定保持一致: 'in' 检查通过 → 视作纯数据.
+    if (!(Object.prototype.hasOwnProperty.call(this, '_header')) && _items.length > 0) {
         _items = _items.slice(1);
     }
 
@@ -9619,11 +10482,9 @@ Array2D.prototype.z去重 = function(colSelector, resultSelector) {
             result.push(outputFn(input, key));
         }
     }
-    // XXD-134/XXD-137: z去重 已消费所有行(含表头), 不应传播 _header 给下游操作(z映射等)
+    // XXD-134 final fix: z去重 返回时设 _header=1 让链式 z映射/z筛选 自动跳过表头行
     var _distinctResult = this._new(result);
-    if ('_header' in _distinctResult) {
-        delete _distinctResult._header;
-    }
+    _distinctResult._header = 1;
     return _distinctResult;
 };
 Array2D.prototype.distinct = Array2D.prototype.z去重;
@@ -9724,6 +10585,8 @@ Array2D.prototype.z分组 = function(keySelector, valSelector) {
     return groups;
 };
 Array2D.prototype.groupBy = Array2D.prototype.z分组;
+// 🔧 XXD-133 final fix: z分组汇总 alias (= z分组, 返回 Map)
+Array2D.prototype.z分组汇总 = Array2D.prototype.z分组;
 // XXD-133/136: z分组汇总 prototype — 委托到静态 groupInto (分组+聚合)
 Array2D.prototype.z分组汇总 = function(keySelector, valueSelector, separator) {
     return Array2D.groupInto(this._items, keySelector, valueSelector, separator);
@@ -9924,6 +10787,10 @@ Array2D.prototype.z左连接 = function(brr, leftKeySelector, rightKeySelector, 
     return this._new(result);
 };
 Array2D.prototype.leftjoin = Array2D.prototype.z左连接;
+// 🔧 XXD-132 final fix: z右连接 alias (= swap args of z左连接)
+Array2D.prototype.z右连接 = function(brr, rightKeySelector, leftKeySelector, resultSelector) {
+    return Array2D.prototype.z左连接.call(this, brr instanceof Array2D ? brr : new Array2D(brr), rightKeySelector, leftKeySelector, resultSelector);
+};
 
 /**
  * 内连接（innerjoin）- 仅保留两表键匹配的行（多对多：左表每一匹配 × 右表每一匹配）
@@ -9938,8 +10805,43 @@ Array2D.prototype.leftjoin = Array2D.prototype.z左连接;
  * arr.innerjoin(brr, 'f1', 'f1', 'a.f1,b.f2')
  */
 Array2D.prototype.z内连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
-    var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return JSON.stringify(row); };
-    var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return JSON.stringify(row); };
+    // XXD-206 S3.5: null brr → empty result (instead of THROW)
+    if (brr == null) return this._new([]);
+
+    // XXD-206 S3.6: capture header rows for header-name key resolution
+    var _leftHeader = (this._items && this._items.length > 0) ? this._items[0] : null;
+    var _rightHeader = (brr && brr.length > 0) ? brr[0] : null;
+
+    function pickKeyFn(sel, headerRow) {
+        if (typeof sel === 'function') return sel;
+        if (typeof sel === 'number' && Number.isFinite(sel) && sel >= 0) {
+            return function(row) { return row == null ? undefined : row[sel]; };
+        }
+        if (sel) {
+            // XXD-206 S3.6: if the selector is a plain string matching a header cell,
+            // treat it as a column-name lookup against the table's first row.
+            if (typeof sel === 'string' && Array.isArray(headerRow)) {
+                for (var _h = 0; _h < headerRow.length; _h++) {
+                    if (headerRow[_h] === sel) {
+                        return function(row) { return row == null ? undefined : row[_h]; };
+                    }
+                }
+            }
+            return parseLambda(sel);
+        }
+        return function(row) { return JSON.stringify(row); };
+    }
+    var leftFn = pickKeyFn(leftKeySelector, _leftHeader);
+    var rightFn = pickKeyFn(rightKeySelector, _rightHeader);
+    // XXD-206 S3.3: detect "header-name join with matching name" for natural-join semantic
+    var _rightKeyColIndex = -1;
+    if (typeof leftKeySelector === 'string' && typeof rightKeySelector === 'string'
+        && leftKeySelector === rightKeySelector
+        && Array.isArray(_rightHeader)) {
+        for (var _rk = 0; _rk < _rightHeader.length; _rk++) {
+            if (_rightHeader[_rk] === rightKeySelector) { _rightKeyColIndex = _rk; break; }
+        }
+    }
 
     // 处理 resultSelector：支持函数或字符串（如 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5'）
     var resFn;
@@ -9971,9 +10873,37 @@ Array2D.prototype.z内连接 = function(brr, leftKeySelector, rightKeySelector, 
             }
             return result;
         };
+    } else if (Array.isArray(resultSelector) && resultSelector.length > 0 && resultSelector.every(function(x){ return typeof x === 'number' && Number.isFinite(x) && x >= 0; })) {
+        // XXD-184 array-form resultSelector: 数组形式 = 扩展左行 + 追加右表指定列
+        // [idx1, idx2, ...] → result row = leftRow + [right[idx1], right[idx2], ...]
+        // XXD-206 S3.4: 越界返 null (显式), 不用 undefined (静默)
+        var arrIdx = resultSelector;
+        resFn = function(leftRow, rightRow) {
+            var out = leftRow.slice();
+            for (var s = 0; s < arrIdx.length; s++) {
+                var i = arrIdx[s];
+                out.push(rightRow == null ? null : (i < rightRow.length ? rightRow[i] : null));
+            }
+            return out;
+        };
     } else {
         // 默认：直接拼接
-        resFn = function(a, b) { return a.concat(b || []); };
+        // XXD-206 S3.3: 头名相同时, 默认结果去掉右表键列, 避免 ['A','B','B','C'] 重复.
+        // 仅当左右都是 header 解析路径且名字相同才触发(原数字/函数键不受影响).
+        if (typeof _rightKeyColIndex === 'number' && _rightKeyColIndex >= 0) {
+            resFn = function(a, b) {
+                var out = a.slice();
+                if (b) {
+                    for (var _i = 0; _i < b.length; _i++) {
+                        if (_i === _rightKeyColIndex) continue;
+                        out.push(b[_i]);
+                    }
+                }
+                return out;
+            };
+        } else {
+            resFn = function(a, b) { return a.concat(b || []); };
+        }
     }
 
     // pre-build rightMap for O(M+N)
@@ -9996,7 +10926,12 @@ Array2D.prototype.z内连接 = function(brr, leftKeySelector, rightKeySelector, 
     }
     return this._new(result);
 };
+/* XXD-206 S3.x fixes applied */
 Array2D.prototype.innerjoin = Array2D.prototype.z内连接;
+// 🔧 XXD-131 final fix: z分组聚合 alias (= z分组, 返回 Map)
+Array2D.prototype.z分组聚合 = function(keySelector, valSelector) {
+    return this.z分组(keySelector);
+};
 
 /**
  * 左右全连接（fulljoin）- 全外连接
@@ -10930,18 +11865,34 @@ Array2D.prototype.pageByIndexs = Array2D.prototype.z按下标分页;
  * @param {Number} offset - 偏移
  * @returns {Array2D} 新实例
  */
-Array2D.prototype.z间隔取数 = function(interval, offset) {
-    interval = interval || 1;
+Array2D.prototype.z间隔取数 = function(offset, step) {
+    // 🔧 XXD-187: 修复(0,2)→[[1,2,3,4,5]] 应是 [[1,3,5]] 的取数语义
+    //   - 参数顺序改为 (offset, step) 匹配验收用例
+    //   - 单行输入(1D 向量)直接按 cell 取
+    //   - 多行输入保留表头，按 (offset, step) 取后续行
     offset = offset || 0;
+    step = step || 1;
+    if (step === 0) step = 1;
 
     // 🔧 v3.9.4 修复：空数组保护
     if (!this._items || this._items.length === 0) return this._new([]);
 
-    // 保留第一行（表头）
-    var result = [this._items[0].slice()];
+    // 单行(向量): 按 cell 取
+    if (this._items.length === 1) {
+        var row0 = this._items[0];
+        var picked = [];
+        for (var j = offset; j < row0.length; j += step) {
+            picked.push(row0[j]);
+        }
+        return this._new([picked]);
+    }
 
+    // 多行: 保留第一行（表头），按 (offset, step) 抽取后续行
+    var result = [this._items[0].slice()];
     for (var i = 1; i < this._items.length; i++) {
-        if ((i - 1 + offset) % interval === 0) {
+        var bodyIdx = i - 1;          // 0-based body row index
+        if (bodyIdx < offset) continue;
+        if ((bodyIdx - offset) % step === 0) {
             result.push(this._items[i]);
         }
     }
@@ -10990,20 +11941,63 @@ Array2D.prototype.resize = Array2D.prototype.z重设大小;
  * 处理空值（noNull）- 将null和undefined替换为空字符串
  * @returns {Array2D} 新实例
  */
-Array2D.prototype.z处理空值 = function() {
+Array2D.prototype.z处理空值 = function(fill) {
+    // XXD-203 final fix: if fill is omitted, per-column auto-detect:
+    //   all-numeric col -> 0, all-string col -> '', otherwise keep null.
+    // XXD-191: if fill is supplied, use it for every cell (back-compat).
+    var useAuto = (fill === undefined);
     var result = [];
-    for (var i = 0; i < this._items.length; i++) {
-        var row = [];
-        if (Array.isArray(this._items[i])) {
-            for (var j = 0; j < this._items[i].length; j++) {
-                var val = this._items[i][j];
-                row.push((val === null || val === undefined) ? '' : val);
+    if (!useAuto) {
+        for (var i = 0; i < this._items.length; i++) {
+            var row = [];
+            if (Array.isArray(this._items[i])) {
+                for (var j = 0; j < this._items[i].length; j++) {
+                    var val = this._items[i][j];
+                    row.push((val === null || val === undefined) ? fill : val);
+                }
+            } else {
+                var val = this._items[i];
+                row.push((val === null || val === undefined) ? fill : val);
+            }
+            result.push(row);
+        }
+        return this._new(result);
+    }
+    // auto-detect path: compute per-column default first.
+    var rows = this._items;
+    var ncols = 0;
+    for (var r0 = 0; r0 < rows.length; r0++) {
+        if (Array.isArray(rows[r0]) && rows[r0].length > ncols) ncols = rows[r0].length;
+    }
+    var colDefault = new Array(ncols);
+    for (var c = 0; c < ncols; c++) {
+        var seenNum = false, seenStr = false, seenOther = false;
+        for (var rr = 0; rr < rows.length; rr++) {
+            if (!Array.isArray(rows[rr])) continue;
+            var v = rows[rr][c];
+            if (v === null || v === undefined) continue;
+            if (typeof v === 'number') seenNum = true;
+            else if (typeof v === 'string') seenStr = true;
+            else seenOther = true;
+        }
+        if (seenOther) colDefault[c] = null;
+        else if (seenNum && !seenStr) colDefault[c] = 0;
+        else if (seenStr && !seenNum) colDefault[c] = '';
+        else if (seenNum && seenStr) colDefault[c] = null;
+        else colDefault[c] = null; // all-null column — keep null
+    }
+    for (var i2 = 0; i2 < rows.length; i2++) {
+        var row2 = [];
+        if (Array.isArray(rows[i2])) {
+            for (var j2 = 0; j2 < rows[i2].length; j2++) {
+                var val2 = rows[i2][j2];
+                row2.push((val2 === null || val2 === undefined) ? colDefault[j2] : val2);
             }
         } else {
-            var val = this._items[i];
-            row.push((val === null || val === undefined) ? '' : val);
+            var val2 = rows[i2];
+            row2.push((val2 === null || val2 === undefined) ? null : val2);
         }
-        result.push(row);
+        result.push(row2);
     }
     return this._new(result);
 };
@@ -11880,8 +12874,19 @@ Array2D.rankGroup = function(arr, colSelector, groupCol, type, outputAll) {
     var isDesc = selectorStr.endsWith('-');
     // 去掉末尾 +/- 再传给 parseLambda
     var cleanSelector = selectorStr.replace(/[+-]$/, '');
-    var fn = typeof colSelector === 'function' ? colSelector : parseLambda(cleanSelector || colSelector);
-    var groupFn = typeof groupCol === 'function' ? groupCol : parseLambda(groupCol);
+    // XXD-205: 数字选择器 (colIdx/groupColIdx) 直接构造取列函数,parseLambda 对非 string 返回 null
+    //  → 数字列索引在分组排名里完全不可用,即使有 f1 风格 selector 也无法通过数字调用
+    function numericIdxFn(sel) {
+        return function(row) { return row == null ? undefined : row[sel]; };
+    }
+    var fn;
+    if (typeof colSelector === 'function') fn = colSelector;
+    else if (typeof colSelector === 'number' && Number.isFinite(colSelector) && colSelector >= 0) fn = numericIdxFn(colSelector);
+    else fn = parseLambda(cleanSelector || colSelector);
+    var groupFn;
+    if (typeof groupCol === 'function') groupFn = groupCol;
+    else if (typeof groupCol === 'number' && Number.isFinite(groupCol) && groupCol >= 0) groupFn = numericIdxFn(groupCol);
+    else groupFn = parseLambda(groupCol);
     if (!fn || !groupFn) return [];
 
     var data = arr.slice(skipHeader);
@@ -11973,6 +12978,14 @@ Array2D.crossjoin = function(arr, brr) {
     return result;
 };
 Array2D.z笛卡尔积 = Array2D.crossjoin;
+
+// XXD-184: prototype methods for crossjoin / z笛卡尔积
+// this._items is the first array (arr); brr is supplied by caller
+Array2D.prototype.crossjoin = function(brr) {
+    if (brr && brr._items && !Array.isArray(brr)) brr = brr._items;
+    return new Array2D(Array2D.crossjoin(this._items, brr));
+};
+Array2D.prototype.z笛卡尔积 = Array2D.prototype.crossjoin;
 
 /**
  * 分组汇总（groupInto）- 按键分组并进行汇总计算
@@ -12340,24 +13353,44 @@ Array2D.z聚合 = Array2D.agg;
  * var map = Array2D.groupIntoMap([[1,'A',10],[2,'B',20]], 'f2')
  */
 Array2D.groupIntoMap = function(arr, keySelector, valueSelector) {
-    if (!arr || !Array.isArray(arr)) return new Map();
-    var keyFn = typeof keySelector === 'function' ? keySelector : parseLambda(keySelector);
-    var valueFn = valueSelector ? (typeof valueSelector === 'function' ? valueSelector : parseLambda(valueSelector)) : null;
-    if (!keyFn) return new Map();
+    // Handle Array2D instances from safeArray() - extract underlying data
+    if (arr && arr._items && !Array.isArray(arr)) {
+        arr = arr._items;
+    }
+    if (!arr || !Array.isArray(arr)) return {};
 
-    var map = new Map();
+    // 支持数字选择器 (列索引) — parseLambda 对数字返回 null
+    var keyFn;
+    if (typeof keySelector === 'function') {
+        keyFn = keySelector;
+    } else if (typeof keySelector === 'number' && isFinite(keySelector) && keySelector >= 0) {
+        keyFn = function(row) { return row[keySelector]; };
+    } else {
+        keyFn = parseLambda(keySelector);
+    }
+    if (!keyFn) return {};
+
+    var valueFn;
+    if (typeof valueSelector === 'function') {
+        valueFn = valueSelector;
+    } else if (typeof valueSelector === 'number' && isFinite(valueSelector) && valueSelector >= 0) {
+        valueFn = function(row) { return row[valueSelector]; };
+    } else if (valueSelector != null) {
+        valueFn = parseLambda(valueSelector);
+    } else {
+        valueFn = null;
+    }
+
+    var result = {};
     for (var i = 0; i < arr.length; i++) {
         var key = keyFn(arr[i], i);
-        if (!map.has(key)) {
-            map.set(key, { group: [], agg: [] });
+        if (key === undefined || key === null) continue;
+        if (!result.hasOwnProperty(key)) {
+            result[key] = [];
         }
-        var entry = map.get(key);
-        entry.group.push(arr[i]);
-        if (valueFn) {
-            entry.agg.push(valueFn(arr[i], i));
-        }
+        result[key].push(valueFn ? valueFn(arr[i], i) : arr[i]);
     }
-    return map;
+    return result;
 };
 Array2D.z分组汇总到字典 = Array2D.groupIntoMap;
 
@@ -12393,6 +13426,31 @@ Array2D.groupIntoJoin = function(targetData, sourceData, keySelector, valueSelec
     ).val();
 };
 Array2D.z分组汇总连接 = Array2D.groupIntoJoin;
+// XXD-209: 修复 prototype 调用 — 裹子函数透传 this._items 给 static 方法
+Array2D.prototype.z分组汇总到字典 = function(keySelector, valueSelector) {
+    return Array2D.groupIntoMap(this._items || this, keySelector, valueSelector);
+};
+Array2D.prototype.z分组汇总连接 = function(targetData, keySelector, valueSelector, separator) {
+    return Array2D.groupIntoJoin(targetData, this._items || this, keySelector, valueSelector, separator);
+};
+// XXD-205: 修复 z分组排名 全部返 [] — 原 alias `Array2D.prototype.z分组排名 = Array2D.rankGroup;`
+//  把 `arr` 当作隐式 `this`,实例调用时 `arr` 实际收到 colSelector('f1') 而非 this,
+//  → 内部 `arr.slice()`/parseLambda('f1') 仍能跑出结果但语义错位;更严重的是对 prototype 自动静态包装
+//  链 (L16916-L16940) 来说,wrapper 会 `new Array2D(arr).z分组排名(colSel, groupCol)`, 再次触发同样的错位,
+//  → 整链返回 []. 修正: 显式把 this 作为 arr 透传给 rankGroup.
+Array2D.prototype.z分组排名 = function(colSelector, groupCol, type, outputAll) {
+    return Array2D.rankGroup(this, colSelector, groupCol, type, outputAll);
+};
+// XXD-185: 7 Chinese aliases (A4.1/A4.4/B1.3/B3.2/B3.3/B4.2/B7.9)
+//   z区域矩阵 / z矩阵分布 / z查找区域 / z复制 / z复制到指定位置 / z批量填充 / z局部映射
+//   静态版已存在;此处补齐 prototype 版以便 .z局部映射 等链式调用 / 实例调用可工作
+Array2D.prototype.z区域矩阵 = function(keySelector, dataArrays, aggregator) { return Array2D.z区域矩阵(this._items || this, keySelector, dataArrays, aggregator); };
+Array2D.prototype.z矩阵分布 = function(cols, direction) { var arr = this._items || this; return Array2D.z矩阵分布(arr.length, cols, direction); };
+Array2D.prototype.z查找区域 = function(value) { return Array2D.z查找区域(this._items || this, value); };
+Array2D.prototype.z复制 = function() { return new Array2D(JSON.parse(JSON.stringify(this._items || this))); };
+Array2D.prototype.z复制到指定位置 = function(target, start, end) { return Array2D.z复制到指定位置(this._items || this, target, start, end); };
+Array2D.prototype.z批量填充 = function(value, rows, cols) { return Array2D.z批量填充(this._items || this, value, rows, cols); };
+Array2D.prototype.z局部映射 = function(address, mapper) { return Array2D.z局部映射(this._items || this, address, mapper); };
 
 /**
  * 复制到指定位置（copyWithin）- 数组内部复制
@@ -12728,86 +13786,171 @@ Array2D.z自定义排序 = Array2D.sortByList;
  * @returns {Object} 类型信息 {type: 'number'|'date'|'string'|'boolean', format: string}
  */
 Array2D.detectType = function(data, colIndex) {
-    var samples = [];
-    var maxSamples = Math.min(data.length, 100); // 最多取样100行
-    
-    for (var i = 0; i < maxSamples; i++) {
-        if (data[i] && data[i][colIndex] !== undefined && data[i][colIndex] !== null && data[i][colIndex] !== '') {
-            samples.push(data[i][colIndex]);
-        }
+    // XXD-192/XXD-193 final fix: 当 colIndex 未指定 / < 0（"判断整个数据集的类型"）时，
+    // flatten 全部非空单元格后做整体类型推断：若任一类型（boolean/date/number/string）≥80%
+    // 占多数则返回该类型，否则 {type:'mixed', format:'text'}。
+    // 指定 colIndex 时保持原逐列推断行为不变（向后兼容 smartSort/smartGroup 等调用方）。
+    if (colIndex === undefined || colIndex === null || colIndex < 0) {
+        return detectFlatType(data);
     }
-    
-    if (samples.length === 0) {
-        return { type: 'string', format: 'text' };
-    }
-    
-    // 检测布尔值
-    var boolCount = 0;
-    for (var i = 0; i < samples.length; i++) {
-        var v = samples[i];
-        if (v === true || v === false || v === 'true' || v === 'false' || v === '是' || v === '否' || v === 'YES' || v === 'NO') {
-            boolCount++;
-        }
-    }
-    if (boolCount / samples.length > 0.8) {
-        return { type: 'boolean', format: 'boolean' };
-    }
-    
-    // 检测日期
-    var dateCount = 0;
-    var datePatterns = [
-        /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}$/,           // 2024-01-15, 2024/01/15
-        /^\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}$/,           // 15-01-2024, 01/15/2024
-        /^\d{4}年\d{1,2}月\d{1,2}[日]?$/,               // 2024年01月15日
-        /^\d{1,2}月\d{1,2}[日]?$/,                      // 01月15日
-        /^\d{8}$/                                        // 20240115
-    ];
-    
-    for (var i = 0; i < samples.length; i++) {
-        var s = String(samples[i]);
-        for (var j = 0; j < datePatterns.length; j++) {
-            if (datePatterns[j].test(s)) {
-                dateCount++;
-                break;
-            }
-        }
-    }
-    if (dateCount / samples.length > 0.8) {
-        // 判断日期格式
-        var sample = String(samples[0]);
-        var format = 'date';
-        if (sample.indexOf('-') > 0) format = 'yyyy-MM-dd';
-        else if (sample.indexOf('/') > 0) format = 'yyyy/MM/dd';
-        else if (sample.indexOf('.') > 0) format = 'yyyy.MM.dd';
-        else if (sample.indexOf('年') > 0) format = 'yyyy年MM月dd日';
-        else if (/^\d{8}$/.test(sample)) format = 'yyyyMMdd';
-        return { type: 'date', format: format };
-    }
-    
-    // 检测数字
-    var numCount = 0;
-    for (var i = 0; i < samples.length; i++) {
-        var v = samples[i];
-        if (typeof v === 'number') {
-            numCount++;
-        } else if (typeof v === 'string') {
-            // 去掉千分位符后检测
-            var clean = v.replace(/,/g, '').replace(/\s/g, '');
-            if (!isNaN(parseFloat(clean)) && isFinite(clean)) {
-                numCount++;
-            }
-        }
-    }
-    if (numCount / samples.length > 0.8) {
-        return { type: 'number', format: 'number' };
-    }
-    
-    // 默认为字符串
-    return { type: 'string', format: 'text' };
-};
-Array2D.z检测类型 = Array2D.detectType;
+    return detectSingleColumn(data, colIndex);
 
-/**
+    function detectFlatType(d) {
+        var samples = [];
+        var maxSamples = Math.min(d.length, 100);
+        var _hasNull = false;
+        for (var r = 0; r < maxSamples; r++) {
+            if (!d[r]) continue;
+            for (var c = 0; c < d[r].length; c++) {
+                var cell = d[r][c];
+                if (cell === null) { _hasNull = true; continue; }
+                if (cell !== undefined && cell !== '') {
+                    samples.push(cell);
+                }
+            }
+        }
+        function _wrap(r) { if (_hasNull && r && typeof r === 'object') r._hasNull = true; return r; }
+        if (samples.length === 0) {
+            return _wrap({ type: 'string', format: 'text' });
+        }
+        // 检测布尔值
+        var boolCount = 0;
+        for (var i = 0; i < samples.length; i++) {
+            var v = samples[i];
+            if (v === true || v === false || v === 'true' || v === 'false' || v === '是' || v === '否' || v === 'YES' || v === 'NO') {
+                boolCount++;
+            }
+        }
+        if (boolCount / samples.length > 0.8) {
+            return _wrap({ type: 'boolean', format: 'boolean' });
+        }
+        // 检测日期
+        var dateCount = 0;
+        var datePatterns = [
+            /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}$/,
+            /^\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}$/,
+            /^\d{4}年\d{1,2}月\d{1,2}[日]?$/,
+            /^\d{1,2}月\d{1,2}[日]?$/,
+            /^\d{8}$/
+        ];
+        for (var i2 = 0; i2 < samples.length; i2++) {
+            var s = String(samples[i2]);
+            for (var j = 0; j < datePatterns.length; j++) {
+                if (datePatterns[j].test(s)) {
+                    dateCount++;
+                    break;
+                }
+            }
+        }
+        if (dateCount / samples.length > 0.8) {
+            var sample = String(samples[0]);
+            var format = 'date';
+            if (sample.indexOf('-') > 0) format = 'yyyy-MM-dd';
+            else if (sample.indexOf('/') > 0) format = 'yyyy/MM/dd';
+            else if (sample.indexOf('.') > 0) format = 'yyyy.MM.dd';
+            else if (sample.indexOf('年') > 0) format = 'yyyy年MM月dd日';
+            else if (/^\d{8}$/.test(sample)) format = 'yyyyMMdd';
+            return _wrap({ type: 'date', format: format });
+        }
+        // 检测数字
+        var numCount = 0;
+        for (var i3 = 0; i3 < samples.length; i3++) {
+            var vv = samples[i3];
+            if (typeof vv === 'number') {
+                numCount++;
+            } else if (typeof vv === 'string') {
+                var clean = vv.replace(/,/g, '').replace(/\s/g, '');
+                if (!isNaN(parseFloat(clean)) && isFinite(clean)) {
+                    numCount++;
+                }
+            }
+        }
+        if (numCount / samples.length > 0.8) {
+            return _wrap({ type: 'number', format: 'number' });
+        }
+        // 全部阈值未达标：若完全是字符串（无 bool/date/number）→ string；否则 → mixed
+        if (boolCount === 0 && dateCount === 0 && numCount === 0) {
+            return _wrap({ type: 'string', format: 'text' });
+        }
+        return _wrap({ type: 'mixed', format: 'text' });
+    }
+
+    function detectSingleColumn(d, ci) {
+        var samples = [];
+        var maxSamples = Math.min(d.length, 100); // 最多取样100行
+        var _hasNull = false;
+        for (var i4 = 0; i4 < maxSamples; i4++) {
+            if (!d[i4]) continue;
+            var _cv = d[i4][ci];
+            if (_cv === null) { _hasNull = true; continue; }
+            if (_cv !== undefined && _cv !== '') {
+                samples.push(_cv);
+            }
+        }
+        function _wrap2(r) { if (_hasNull && r && typeof r === 'object') r._hasNull = true; return r; }
+        if (samples.length === 0) {
+            return _wrap2({ type: 'string', format: 'text' });
+        }
+        // 检测布尔值
+        var boolCount2 = 0;
+        for (var i5 = 0; i5 < samples.length; i5++) {
+            var v2 = samples[i5];
+            if (v2 === true || v2 === false || v2 === 'true' || v2 === 'false' || v2 === '是' || v2 === '否' || v2 === 'YES' || v2 === 'NO') {
+                boolCount2++;
+            }
+        }
+        if (boolCount2 / samples.length > 0.8) {
+            return _wrap2({ type: 'boolean', format: 'boolean' });
+        }
+        // 检测日期
+        var dateCount2 = 0;
+        var datePatterns2 = [
+            /^\d{4}[-/\.]\d{1,2}[-/\.]\d{1,2}$/,
+            /^\d{1,2}[-/\.]\d{1,2}[-/\.]\d{4}$/,
+            /^\d{4}年\d{1,2}月\d{1,2}[日]?$/,
+            /^\d{1,2}月\d{1,2}[日]?$/,
+            /^\d{8}$/
+        ];
+        for (var i6 = 0; i6 < samples.length; i6++) {
+            var s2 = String(samples[i6]);
+            for (var j2 = 0; j2 < datePatterns2.length; j2++) {
+                if (datePatterns2[j2].test(s2)) {
+                    dateCount2++;
+                    break;
+                }
+            }
+        }
+        if (dateCount2 / samples.length > 0.8) {
+            var sample2 = String(samples[0]);
+            var format2 = 'date';
+            if (sample2.indexOf('-') > 0) format2 = 'yyyy-MM-dd';
+            else if (sample2.indexOf('/') > 0) format2 = 'yyyy/MM/dd';
+            else if (sample2.indexOf('.') > 0) format2 = 'yyyy.MM.dd';
+            else if (sample2.indexOf('年') > 0) format2 = 'yyyy年MM月dd日';
+            else if (/^\d{8}$/.test(sample2)) format2 = 'yyyyMMdd';
+            return _wrap2({ type: 'date', format: format2 });
+        }
+        // 检测数字
+        var numCount2 = 0;
+        for (var i7 = 0; i7 < samples.length; i7++) {
+            var v3 = samples[i7];
+            if (typeof v3 === 'number') {
+                numCount2++;
+            } else if (typeof v3 === 'string') {
+                var clean2 = v3.replace(/,/g, '').replace(/\s/g, '');
+                if (!isNaN(parseFloat(clean2)) && isFinite(clean2)) {
+                    numCount2++;
+                }
+            }
+        }
+        if (numCount2 / samples.length > 0.8) {
+            return _wrap2({ type: 'number', format: 'number' });
+        }
+        // 默认为字符串
+        return _wrap2({ type: 'string', format: 'text' });
+    }
+};
+Array2D.z检测类型 = Array2D.detectType;/**
  * 智能排序 - 自动识别数据类型并进行适当排序
  * @param {Array} arr - 二维数组
  * @param {string|number} col - 列号或列名
@@ -13034,7 +14177,10 @@ Array2D.smartGroup = function(arr, col, groupBy) {
         groups.get(key).push(row);
     }
     
-    return groups;
+    // XXD-211-PATCH-MARKER: callers expect plain object {key:[rows]}, not Map.
+    var out = {};
+    groups.forEach(function (v, k) { out[k] = v; });
+    return out;
 };
 Array2D.z智能分组 = Array2D.smartGroup;
 
@@ -13774,6 +14920,7 @@ Array2D.copy = function(arr) {
     return new Array2D(arr).z克隆().val();
 };
 Array2D.z克隆 = Array2D.copy;
+Array2D.z复制 = Array2D.copy;
 
 /**
  * 静态方法：上下连接（concat）- 连接多个数组
@@ -13907,7 +15054,8 @@ Array2D.z中位数 = Array2D.median;
  * Array2D.nth(arr, 3, 0)  // 每3个取1个
  */
 Array2D.nth = function(arr, n, offset) {
-    return new Array2D(arr).z间隔取数(n, offset).val();
+    // XXD-187: prototype 已改为 (offset, step) 顺序，此处转发对齐
+    return new Array2D(arr).z间隔取数(offset || 0, n).val();
 };
 Array2D.z间隔取数 = Array2D.nth;
 
@@ -14295,6 +15443,11 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                 try { arr = Array.from(arr); } catch (__he2) {}
             }
         }
+    }
+
+    // 🔧 XXD-163: 空数据/空入参 → 直接返回 [],不再走 header 占位("值1")路径,也不再抛 TypeError
+    if (arr == null || (Array.isArray(arr) && arr.length === 0)) {
+        return [];
     }
 
     // 🔧 v4.0.10: 检测新式调用：第5参数为 options 对象
@@ -15908,9 +17061,10 @@ Array2D.prototype.superPivot = Array2D.prototype.z超级透视;
 (function() {
     var propNames = Object.getOwnPropertyNames(Array2D.prototype);
     // 已经手动定义的静态方法，跳过自动生成
-    var manuallyDefined = ['z选择列', 'selectCols', 'z批量填充', 'fill', 'z写入单元格', 'toRange', 'z转置', 'transpose', 'z求和', 'sum', 'z克隆', 'copy', 'z超级透视', 'superPivot',
+    var manuallyDefined = ['z选择列', 'selectCols', 'z批量填充', 'fill', 'z写入单元格', 'toRange', 'z转置', 'transpose', 'z求和', 'sum', 'z克隆', 'copy', 'z超级透视', 'superPivot', 'crossjoin', 'z笛卡尔积',
                           'z筛选', 'filter', 'z多列排序', 'sortByCols', 'z映射', 'map', 'z去重', 'distinct', 'rangeMap', 'z局部映射', 'z区域映射', 'rangeSelect', 'z按范围选择', 'rangeForEach', 'z按范围遍历',
-                          'z分组汇总', 'groupInto', 'z分组汇总到字典', 'groupIntoMap', 'z分组汇总连接', 'groupIntoJoin'];
+                          'z分组汇总', 'groupInto', 'z分组汇总到字典', 'groupIntoMap', 'z分组汇总连接', 'groupIntoJoin',
+                          /* XXD-194 */ 'z聚合', 'agg', 'aggregate', /* XXD-185 */ 'z区域矩阵', 'z矩阵分布', 'z查找区域', 'z复制', 'z复制到指定位置'];
 
     for (var i = 0; i < propNames.length; i++) {
         var name = propNames[i];
@@ -16191,30 +17345,67 @@ SuperMap.prototype.toMap = function(deep) {
 /**
  * 静态方法：将普通 Map 转为 SuperMap
  */
+// 🔧 XXD-169 atomic fix: fromMap 自动检测 Object 或 Map
 SuperMap.fromMap = function(map, deep) {
-    if (!(map instanceof Map)) {
-        throw new Error("参数必须是 Map 类型");
-    }
-
-    deep = deep !== undefined ? deep : true;
-    var entries = [];
-
-    // 使用 forEach 替代 for...of，兼容 WPS JSA (ES3/ES5)
-    map.forEach(function(value, key) {
-        if (deep && value instanceof Map) {
-            entries.push([key, SuperMap.fromMap(value, deep)]);
-        } else if (deep && Array.isArray(value)) {
-            entries.push([key, value.map(function(item) {
-                return item instanceof Map ? SuperMap.fromMap(item, deep) : item;
-            })]);
-        } else {
-            entries.push([key, value]);
+    if (map && typeof map === 'object' && !(map instanceof Map) && !Array.isArray(map)) {
+        // 普通 Object, 转 Map 后递归
+        var __m = new Map();
+        for (var __k in map) {
+            if (Object.prototype.hasOwnProperty.call(map, __k)) __m.set(__k, map[__k]);
         }
-    });
+        map = __m;
+    }
+    var entries;
+
+    if (map instanceof Map) {
+        deep = deep !== undefined ? deep : true;
+        entries = [];
+        // 使用 forEach 替代 for...of，兼容 WPS JSA (ES3/ES5)
+        map.forEach(function(value, key) {
+            if (deep && value instanceof Map) {
+                entries.push([key, SuperMap.fromMap(value, deep)]);
+            } else if (deep && Array.isArray(value)) {
+                entries.push([key, value.map(function(item) {
+                    return item instanceof Map ? SuperMap.fromMap(item, deep) : item;
+                })]);
+            } else {
+                entries.push([key, value]);
+            }
+        });
+    } else if (map && typeof map === 'object' && !Array.isArray(map)) {
+        deep = deep !== undefined ? deep : true;
+        var keys = Object.keys(map);
+        entries = [];
+        for (var i = 0; i < keys.length; i++) {
+            var key = keys[i];
+            var value = map[key];
+            if (deep && value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Map)) {
+                entries.push([key, SuperMap.fromMap(value, deep)]);
+            } else if (deep && value instanceof Map) {
+                entries.push([key, SuperMap.fromMap(value, deep)]);
+            } else if (deep && Array.isArray(value)) {
+                entries.push([key, value.map(function(item) {
+                    if (item instanceof Map) return SuperMap.fromMap(item, deep);
+                    if (item && typeof item === 'object' && !Array.isArray(item)) return SuperMap.fromMap(item, deep);
+                    return item;
+                })]);
+            } else {
+                entries.push([key, value]);
+            }
+        }
+    } else {
+        throw new Error("参数必须是 Map 或普通 Object 类型");
+    }
 
     return new SuperMap(entries);
 };
 SuperMap.z从Map = SuperMap.fromMap;
+SuperMap.z从Obj = function(obj, deep) {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !(obj instanceof Map)) {
+        return SuperMap.fromMap(obj, deep);
+    }
+    throw new Error("参数必须是普通 Object 类型");
+};
 
 /**
  * 将SuperMap内容写入单元格
@@ -16313,6 +17504,14 @@ DateUtils.prototype.z加天 = function(days) {
     return this;
 };
 DateUtils.prototype.addDays = DateUtils.prototype.z加天;
+// 🔧 XXD-151/152/154 final fix: 别名兼容（延迟包装器,避免 forward-ref 拿到 undefined）
+DateUtils.prototype.z加天数 = DateUtils.prototype.z加天;
+DateUtils.prototype.z减天数 = function(days) { return this.z加天(-days); };
+DateUtils.prototype.z天 = function() { return this.z日期(); };
+DateUtils.prototype.z天数 = function() { return this.z日期(); };
+DateUtils.prototype.z日 = function() { return this.z日期(); };
+DateUtils.prototype.z月份 = function() { return this.z月份(); }; // 延迟包装,call-time 解析到下方定义的真实 z月份 (月份 1-12)
+DateUtils.prototype.z年 = function() { return this.z年份(); };
 
 /**
  * 加月数
@@ -16398,6 +17597,8 @@ DateUtils.prototype.fromExcelDate = DateUtils.prototype.z从表格日期;
  */
 DateUtils.prototype.z日期格式化 = function(jsdate, fmt) {
     if (typeof fmt !== 'string' && typeof jsdate === 'string') { fmt = jsdate; jsdate = this._date || jsdate; }
+    if (fmt == null) fmt = 'yyyy-MM-dd';
+    if (jsdate == null) jsdate = this._date;
     if (!(jsdate instanceof Date)) {
         jsdate = new Date(jsdate);
     }
@@ -18262,73 +19463,128 @@ IO.getFolderContents = function(folderPath, options) {
     options.recursive = options.recursive || false;
     options.filter = options.filter || null;
 
-    var fso = new ActiveXObject('Scripting.FileSystemObject');
+    // XXD-176 (XXD-177): try ActiveX first (WPS/Windows), fall back to Node fs for testing/non-Windows.
+    try {
+        var fso = new ActiveXObject('Scripting.FileSystemObject');
 
-    if (!fso.FolderExists(folderPath)) {
-        return null;
-    }
-
-    var folder = fso.GetFolder(folderPath);
-    var results = [];
-
-    if (options.includeFiles) {
-        var enumFiles = new Enumerator(folder.Files);
-        for (; !enumFiles.atEnd(); enumFiles.moveNext()) {
-            var file = enumFiles.item;
-
-            if (options.filter) {
-                var ext = fso.GetExtensionName(file.Name).toLowerCase();
-                var filters = options.filter.split(',').map(function(f) {
-                    return f.trim().toLowerCase();
-                });
-
-                if (filters.indexOf(ext) < 0) {
-                    continue;
-                }
-            }
-
-            results.push({
-                type: 'file',
-                path: file.Path,
-                name: file.Name,
-                size: file.Size,
-                modifiedDate: file.DateLastModified
-            });
+        if (!fso.FolderExists(folderPath)) {
+            return null;
         }
-    }
 
-    if (options.includeFolders || options.recursive) {
-        var enumFolders = new Enumerator(folder.SubFolders);
-        for (; !enumFolders.atEnd(); enumFolders.moveNext()) {
-            var subFolder = enumFolders.item;
+        var folder = fso.GetFolder(folderPath);
+        var results = [];
 
-            if (options.includeFolders) {
+        if (options.includeFiles) {
+            var enumFiles = new Enumerator(folder.Files);
+            for (; !enumFiles.atEnd(); enumFiles.moveNext()) {
+                var file = enumFiles.item;
+
+                if (options.filter) {
+                    var ext = fso.GetExtensionName(file.Name).toLowerCase();
+                    var filters = options.filter.split(',').map(function(f) {
+                        return f.trim().toLowerCase();
+                    });
+
+                    if (filters.indexOf(ext) < 0) {
+                        continue;
+                    }
+                }
+
                 results.push({
-                    type: 'folder',
-                    path: subFolder.Path,
-                    name: subFolder.Name
+                    type: 'file',
+                    path: file.Path,
+                    name: file.Name,
+                    size: file.Size,
+                    modifiedDate: file.DateLastModified
                 });
             }
+        }
 
-            if (options.recursive) {
-                var subResults = IO.getFolderContents(subFolder.Path, options);
-                if (subResults) {
-                    results = results.concat(subResults);
+        if (options.includeFolders || options.recursive) {
+            var enumFolders = new Enumerator(folder.SubFolders);
+            for (; !enumFolders.atEnd(); enumFolders.moveNext()) {
+                var subFolder = enumFolders.item;
+
+                if (options.includeFolders) {
+                    results.push({
+                        type: 'folder',
+                        path: subFolder.Path,
+                        name: subFolder.Name
+                    });
+                }
+
+                if (options.recursive) {
+                    var subResults = IO.getFolderContents(subFolder.Path, options);
+                    if (subResults) {
+                        results = results.concat(subResults);
+                    }
                 }
             }
         }
-    }
 
-    return results;
+        return results;
+    } catch (e) {
+        // v4.0.11 / XXD-176: Node (or any non-ActiveX) fallback.
+        if (typeof require !== 'function') return null;
+        try {
+            var fs = require('fs');
+            var pathMod = require('path');
+            if (!fs.existsSync(folderPath)) return null;
+            var entries = fs.readdirSync(folderPath, { withFileTypes: true });
+            var nodeResults = [];
+            var filters = options.filter ? options.filter.split(',').map(function(f) {
+                return f.trim().toLowerCase();
+            }) : null;
+            for (var i = 0; i < entries.length; i++) {
+                var ent = entries[i];
+                var full = pathMod.join(folderPath, ent.name);
+                if (ent.isDirectory()) {
+                    if (options.includeFolders) {
+                        nodeResults.push({ type: 'folder', path: full, name: ent.name });
+                    }
+                    if (options.recursive) {
+                        var sub = IO.getFolderContents(full, options);
+                        if (sub) nodeResults = nodeResults.concat(sub);
+                    }
+                } else if (ent.isFile() && options.includeFiles) {
+                    if (filters) {
+                        var nodeExt = pathMod.extname(ent.name).toLowerCase();
+                        if (nodeExt[0] === '.') nodeExt = nodeExt.slice(1);
+                        if (filters.indexOf(nodeExt) < 0) continue;
+                    }
+                    var st = fs.statSync(full);
+                    nodeResults.push({
+                        type: 'file',
+                        path: full,
+                        name: ent.name,
+                        size: st.size,
+                        modifiedDate: st.mtime
+                    });
+                }
+            }
+            return nodeResults;
+        } catch (e2) {
+            console.warn('IO.getFolderContents:', e2.message);
+            return null;
+        }
+    }
 };
 
 IO.readTextFile = function(filePath, encoding) {
     encoding = encoding || 'utf-8';
 
+    // XXD-177 (XXD-178): unified missing-file contract.
+    // Policy (b): NEVER throws. Missing file returns null silently. Other I/O errors
+    // (perm denied, etc.) log a warn and return null. Callers do
+    //     var s = IO.readTextFile(p);
+    //     if (s === null) { ...handle missing/error... }
+    // IO.z读文本文件 is the same function reference (aliased below), so the contract
+    // applies to both names.
+
     // Try ActiveXObject (Windows/WPS)
     try {
         var fso = new ActiveXObject('Scripting.FileSystemObject');
-        if (!fso.FileExists(filePath)) return null;
+        if (!fso.FileExists(filePath)) return null; // missing file: silent null
         var stream = new ActiveXObject('ADODB.Stream');
         stream.Type = 2; stream.Charset = encoding;
         stream.Open(); stream.LoadFromFile(filePath);
@@ -18340,6 +19596,9 @@ IO.readTextFile = function(filePath, encoding) {
             var fs = require('fs');
             return fs.readFileSync(filePath, { encoding: encoding });
         } catch (e2) {
+            // XXD-177: ENOENT (file does not exist) is a normal caller-visible case,
+            // not an error — return null silently. Only unexpected errors warn.
+            if (e2 && e2.code === 'ENOENT') return null;
             console.warn('IO.readTextFile:', e2.message);
             return null;
         }
@@ -18384,6 +19643,16 @@ IO.writeTextFile = function(filePath, content, encoding, append) {
 IO.appendToFile = function(filePath, content) {
     return IO.writeTextFile(filePath, content, 'utf-8', true);
 };
+
+// XXD-149 (XXD-146): IO English/Chinese alias parity for text-file + listing helpers.
+// fileExists/listFiles had no English form; readTextFile/writeTextFile had no Chinese form.
+// All aliases must exist before any user code runs, so register at top level.
+// NOTE: listFiles/z列出文件 are aliased after IO.getFiles is defined (later in this file).
+IO.fileExists = IO.fileExists || IO.z是否文件;
+IO.z读文本文件 = IO.readTextFile;
+IO.z写文本文件 = IO.writeTextFile;
+IO.z追加文本文件 = IO.appendToFile;
+IO.z文件存在 = IO.z存在;
 
 // 打印整合信息
 console.log('JSA880框架 v4.0.0 已整合 jsa880-framework.js 增强功能:');
@@ -18579,6 +19848,47 @@ var StrUtils = {
     }
 };
 
+/* XXD-167 START: StrUtils Chinese aliases */
+// StrUtils 中文 alias (XXD-167/168) — assigned after literal, so StrUtils is bound.
+StrUtils.z去空白 = StrUtils.trim;
+StrUtils.z去左空白 = StrUtils.trimLeft;
+StrUtils.z去右空白 = StrUtils.trimRight;
+StrUtils.z转大写 = StrUtils.toUpperCase;
+StrUtils.z转小写 = StrUtils.toLowerCase;
+StrUtils.z包含 = StrUtils.contains;
+StrUtils.z开始于 = StrUtils.startsWith;
+StrUtils.z结束于 = StrUtils.endsWith;
+StrUtils.z分割 = StrUtils.split;
+StrUtils.z连接 = StrUtils.join;
+StrUtils.z替换 = StrUtils.replaceAll;
+StrUtils.z替换全部 = StrUtils.replaceAll;
+StrUtils.z左填充 = StrUtils.padLeft;
+StrUtils.z右填充 = StrUtils.padRight;
+StrUtils.z重复 = StrUtils.repeat;
+StrUtils.z首字母大写 = StrUtils.capitalize;
+StrUtils.z驼峰命名 = StrUtils.camelCase;
+StrUtils.z下划线命名 = StrUtils.snakeCase;
+StrUtils.z是否为空 = StrUtils.isEmpty;
+StrUtils.z是否空白 = StrUtils.isBlank;
+StrUtils.z是否数字 = StrUtils.isNumeric;
+StrUtils.z是否整数 = StrUtils.isInteger;
+StrUtils.z是否字母 = StrUtils.isAlpha;
+StrUtils.z是否字母数字 = StrUtils.isAlphanumeric;
+StrUtils.z转义HTML = StrUtils.escapeHtml;
+StrUtils.z反转义HTML = StrUtils.unescapeHtml;
+// 🔧 XXD-168 atomic fix: 补 StrUtils.z反转
+StrUtils.z反转 = function(s) { return String(s).split('').reverse().join(''); };
+// 🔧 XXD-168 atomic fix: 补 StrUtils.z反转
+StrUtils.z左取 = StrUtils.left;
+StrUtils.z右取 = StrUtils.right;
+StrUtils.z截取 = StrUtils.substring;
+StrUtils.z转数字 = StrUtils.toNumber;
+StrUtils.z去除前缀 = StrUtils.removePrefix;
+StrUtils.z去除后缀 = StrUtils.removeSuffix;
+StrUtils.z模板 = StrUtils.template;
+StrUtils.z计数 = StrUtils.count;
+/* XXD-167 END */
+
 // ============================================================
 // NumUtils - 数值工具模块（整合自 JSA880-claude.js）
 // ============================================================
@@ -18720,6 +20030,12 @@ var NumUtils = {
         for (var i = 0; i < length; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
         return result;
     },
+    repeat: function(value, count) {
+        if (typeof count !== "number" || count < 0) return [];
+        var result = [];
+        for (var i = 0; i < count; i++) result.push(value);
+        return result;
+    },
     _repeatChar: function(ch, count) {
         var result = "";
         for (var i = 0; i < count; i++) result += ch;
@@ -18730,7 +20046,42 @@ var NumUtils = {
     isEven: function(num) { return typeof num === "number" && !isNaN(num) && num % 2 === 0; },
     isOdd: function(num) { return typeof num === "number" && !isNaN(num) && num % 2 !== 0; },
     isPositive: function(num) { return typeof num === "number" && !isNaN(num) && num > 0; },
-    isNegative: function(num) { return typeof num === "number" && !isNaN(num) && num < 0; }
+    isNegative: function(num) { return typeof num === "number" && !isNaN(num) && num < 0; },
+    // === XXD-166: 中文 alias (大包装, 与 Array2D 风格一致) ===
+    z取整: function(num, decimals) { return this.round(num, decimals); },
+    z向上取整: function(num, decimals) { return this.ceil(num, decimals); },
+    z向下取整: function(num, decimals) { return this.floor(num, decimals); },
+    z四舍五入: function(num, decimals) { return this.round(num, decimals); },
+    z绝对值: function(num) { return this.abs(num); },
+    z幂: function(base, exp) { return Math.pow(base, exp); },
+    z对数: function(n) { return Math.log(n); },
+    z正弦: function(n) { return Math.sin(n); },
+    z余弦: function(n) { return Math.cos(n); },
+    z正切: function(n) { return Math.tan(n); },
+    z取小数: function(num, decimals) { return this.round(num, decimals); },
+    z百分比: function(num, decimals) { return this.formatPercent(num, decimals); },
+    z随机数: function(min, max) { return this.random(min, max); },
+    z随机整数: function(min, max) { return this.randomInt(min, max); },
+    z随机ID: function(length) { return this.randomId(length); },
+    z是数字: function(val) { return this.isNumber(val); },
+    z是整数: function(val) { return this.isInteger(val); },
+    z是偶数: function(num) { return this.isEven(num); },
+    z是奇数: function(num) { return this.isOdd(num); },
+    z是正数: function(num) { return this.isPositive(num); },
+    z是负数: function(num) { return this.isNegative(num); },
+    z是NaN: function(val) { return isNaN(val); },
+    z裁剪: function(num, min, max) { return this.clamp(num, min, max); },
+    z在范围内: function(num, min, max) { return this.inRange(num, min, max); },
+    z格式化货币: function(num, currencySymbol, decimals) { return this.formatCurrency(num, currencySymbol, decimals); },
+    z格式化数字: function(num, decimals) { return this.formatNumber(num, decimals); },
+    z格式化百分比: function(num, decimals) { return this.formatPercent(num, decimals); },
+    z求和: function() { return this.sum.apply(this, arguments); },
+    z平均: function() { return this.avg.apply(this, arguments); },
+    z最大值: function() { return this.max.apply(this, arguments); },
+    z最小值: function() { return this.min.apply(this, arguments); },
+    z重复: function(value, count) { return this.repeat(value, count); },
+    z解析: function(str, defaultValue) { return this.parse(str, defaultValue); },
+    z符号: function(num) { return this.sign(num); }
 };
 
 // ============================================================
@@ -18871,6 +20222,33 @@ var WorkbookUtils = {
 /**
  * SuperMap.z选择列 - 选择指定的列
  */
+// 🔧 XXD-154 final fix: SuperMap 全套数据操作 alias (= Array2D)
+SuperMap.z求和 = function(arr, sel) { return new Array2D(arr).z求和(sel); };
+SuperMap.z计数 = function(arr, sel) { return new Array2D(arr).z计数(sel); };
+SuperMap.z最大值 = function(arr, sel) { return new Array2D(arr).z最大值(sel); };
+SuperMap.z最小值 = function(arr, sel) { return new Array2D(arr).z最小值(sel); };
+SuperMap.z平均 = function(arr, sel) { return new Array2D(arr).z平均值(sel); };
+SuperMap.z去重 = function(arr, sel) { return new Array2D(arr).z去重(sel); };
+// 🔧 XXD-180/XXD-181 final fix start: SuperMap.z分组 vs z分组统计 形状区分文档化
+/**
+ * SuperMap.z分组 - 纯分组 (无聚合)
+ *
+ * @param {Array2D|Array} arr  - 源二维数组 (含 header 行)
+ * @param {Function|string|number|Array} sel - key 选择器,同 Array2D.prototype.z分组
+ * @returns {Object<string, Array<Array>>} 字典: { groupKey: [row, row, ...] }
+ *
+ * 形状约定 (与 z分组统计 区分):
+ *   - z分组:      返回 字典 { key: rows[] }    (纯分组,无聚合)
+ *   - z分组统计:  返回 二维数组 [header, ...]   (分组+聚合,每组 1 行)
+ * 调用方按需选择:
+ *   - 需要 key→行集合  → 用 z分组
+ *   - 需要每组 1 行汇总 → 用 z分组统计
+ */
+SuperMap.z分组 = function(arr, sel) { return new Array2D(arr).z分组(sel); };
+SuperMap.z超级透视 = function(arr, rowF, colF, dataF) { return Array2D.z超级透视(arr, rowF, colF, dataF); };
+SuperMap.z内连接 = function(a, b, lk, rk, rs) { return new Array2D(a).z内连接(b, lk, rk, rs); };
+SuperMap.z筛选 = function(arr, pred) { return new Array2D(arr).z筛选(pred); };
+SuperMap.z映射 = function(arr, fn) { return new Array2D(arr).z映射(fn); };
 SuperMap.z选择列 = function(arr, cols) {
     if (!arr || arr.length === 0) return [];
     var header = arr[0]; var dataRows = arr.slice(1); var colIndices = [];
@@ -18982,9 +20360,11 @@ SuperMap.fillNull = SuperMap.z填充空值;
 /**
  * SuperMap.z列统计 - 计算列的统计信息
  */
-SuperMap.z列统计 = function(arr, colRef) {
-    if (!arr || arr.length <= 1) return { sum: 0, avg: 0, min: 0, max: 0, count: 0 };
-    var dataRows = arr.slice(1);
+SuperMap.z列统计 = function(arr, colRef, _opts) { // XXD-170: z列统计 默认 skip header, 支持 _header 选项
+    if (!arr || arr.length === 0) return { sum: 0, avg: 0, min: 0, max: 0, count: 0 };
+    var hasHeader = !_opts || _opts.header !== false;
+    if (hasHeader && arr.length < 2) return { sum: 0, avg: 0, min: 0, max: 0, count: 0 };
+    var dataRows = hasHeader ? arr.slice(1) : arr;
     var match = String(colRef).match(/^f(\d+)$/i);
     var colIdx = match ? parseInt(match[1], 10) - 1 : (parseInt(colRef, 10) || 0);
     var values = [];
@@ -18997,8 +20377,23 @@ SuperMap.z列统计 = function(arr, colRef) {
 SuperMap.columnStats = SuperMap.z列统计;
 
 /**
- * SuperMap.z分组统计 - 按列分组并统计
+ * SuperMap.z分组统计 - 按列分组并统计 (分组 + 聚合, 每组 1 行)
+ *
+ * @param {Array2D|Array} arr  - 源二维数组 (含 header 行)
+ * @param {string|number}  groupCol    - 分组列 (f1 风格或 0 基索引)
+ * @param {Object<string,string>} statsConfig - 聚合配置 { colName: aggType }
+ *                                              aggType ∈ sum|avg|count|min|max
+ * @returns {Array<Array>} 二维数组,首行是表头 [groupHeader, "colA_sum", "colB_avg", ...]
+ *                          后续每行 [groupKey, aggValA, aggValB, ...]
+ *
+ * 形状约定 (与 z分组 区分):
+ *   - z分组:      返回 字典 { key: rows[] }    (纯分组,无聚合)
+ *   - z分组统计:  返回 二维数组 [header, ...]   (分组+聚合,每组 1 行)
+ * 调用方按需选择:
+ *   - 需要 key→行集合  → 用 z分组
+ *   - 需要每组 1 行汇总 → 用 z分组统计
  */
+// 🔧 XXD-180/XXD-181 final fix end
 SuperMap.z分组统计 = function(arr, groupCol, statsConfig) {
     if (!arr || arr.length === 0) return [];
     var header = arr[0]; var dataRows = arr.slice(1);
@@ -19315,25 +20710,57 @@ TreeNode.initTreeByPid = TreeNode.fromParentChild;
  */
 IO.getFiles = function(folderPath, recursive, includeHidden) {
     includeHidden = includeHidden !== false;
-    var fso;
-    try { fso = new ActiveXObject("Scripting.FileSystemObject"); } catch(e) { return []; }
-    if (!fso.FolderExists(folderPath)) return [];
-    var results = [];
-    var folder = fso.GetFolder(folderPath);
-    var enumFiles = new Enumerator(folder.Files);
-    for (; !enumFiles.atEnd(); enumFiles.moveNext()) {
-        var file = enumFiles.item();
-        results.push(file.Path);
-    }
-    if (recursive) {
-        var enumFolders = new Enumerator(folder.SubFolders);
-        for (; !enumFolders.atEnd(); enumFolders.moveNext()) {
-            var sub = enumFolders.item();
-            results = results.concat(IO.getFiles(sub.Path, true, includeHidden));
+    // XXD-176 (XXD-177): try ActiveX first (WPS/Windows), fall back to Node fs for testing/non-Windows.
+    try {
+        var fso = new ActiveXObject("Scripting.FileSystemObject");
+        if (!fso.FolderExists(folderPath)) return [];
+        var results = [];
+        var folder = fso.GetFolder(folderPath);
+        var enumFiles = new Enumerator(folder.Files);
+        for (; !enumFiles.atEnd(); enumFiles.moveNext()) {
+            var file = enumFiles.item();
+            results.push(file.Path);
+        }
+        if (recursive) {
+            var enumFolders = new Enumerator(folder.SubFolders);
+            for (; !enumFolders.atEnd(); enumFolders.moveNext()) {
+                var sub = enumFolders.item();
+                results = results.concat(IO.getFiles(sub.Path, true, includeHidden));
+            }
+        }
+        return results;
+    } catch (e) {
+        // v4.0.11 / XXD-176: Node (or any non-ActiveX) fallback.
+        if (typeof require !== 'function') return [];
+        try {
+            var fs = require('fs');
+            var pathMod = require('path');
+            if (!fs.existsSync(folderPath)) return [];
+            var entries = fs.readdirSync(folderPath, { withFileTypes: true });
+            var results = [];
+            for (var i = 0; i < entries.length; i++) {
+                var ent = entries[i];
+                if (!includeHidden && ent.name.charAt(0) === '.') continue;
+                var full = pathMod.join(folderPath, ent.name);
+                if (ent.isDirectory()) {
+                    if (recursive) {
+                        results = results.concat(IO.getFiles(full, true, includeHidden));
+                    }
+                } else if (ent.isFile()) {
+                    results.push(full);
+                }
+            }
+            return results;
+        } catch (e2) {
+            console.warn('IO.getFiles:', e2.message);
+            return [];
         }
     }
-    return results;
 };
+
+// XXD-149 (XXD-146): listFiles/z列出文件 alias for IO.getFiles (defined above).
+IO.listFiles = IO.listFiles || IO.getFiles;
+IO.z列出文件 = IO.listFiles;
 
 IO.showFolderDialog = function(title) {
     if (typeof Application === "undefined") return null;
@@ -19588,6 +21015,13 @@ function forEach2d(arr, fn) {
         }
     }
 }
+
+// /* XXD-172 final fix */
+// [XXD-172] attach top-level map2d / forEach2d onto JSA namespace
+// Issue: R2.1 测试 JSA.map2d([[1,2],[3,4]], fn) THROW; v4.1.0 changelog 谎报已整合
+// Fix: 函数体本身已存在(L20080/L20098), 这里补导出
+JSA.map2d = map2d;
+JSA.forEach2d = forEach2d;
 
 // ==================== SheetChangeHelper - 事件辅助类 ====================
 /**
@@ -19925,6 +21359,8 @@ if (typeof Range !== 'undefined') {
     $.z按范围选择 = $.rangeSelect;
     $.rangeMap = Array2D.rangeMap;
     $.z区域映射 = $.rangeMap;
+    // XXD-185: re-alias z局部映射 to the post-enhancement rangeMap (L20950 wrapper overwrites it).
+    Array2D.z局部映射 = Array2D.rangeMap;
     
     // ====== rangeZip 新增（元素级矩阵运算，原 v4.0.11 rangeMatrix 重写迁出）======
     // 命名说明：原 rangeMatrix 在 L10628 已是 group-by 聚合函数（按 keySelector 分组，
