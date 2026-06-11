@@ -2419,8 +2419,24 @@ JSA.z转置 = function(arr) {
         }
         return result;
     }
+    // 行长度一致性检查: 所有行长度必须相同，否则抛错
+    var row0Len = arr[0].length;
+    for (var _ri = 1; _ri < arr.length; _ri++) {
+        if (!Array.isArray(arr[_ri])) {
+            throw new Error('行长度不一致: row[0].len=' + row0Len + ', row[' + _ri + '] 不是数组');
+        }
+        if (arr[_ri].length !== row0Len) {
+            throw new Error('行长度不一致: row[0].len=' + row0Len + ', row[' + _ri + '].len=' + arr[_ri].length);
+        }
+    }
     var rows = arr.length;
-    var cols = arr[0].length;
+    var cols = row0Len;
+    // XXD-227: 验证所有行长度一致，否则抛错
+    for (var k = 1; k < rows; k++) {
+        if (arr[k].length !== cols) {
+            throw new Error('行长度不一致: row[0].len=' + cols + ', row[' + k + '].len=' + arr[k].length);
+        }
+    }
     var result = [];
     for (var j = 0; j < cols; j++) {
         result[j] = [];
@@ -3065,11 +3081,30 @@ JSA.rndInt = JSA.z随机整数;
  * @example
  * JSA.rndIntArray(1, 100, 50) // 生成 50 个 1-100 之间的随机整数
  */
-JSA.z随机整数数组 = function(start, end, n) {
-    n = n || 1;
+JSA.z随机整数数组 = function(p1, p2, p3) {
+    var _n, _min, _max;
+    if (arguments.length === 3) {
+        // Heuristic: if p1 is middle-sized (between p2 and p3), assume (n, min, max)
+        // Otherwise assume (start, end, n) per docstring
+        var sorted = [p1, p2, p3].slice().sort(function(a, b) { return a - b; });
+        if (p1 !== sorted[0] && p1 !== sorted[2]) {
+            // p1 is middle → (n, min, max) order, p1 is count
+            _n = p1; _min = Math.min(p2, p3); _max = Math.max(p2, p3);
+        } else {
+            // p1 is smallest or largest → (start, end, n) order, p3 is count
+            _n = p3; _min = Math.min(p1, p2); _max = Math.max(p1, p2);
+        }
+    } else if (arguments.length === 2) {
+        _n = 1; _min = p1; _max = p2;
+    } else {
+        _n = 1; _min = 0; _max = 1;
+    }
+    // Defensive: ensure min <= max
+    if (_min > _max) { var tmp = _min; _min = _max; _max = tmp; }
+    _n = _n || 1;
     var arr = [];
-    for (var i = 0; i < n; i++) {
-        arr.push(Math.floor(Math.random() * (end - start + 1)) + start);
+    for (var i = 0; i < _n; i++) {
+        arr.push(Math.floor(Math.random() * (_max - _min + 1)) + _min);
     }
     return arr;
 };
@@ -6236,7 +6271,7 @@ function formatArray2DAsJSON(arr) {
 
     // 先将每行转换为JSON token，以便计算显示宽度
     var cellInfos = [];
-    var colCount = arr[0].length;
+    var colCount = Array.isArray(arr[0]) ? arr[0].length : 1;
 
     for (var row = 0; row < arr.length; row++) {
         var rowCells = [];
@@ -8747,17 +8782,6 @@ Array2D.prototype.z筛选 = function(predicate, skipHeader) {
         data = data.slice(skipHeader);
     }
 
-    // 🔧 v4.0.29 诊断: 打印 z筛选 入口参数
-    if (typeof Console !== 'undefined') {
-        try {
-            Console.log('[k/v4.0.29] z筛选 IN: this._items.len=' + (this._items ? this._items.length : 'n/a') +
-                ', data.len=' + (data ? data.length : 'n/a') +
-                ', skipHeader=' + skipHeader +
-                ', pred.t=' + typeof predicate +
-                ', hasFn=' + (typeof predicate === 'function'));
-        } catch (__) {}
-    }
-
     // 处理对象参数形式（增强功能）
     if (predicate && typeof predicate === 'object' && !Array.isArray(predicate)) {
         // XXD-218: {headerName:value} 简写形式 — 按 header 名匹配列值
@@ -8809,13 +8833,6 @@ Array2D.prototype.z筛选 = function(predicate, skipHeader) {
             } else {
                 __proxy['f' + (__fc + 1)] = __cellVal;
             }
-        }
-        // 🔧 v4.0.29 诊断: 打印每行判定结果
-        if (typeof Console !== 'undefined' && __fi < 5) {
-            try {
-                var __p = __proxy;
-                Console.log('[k/v4.0.30] z筛选 row[' + __fi + ']: f1=' + JSON.stringify(__p.f1) + ', f2=' + JSON.stringify(__p.f2) + ', rowLen=' + __p.length);
-            } catch (__) {}
         }
         // XXD-165: 谓词抛错时不再静默吞掉, 记录原始异常并跳过该行(其他行不受影响)
         try {
@@ -9751,6 +9768,10 @@ Array2D.prototype.z按规则升序 = function(keySelector) {
     result.sort(function(a, b) {
         var valA = fn(a);
         var valB = fn(b);
+        // 🔧 XXD-47: null/undefined 排到末尾
+        if (valA == null && valB == null) return 0;
+        if (valA == null) return 1;
+        if (valB == null) return -1;
         if (valA < valB) return -1;
         if (valA > valB) return 1;
         return 0;
@@ -9773,6 +9794,10 @@ Array2D.prototype.z按规则降序 = function(keySelector) {
     result.sort(function(a, b) {
         var valA = fn(a);
         var valB = fn(b);
+        // 🔧 XXD-47: null/undefined 排到末尾
+        if (valA == null && valB == null) return 0;
+        if (valA == null) return 1;
+        if (valB == null) return -1;
         if (valA > valB) return -1;
         if (valA < valB) return 1;
         return 0;
@@ -13449,9 +13474,10 @@ Array2D.groupIntoJoin = function(targetData, sourceData, keySelector, valueSelec
     ).val();
 };
 Array2D.z分组汇总连接 = Array2D.groupIntoJoin;
-// XXD-209: 修复 prototype 调用 — 裹子函数透传 this._items 给 static 方法
+// XXD-209: 修复 prototype 调用 — 裹子函数透传 this._items 给 static 方法，跳过表头行
 Array2D.prototype.z分组汇总到字典 = function(keySelector, valueSelector) {
-    return Array2D.groupIntoMap(this._items || this, keySelector, valueSelector);
+    var items = (this._items || this);
+    return Array2D.groupIntoMap(items.length > 0 ? items.slice(1) : items, keySelector, valueSelector);
 };
 Array2D.prototype.z分组汇总连接 = function(targetData, keySelector, valueSelector, separator) {
     return Array2D.groupIntoJoin(targetData, this._items || this, keySelector, valueSelector, separator);
@@ -16907,7 +16933,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
             } else if (rng && rng.Address) {
                 targetRange = rng;
             } else {
-                Console.log('applyMerges: 无效的Range参数');
+                if (typeof Console !== 'undefined') Console.log('applyMerges: 无效的Range参数');
                 return [];
             }
 
@@ -20483,6 +20509,37 @@ console.log('========================================');
  */
 function TreeNode(name, data) {
     this.name = name || '';
+
+// T2.1: node.id → 返回节点 id（从 data 中取）
+Object.defineProperty(TreeNode.prototype, 'id', {
+    get: function() { return this.data && this.data.id != null ? this.data.id : undefined; },
+    configurable: true
+});
+
+// T2.3: findById — 递归按 id 查找节点
+TreeNode.prototype.findById = function(id) {
+    if (this.data && this.data.id != null && String(this.data.id) === String(id)) return this;
+    for (var i = 0; i < this.children.length; i++) {
+        var r = this.children[i].findById(id);
+        if (r) return r;
+    }
+    return null;
+};
+
+// T2.5: toJSON — 树结构序列化为普通对象
+TreeNode.prototype.toJSON = function() {
+    return {
+        id: this.data ? this.data.id : null,
+        name: this.name,
+        data: this.data,
+        children: (function(arr) {
+            var out = [];
+            for (var i = 0; i < arr.length; i++) out.push(arr[i].toJSON());
+            return out;
+        })(this.children)
+    };
+};
+
     this.data = data || null;
     this.children = [];
     this.parent = null;
