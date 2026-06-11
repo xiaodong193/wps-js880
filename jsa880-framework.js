@@ -3020,54 +3020,96 @@ Array2D.prototype.leftjoin = Array2D.prototype.z左连接;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z左右全连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return JSON.stringify(row); };
-    var resFn = resultSelector || function(a, b) { return a.concat(b || []); };
-
-    var leftKeys = [];
-    var rightKeys = [];
-    var rightMap = Object.create(null);
-
-    for (var i = 0; i < this._items.length; i++) {
-        var key = leftFn(this._items[i], i);
-        if (leftKeys.indexOf(key) === -1) leftKeys.push(key);
+    
+    // 辅助函数：键序列化（用于作为对象key）
+    function serializeKey(k) {
+        if (k === null || k === undefined) return String(k);
+        if (Array.isArray(k)) return k.join('|@|');
+        return String(k);
     }
+    // 辅助函数：键相等比较
+    function keysEqual(k1, k2) {
+        if (k1 === k2) return true;
+        if (Array.isArray(k1) && Array.isArray(k2)) {
+            if (k1.length !== k2.length) return false;
+            for (var ki = 0; ki < k1.length; ki++) {
+                if (k1[ki] !== k2[ki]) return false;
+            }
+            return true;
+        }
+        return String(k1) === String(k2);
+    }
+
+    // 处理 resultSelector：支持函数或字符串（如 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5'）
+    var resFn;
+    if (typeof resultSelector === 'function') {
+        resFn = resultSelector;
+    } else if (typeof resultSelector === 'string' && resultSelector) {
+        var parts = resultSelector.split(/[,，]/).map(function(s) { return s.trim(); });
+        var selectors = parts.map(function(part) {
+            var match = part.match(/^([ab])\.f(\d+)$/i);
+            if (match) {
+                return {
+                    table: match[1].toLowerCase(),
+                    colIndex: parseInt(match[2]) - 1
+                };
+            }
+            return null;
+        }).filter(function(s) { return s !== null; });
+        
+        resFn = function(leftRow, rightRow) {
+            var result = [];
+            for (var s = 0; s < selectors.length; s++) {
+                var sel = selectors[s];
+                var row = sel.table === 'a' ? leftRow : rightRow;
+                if (row && sel.colIndex >= 0 && sel.colIndex < row.length) {
+                    result.push(row[sel.colIndex]);
+                } else {
+                    result.push(null);
+                }
+            }
+            return result;
+        };
+    } else {
+        resFn = function(a, b) { return a.concat(b || []); };
+    }
+
+    var rightMap = {}; // v4.0.11 fix
 
     for (var j = 0; j < brr.length; j++) {
         var key = rightFn(brr[j], j);
-        if (rightKeys.indexOf(key) === -1) rightKeys.push(key);
-        if (!rightMap[key]) rightMap[key] = [];
-        rightMap[key].push(brr[j]);
+        var sk = serializeKey(key);
+        if (!rightMap[sk]) rightMap[sk] = [];
+        rightMap[sk].push(brr[j]);
     }
 
-    var allKeys = [];
-    for (var k = 0; k < leftKeys.length; k++) {
-        if (allKeys.indexOf(leftKeys[k]) === -1) allKeys.push(leftKeys[k]);
-    }
-    for (var k = 0; k < rightKeys.length; k++) {
-        if (allKeys.indexOf(rightKeys[k]) === -1) allKeys.push(rightKeys[k]);
-    }
-
+    var seenLeftKeys = Object.create(null);
     var result = [];
-    for (var i = 0; i < allKeys.length; i++) {
-        var key = allKeys[i];
-        var leftRows = this._items.filter(function(row, idx) { return leftFn(row, idx) === key; });
-        var rightRows = rightMap[key] || [];
-
-        if (leftRows.length > 0 && rightRows.length > 0) {
-            for (var lr = 0; lr < leftRows.length; lr++) {
-                for (var rr = 0; rr < rightRows.length; rr++) {
-                    result.push(resFn(leftRows[lr].slice(), rightRows[rr].slice()));
-                }
-            }
-        } else if (leftRows.length > 0) {
-            for (var lr = 0; lr < leftRows.length; lr++) {
-                result.push(resFn(leftRows[lr].slice(), []));
+    for (var i = 0; i < this._items.length; i++) {
+        var leftKey = leftFn(this._items[i], i);
+        var sk = serializeKey(leftKey);
+        seenLeftKeys[sk] = leftKey;
+        var rightRows = rightMap[sk] || [];
+        if (rightRows.length > 0) {
+            for (var ri = 0; ri < rightRows.length; ri++) {
+                result.push(resFn(this._items[i].slice(), rightRows[ri].slice()));
             }
         } else {
-            for (var rr = 0; rr < rightRows.length; rr++) {
-                result.push(resFn([], rightRows[rr].slice()));
-            }
+            result.push(resFn(this._items[i].slice(), []));
+        }
+    }
+
+    for (var j = 0; j < brr.length; j++) {
+        var rightKey = rightFn(brr[j], j);
+        var sk = serializeKey(rightKey);
+        if (!seenLeftKeys[sk]) {
+            result.push(resFn([], brr[j].slice()));
         }
     }
 
@@ -3167,18 +3209,49 @@ Array2D.prototype.zip = Array2D.prototype.z左右连接;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z排除 = function(brr, leftSelector, rightSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._items ? this._new(this._items.slice()) : this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._items ? this._new(this._items.slice()) : this._new([]);
     var leftFn = leftSelector ? parseLambda(leftSelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightSelector ? parseLambda(rightSelector) : function(row) { return JSON.stringify(row); };
 
-    var rightKeys = [];
+    function keysEqual(k1, k2) {
+        if (k1 === k2) return true;
+        if (Array.isArray(k1) && Array.isArray(k2)) {
+            if (k1.length !== k2.length) return false;
+            for (var ki = 0; ki < k1.length; ki++) {
+                if (k1[ki] !== k2[ki]) return false;
+            }
+            return true;
+        }
+        return String(k1) === String(k2);
+    }
+
+    // 使用 Set 思想，用序列化键去重
+    var rightSet = {}; // v4.0.11 fix: preserve hasOwnProperty
     for (var j = 0; j < brr.length; j++) {
-        rightKeys.push(rightFn(brr[j], j));
+        var key = rightFn(brr[j], j);
+        var sk = Array.isArray(key) ? key.join('|@|') : String(key);
+        rightSet[sk] = key;
+    }
+
+    var rightKeys = [];
+    for (var sk in rightSet) {
+        if (rightSet.hasOwnProperty(sk)) rightKeys.push(rightSet[sk]);
     }
 
     var result = [];
     for (var i = 0; i < this._items.length; i++) {
         var key = leftFn(this._items[i], i);
-        if (rightKeys.indexOf(key) === -1) {
+        var found = false;
+        for (var rk = 0; rk < rightKeys.length; rk++) {
+            if (keysEqual(key, rightKeys[rk])) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
             result.push(this._items[i]);
         }
     }
@@ -3195,22 +3268,49 @@ Array2D.prototype.except = Array2D.prototype.z排除;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z取交集 = function(brr, leftSelector, rightSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftSelector ? parseLambda(leftSelector) : function(row) { return JSON.stringify(row); };
     var rightFn = rightSelector ? parseLambda(rightSelector) : function(row) { return JSON.stringify(row); };
 
-    var rightKeys = [];
-    var rightMap = Object.create(null);
+    function keysEqual(k1, k2) {
+        if (k1 === k2) return true;
+        if (Array.isArray(k1) && Array.isArray(k2)) {
+            if (k1.length !== k2.length) return false;
+            for (var ki = 0; ki < k1.length; ki++) {
+                if (k1[ki] !== k2[ki]) return false;
+            }
+            return true;
+        }
+        return String(k1) === String(k2);
+    }
+
+    // 构建右表去重键集合
+    var rightSet = {}; // v4.0.11 fix: preserve hasOwnProperty
     for (var j = 0; j < brr.length; j++) {
         var key = rightFn(brr[j], j);
-        rightKeys.push(key);
-        if (!rightMap[key]) rightMap[key] = [];
-        rightMap[key].push(brr[j]);
+        var sk = Array.isArray(key) ? key.join('|@|') : String(key);
+        rightSet[sk] = key;
+    }
+
+    var rightKeys = [];
+    for (var sk in rightSet) {
+        if (rightSet.hasOwnProperty(sk)) rightKeys.push(rightSet[sk]);
     }
 
     var result = [];
     for (var i = 0; i < this._items.length; i++) {
         var key = leftFn(this._items[i], i);
-        if (rightKeys.indexOf(key) !== -1) {
+        var found = false;
+        for (var rk = 0; rk < rightKeys.length; rk++) {
+            if (keysEqual(key, rightKeys[rk])) {
+                found = true;
+                break;
+            }
+        }
+        if (found) {
             result.push(this._items[i]);
         }
     }
@@ -3256,16 +3356,27 @@ Array2D.prototype.union = Array2D.prototype.z去重并集;
  * @returns {Array2D} 新实例
  */
 Array2D.prototype.z超级查找 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z内连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return row[0]; };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return row[0]; };
     var resFn = resultSelector || function(a, b) { return a.concat(b || []); };
 
-    // 构建右表查找字典
-    var rightMap = Object.create(null);
+    function serializeKey(k) {
+        return Array.isArray(k) ? k.join('|@|') : String(k);
+    }
+
+    // 构建右表查找字典（使用序列化键）
+    var rightMap = {}; // v4.0.11 fix
+    var rightRawMap = Object.create(null);
     for (var j = 0; j < brr.length; j++) {
         var key = rightFn(brr[j], j);
-        if (!rightMap[key]) {
-            rightMap[key] = brr[j];
+        var sk = serializeKey(key);
+        if (!rightMap[sk]) {
+            rightMap[sk] = brr[j];
+            rightRawMap[sk] = key;
         }
     }
 
@@ -3273,7 +3384,8 @@ Array2D.prototype.z超级查找 = function(brr, leftKeySelector, rightKeySelecto
     for (var i = 0; i < this._items.length; i++) {
         var leftRow = this._items[i];
         var key = leftFn(leftRow, i);
-        var matched = rightMap[key];
+        var sk = serializeKey(key);
+        var matched = rightMap[sk];
         result.push(resFn(leftRow.slice(), matched ? matched.slice() : []));
     }
 
@@ -10509,9 +10621,10 @@ JSA.z人民币大写 = function(n) {
     var integerPart = Math.floor(num);
     var decimalPart = Math.round((num - integerPart) * 100);
 
-    var result = _convertIntegerPart(integerPart, digits, units, bigUnits) + "元";
-
+    var intStr = _convertIntegerPart(integerPart, digits, units, bigUnits);
+    var result;
     if (decimalPart > 0) {
+        result = intStr ? intStr + "元" : "";
         if (decimalPart >= 10) {
             var jiao = Math.floor(decimalPart / 10);
             var fen = decimalPart % 10;
@@ -10520,8 +10633,11 @@ JSA.z人民币大写 = function(n) {
         } else {
             result += digits[decimalPart] + "分";
         }
+    } else if (intStr) {
+        result = intStr + "元整";
     } else {
-        result += "整";
+        // sub-cent amount (e.g. 0.001) rounds to zero at fen precision → "零元整"
+        result = "零元整";
     }
 
     if (n < 0) result += "（负）";
@@ -10531,18 +10647,21 @@ JSA.z人民币大写 = function(n) {
         if (num === 0) return "";
         var result = "";
         var bigUnitIndex = 0;
+        var prevSection = 10000; // sentinel: full-width, no gap
         while (num > 0) {
             var section = num % 10000;
             if (section > 0) {
                 var sectionResult = _convertSection(section, digits, units);
-                result = sectionResult + bigUnits[bigUnitIndex] + result;
+                // Insert 零 when lower section was sparse (<1000) or was a skipped zero
+                var needZero = result !== "" && prevSection < 1000;
+                result = sectionResult + bigUnits[bigUnitIndex] + (needZero ? digits[0] : "") + result;
             }
+            prevSection = section;
             num = Math.floor(num / 10000);
             bigUnitIndex++;
         }
         return result;
     }
-
     function _convertSection(num, digits, units) {
         var result = "";
         var unitIndex = 0;
