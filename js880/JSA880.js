@@ -2455,6 +2455,8 @@ JSA.val = JSA.z转数值;
  */
 JSA.z写入单元格 = function(arr, rng, clearDown) {
     var targetRng = typeof rng === 'string' ? Range(rng) : rng;
+    // XXD-47: null/undefined 守卫 — 公开 API 常接收公式结果（可能为 null）
+    if (!arr || !targetRng) return null;
     var rows = arr.length;
     // 修复：一维数组横向写入，二维数组纵向写入
     var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : arr.length) : 0;
@@ -2683,6 +2685,8 @@ JSA.count = JSA.z计数;
  * @returns {String} 结果
  */
 JSA.z替换 = function(str, find, replaceWith) {
+    // XXD-47: null/undefined 守卫 — 公开 API 常接收公式结果（可能为 null）
+    if (typeof str !== 'string' && !(str instanceof String)) return '';
     return str.split(find).join(replaceWith);
 };
 JSA.replace = JSA.z替换;
@@ -2890,7 +2894,15 @@ JSA.z平均值 = function() {
 JSA.average = JSA.z平均值;
 // 🔧 XXD-153 final fix: JSA.agg / JSA.oadate 别名
 JSA.agg = JSA.agg || function(arr, sel) { return new Array2D(arr).z求和(sel); };
-JSA.oadate = JSA.oadate || function(d) { return new DateUtils(d).z转OADate ? new DateUtils(d).z转OADate() : d.getTime() / 86400000 + 25569; };
+// 🔧 XXD-220 fix: oadate(null) THROW + oadate('2024-06-09') THROW — 防御性处理 null/字符串
+JSA.oadate = JSA.oadate || function(d) {
+    if (d == null) return null;
+    if (typeof d === 'string') d = new Date(d);
+    if (!(d instanceof Date) || isNaN(d.getTime())) return null;
+    return d.getTime() / 86400000 + 25569;
+};
+// 🔧 XXD-222: JSA.fromOADate — oadate 的反函数
+JSA.fromOADate = JSA.fromOADate || function(n) { return new Date((n - 25569) * 86400000); };
 
 /**
  * 模糊匹配
@@ -3079,6 +3091,7 @@ JSA.shuffle = JSA.z随机打乱;
  * @param {Number} ts - 毫秒
  */
 JSA.z延时 = function(ts) {
+    if (ts < 0) throw new RangeError('z延时: 参数不能为负数');
     var start = Date.now();
     while (Date.now() - start < ts) {
         // 等待
@@ -3220,7 +3233,7 @@ JSA.z查找索引 = function(关键字, 数组, 结果列, 模式, 错误值) {
         if (!row) continue;
         var key = row[0];
         var match = 模式 ? (String(key).indexOf(String(关键字)) >= 0) : (key === 关键字);
-        if (match) return row[结果列] !== undefined ? row[结果列] : 错误值;
+        if (match) return row[结果列 - 1] !== undefined ? row[结果列 - 1] : 错误值;
     }
     return 错误值 !== undefined ? 错误值 : null;
 };
@@ -3322,7 +3335,8 @@ JSA.getDecimal = JSA.z取小数;
 JSA.z转公式数组 = function(arr) {
     if (!Array.isArray(arr)) return arr;
     var rows = arr.length;
-    var cols = rows > 0 ? arr[0].length : 0;
+    // XXD-47: 1D 数组的 arr[0] 是标量无 .length — 视为 1 列
+    var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : 1) : 0;
     var result = [];
     for (var i = 0; i < rows; i++) {
         if (Array.isArray(arr[i])) {
@@ -8812,7 +8826,8 @@ Array2D.prototype.z筛选 = function(predicate, skipHeader) {
     }
     var __ret = this._new(result);
     // XXD-165: 将本次调用过程中收集到的谓词异常挂到结果实例上, 便于用户排查
-    if (__errors.length > 0) {
+    // XXD-219: 总是定义 _errors (无错时返回 [], 而非 undefined)
+    {
         try {
             Object.defineProperty(__ret, '_errors', {
                 value: __errors,
@@ -9325,7 +9340,8 @@ Array2D.prototype.map = Array2D.prototype.z映射;
 Array2D.prototype.z归约 = function(callback, initialValue) {
     var callbackFn = typeof callback === 'string' ? parseLambda(callback) : callback;
     if (!callbackFn) throw new TypeError('z归约: callback 无法解析');
-    return arguments.length < 2 ? this._items.reduce(callbackFn) : this._items.reduce(callbackFn, initialValue);
+    var flat = this.z扁平化();
+    return arguments.length < 2 ? flat.reduce(callbackFn) : flat.reduce(callbackFn, initialValue);
 };
 Array2D.prototype.reduce = Array2D.prototype.z归约;
 
@@ -9345,7 +9361,8 @@ Array2D.prototype.reduce = Array2D.prototype.z归约;
 Array2D.prototype.z倒序归约 = function(callback, initialValue) {
     var callbackFn = typeof callback === 'string' ? parseLambda(callback) : callback;
     if (!callbackFn) throw new TypeError('z倒序归约: callback 无法解析');
-    return arguments.length < 2 ? this._items.reduceRight(callbackFn) : this._items.reduceRight(callbackFn, initialValue);
+    var flat = this.z扁平化();
+    return arguments.length < 2 ? flat.reduceRight(callbackFn) : flat.reduceRight(callbackFn, initialValue);
 };
 Array2D.prototype.reduceRight = Array2D.prototype.z倒序归约;
 
@@ -15676,7 +15693,7 @@ Array2D.z超级透视 = function(arr, rowFields, colFields, dataFields, headerRo
                         if (!isNaN(num)) total += num;
                     }
                 }
-                return total;
+                return Math.round(total * 1e10) / 1e10;
             },
             average: function(col) {
                 if (group.length === 0) return 0;
@@ -19701,6 +19718,21 @@ function oadate(oaDate) {
     var epoch = new Date(1899, 11, 30);
     return new Date(epoch.getTime() + oaDate * msPerDay);
 }
+// ============================================================
+// 全局函数 fromOADate() - OA日期转换反函数
+// ============================================================
+
+/**
+ * fromOADate - 将JavaScript Date转换为WPS OA日期数值
+ * @param {Date} date - JavaScript日期对象
+ * @returns {number} OA日期数值
+ */
+function fromOADate(date) {
+    if (!(date instanceof Date) || isNaN(date.getTime())) return 0;
+    var msPerDay = 86400000;
+    var epoch = new Date(1899, 11, 30);
+    return (date.getTime() - epoch.getTime()) / msPerDay;
+}
 
 // ============================================================
 // StrUtils - 字符串工具模块（整合自 JSA880-claude.js）
@@ -19974,7 +20006,7 @@ var NumUtils = {
                 }
             }
         }
-        return total;
+        return Math.round(total * 1e10) / 1e10;
     },
     avg: function(nums) {
         var args = Array.prototype.slice.call(arguments);
