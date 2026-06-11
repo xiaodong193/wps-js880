@@ -3128,11 +3128,50 @@ Array2D.prototype.fulljoin = Array2D.prototype.z左右全连接;
  * arr.leftFulljoin(brr, 'f1', 'f1')
  */
 Array2D.prototype.z一对多连接 = function(brr, leftKeySelector, rightKeySelector, resultSelector) {
+    // 🐛 null 守卫 — 与 z左连接/全连接 对齐
+    if (brr == null) return this._new([]);
+    if (brr instanceof Array2D) brr = brr._items;
+    if (!Array.isArray(brr)) return this._new([]);
     var leftFn = leftKeySelector ? parseLambda(leftKeySelector) : function(row) { return row[0]; };
     var rightFn = rightKeySelector ? parseLambda(rightKeySelector) : function(row) { return row[0]; };
-    var resFn = resultSelector || function(a, b) { return a.concat(b || []); };
+    
+    // 处理 resultSelector：支持函数或字符串（如 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5'）
+    var resFn;
+    if (typeof resultSelector === 'function') {
+        resFn = resultSelector;
+    } else if (typeof resultSelector === 'string' && resultSelector) {
+        // 解析 'a.f1,b.f2' 或 'b.f3,b.f4,b.f5' 这样的字符串
+        var parts = resultSelector.split(/[,，]/).map(function(s) { return s.trim(); });
+        var selectors = parts.map(function(part) {
+            var match = part.match(/^([ab])\.f(\d+)$/i);
+            if (match) {
+                return {
+                    table: match[1].toLowerCase(), // 'a' 或 'b'
+                    colIndex: parseInt(match[2]) - 1 // 0-based 索引
+                };
+            }
+            return null;
+        }).filter(function(s) { return s !== null; });
+        
+        resFn = function(leftRow, rightRow) {
+            var result = [];
+            for (var s = 0; s < selectors.length; s++) {
+                var sel = selectors[s];
+                var row = sel.table === 'a' ? leftRow : rightRow;
+                if (row && sel.colIndex >= 0 && sel.colIndex < row.length) {
+                    result.push(row[sel.colIndex]);
+                } else {
+                    result.push(null);
+                }
+            }
+            return result;
+        };
+    } else {
+        // 默认：直接拼接
+        resFn = function(a, b) { return a.concat(b || []); };
+    }
 
-    var rightMap = Object.create(null);
+    var rightMap = {}; // v4.0.11 fix
     for (var j = 0; j < brr.length; j++) {
         var key = rightFn(brr[j], j);
         if (!rightMap[key]) rightMap[key] = [];
@@ -3140,6 +3179,7 @@ Array2D.prototype.z一对多连接 = function(brr, leftKeySelector, rightKeySele
     }
 
     var result = [];
+    var matchedRightKeys = {}; // v4.0.11: track matched right keys for full join
     for (var i = 0; i < this._items.length; i++) {
         var leftRow = this._items[i];
         var key = leftFn(leftRow, i);
@@ -3147,8 +3187,18 @@ Array2D.prototype.z一对多连接 = function(brr, leftKeySelector, rightKeySele
         if (rightRows.length === 0) {
             result.push(resFn(leftRow.slice(), []));
         } else {
+            matchedRightKeys[key] = true;
             for (var r = 0; r < rightRows.length; r++) {
                 result.push(resFn(leftRow.slice(), rightRows[r].slice()));
+            }
+        }
+    }
+    // v4.0.11: 添加右表独有行（未被匹配的）
+    for (var rk in rightMap) {
+        if (rightMap.hasOwnProperty(rk) && !matchedRightKeys[rk]) {
+            var unmatchedRows = rightMap[rk];
+            for (var u = 0; u < unmatchedRows.length; u++) {
+                result.push(resFn([], unmatchedRows[u].slice()));
             }
         }
     }
@@ -10493,12 +10543,14 @@ JSA.agg = (function _buildAggNS() {
 (function _v161CompatPatch() {
     if (typeof JSA.agg !== 'object' || JSA.agg === null) return;
     // 1) 全局 agg 别名(裸 agg.count(arr) 形式)
+    //    🐛 v4.2.9 fix: 原版用 typeof 检查会被 L19954 老 function agg() 在 with(global) 里污染 global.agg
+    //    强制无条件覆盖 — 用户如需老 function 形式,可用 Array2D.agg(arr, colRef, aggType) 静态方法
     try {
-        if (typeof globalThis !== 'undefined' && typeof globalThis.agg === 'undefined') {
-            globalThis.agg = JSA.agg;
+        if (typeof globalThis !== 'undefined') {
+            globalThis.agg = JSA.agg;  // 强制 namespace 覆盖 function
         }
     } catch (_e1) {
-        try { if (typeof agg === 'undefined') agg = JSA.agg; } catch (_e2) { /* 静默 */ }
+        try { agg = JSA.agg; } catch (_e2) { /* 静默 */ }
     }
     // 2) Array.prototype.f1..f1000 getters(让 arr.f1 / arr.f2 / arr.fN = arr[N-1])
     if (typeof Array !== 'undefined' && Array.prototype && !Array.prototype.__jsaFProxyPatched) {
