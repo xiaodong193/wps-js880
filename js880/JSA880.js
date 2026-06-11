@@ -2564,8 +2564,12 @@ JSA.currentDate = JSA.z当前日期;
  * @returns {Number} 天数 (可负)
  */
 JSA.z日期差 = function(d1, d2) {
+    // 🐛 null/undefined 守卫 — new Date(undefined) 是 Invalid Date, .getTime() 返回 NaN, 结果 NaN
+    if (d1 == null || d2 == null) return null;
     var toMs = function(d) { return d instanceof Date ? d.getTime() : new Date(d).getTime(); };
-    return (toMs(d2) - toMs(d1)) / 86400000;
+    var t1 = toMs(d1), t2 = toMs(d2);
+    if (isNaN(t1) || isNaN(t2)) return null;
+    return (t2 - t1) / 86400000;
 };
 JSA.dateDiff = JSA.z日期差;
 
@@ -2675,7 +2679,10 @@ JSA.toLowerCase = JSA.z转小写;
  * @returns {Number} Excel日期数值
  */
 JSA.z转日期数值 = function(d) {
+    // 🐛 null/undefined 守卫 — 无效输入返回 null 而不是 NaN
+    if (d == null) return null;
     var date = typeof d === 'string' ? new Date(d) : d;
+    if (!(date instanceof Date) || isNaN(date.getTime())) return null;
     var excelEpoch = new Date(1900, 0, 1);
     var msPerDay = 24 * 60 * 60 * 1000;
     return Math.floor((date - excelEpoch) / msPerDay) + 2;
@@ -3114,6 +3121,16 @@ JSA.getNumberArray = JSA.z生成数字序列;  // 旧别名也保留（向后兼
  * @returns {String} 大写
  */
 JSA.z人民币大写 = function(n) {
+    // 🐛 null/undefined/NaN 守卫 — 否则 Math.abs(NaN)=NaN, Math.floor(NaN)=NaN, _convertIntegerPart 崩溃
+    if (n == null || (typeof n === 'number' && isNaN(n))) return "";
+    // 字符串数字 → 强转
+    if (typeof n === 'string') {
+        var _n2 = parseFloat(n.replace(/,/g, ''));
+        if (isNaN(_n2)) return "";
+        n = _n2;
+    } else if (typeof n !== 'number') {
+        return "";
+    }
     var digits = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
     var units = ["", "拾", "佰", "仟"];
     var bigUnits = ["", "万", "亿"];
@@ -3188,6 +3205,10 @@ JSA.rmbdx = JSA.z人民币大写;
  * @returns {Number} 随机整数
  */
 JSA.z随机整数 = function(start, end) {
+    // 🐛 null/NaN 守卫 — 任意一边无效都返回 0
+    if (typeof start !== 'number' || isNaN(start)) return 0;
+    if (typeof end !== 'number' || isNaN(end)) return 0;
+    if (end < start) { var _t = start; start = end; end = _t; }  // 允许 start > end(自动交换)
     return Math.floor(Math.random() * (end - start + 1)) + start;
 };
 JSA.rndInt = JSA.z随机整数;
@@ -3252,6 +3273,8 @@ JSA.shuffle = JSA.z随机打乱;
  * @param {Number} ts - 毫秒
  */
 JSA.z延时 = function(ts) {
+    // 🐛 null/undefined/NaN/非数字 守卫 — 否则 while 死循环或 < 比较抛错
+    if (typeof ts !== 'number' || isNaN(ts)) throw new TypeError('z延时: 参数必须是数字(ms)');
     if (ts < 0) throw new RangeError('z延时: 参数不能为负数');
     var start = Date.now();
     while (Date.now() - start < ts) {
@@ -3268,8 +3291,12 @@ JSA.delay = JSA.z延时;
  * @returns {String|Number} 间隔
  */
 JSA.z日期间隔 = function(d1, d2, format) {
+    // 🐛 null/undefined 守卫 — 否则 .getFullYear() 在 Invalid Date 上抛 TypeError
+    if (d1 == null || d2 == null) return null;
     var date1 = typeof d1 === 'string' ? new Date(d1) : d1;
     var date2 = typeof d2 === 'string' ? new Date(d2) : d2;
+    if (!(date1 instanceof Date) || isNaN(date1.getTime())) return null;
+    if (!(date2 instanceof Date) || isNaN(date2.getTime())) return null;
 
     if (format === 'Y') return date2.getFullYear() - date1.getFullYear();
     if (format === 'M') {
@@ -3508,7 +3535,30 @@ JSA.z转公式数组 = function(arr) {
     }
     return result.join('\n');
 };
-JSA.toExcelArray = JSA.z转公式数组;
+
+JSA.toExcelArray = function(arr) {
+    // XXD-229: return proper 2D array for Excel APIs, not string
+    if (!Array.isArray(arr)) return [arr];
+    // Normalize: ensure all rows are arrays (1D → 2D)
+    return arr.map(function(row) {
+        return Array.isArray(row) ? row : [row];
+    });
+};
+// Alias: z转公式数组 returns string format (for Excel formulas)
+JSA.z转公式数组 = function(arr) {
+    if (!Array.isArray(arr)) return arr;
+    var rows = arr.length;
+    var cols = rows > 0 ? (Array.isArray(arr[0]) ? arr[0].length : 1) : 0;
+    var result = [];
+    for (var i = 0; i < rows; i++) {
+        if (Array.isArray(arr[i])) {
+            result.push(arr[i].join('\t'));
+        } else {
+            result.push(String(arr[i]));
+        }
+    }
+    return result.join('\n');
+};
 
 /**
  * 统一路径分隔符
