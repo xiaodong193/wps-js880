@@ -9613,6 +9613,8 @@ Array2D.prototype.some = Array2D.prototype.z有满足;
  * @returns {Number} 行数
  */
 Array2D.prototype.z行数 = function() {
+    // 🐛 null 守卫 — 空 Array2D 或损坏的 _items 返回 0 而不是抛 TypeError
+    if (!this._items) return 0;
     return this._items.length;
 };
 Array2D.prototype.rowCount = Array2D.prototype.z行数;
@@ -9622,7 +9624,10 @@ Array2D.prototype.rowCount = Array2D.prototype.z行数;
  * @returns {Number} 列数
  */
 Array2D.prototype.z列数 = function() {
-    return this._items.length > 0 && this._items[0] ? this._items[0].length : 0;
+    // 🐛 null 守卫 — 空 Array2D 或损坏的 _items 返回 0 而不是抛 TypeError
+    if (!this._items || this._items.length === 0) return 0;
+    var _row0 = this._items[0];
+    return (_row0 && typeof _row0.length === 'number') ? _row0.length : 0;
 };
 Array2D.prototype.colCount = Array2D.prototype.z列数;
 
@@ -11353,7 +11358,13 @@ Array2D.prototype.leftFulljoin = Array2D.prototype.z一对多连接;
 Array2D.prototype.z左右连接 = function() {
     var arrays = [this._items];
     for (var i = 0; i < arguments.length; i++) {
-        arrays.push(arguments[i]);
+        var _a = arguments[i];
+        // 🐛 null/undefined 守卫 — 跳过无效输入(原版 arr.length 抛 TypeError)
+        if (_a == null) continue;
+        // 支持 Array2D 实例 → 取 _items
+        if (_a instanceof Array2D) arrays.push(_a._items);
+        else if (Array.isArray(_a)) arrays.push(_a);
+        // 其他类型(字符串/数字)→ 跳过(原版会 crash)
     }
 
     var maxRows = 0;
